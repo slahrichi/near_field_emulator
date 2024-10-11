@@ -1,0 +1,14 @@
+__pycache__
+
+*.pkl
+*.pdf
+
+data/
+
+*.png
+*.mp4
+
+results/
+model_checkpoints/
+
+slurm_logs/
