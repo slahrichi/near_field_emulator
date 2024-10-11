@@ -1,0 +1,100 @@
+resim : 1
+
+mlp_real:
+    layers: [1024, 4096]
+    activation: 'relu'
+
+mlp_imag:
+    layers: [1024, 4096]
+    activation: 'relu'
+
+#--------------------------------
+#       General Params
+#--------------------------------
+seed: [True, 1337]
+train: True
+model_id: 'baseline_mse_v3'
+#torch_home: '~/.cache/torch/'
+torch_home: '/develop/pretrained_models'
+
+exp_name: 'Test One'
+
+num_design_params: 9
+
+#--------------------------------
+#       Training Params
+#--------------------------------
+batch_size: 8
+num_epochs: 150
+
+accelerator: 'gpu' 
+gpu_config: [True, [0]]
+
+valid_rate: 1
+
+weights: 
+num_classes: 1
+optimizer: 'ADAM'
+backbone: 'resnet18'
+learning_rate: 1.e-6
+transfer_learn: False
+load_checkpoint: False
+objective_function: 'mse'
+
+freeze_method: False # do we isolate model training?
+pretrain_epochs: 100 # threshold for switching
+
+mcl_params:
+    alpha: 1     #near-field
+    beta: 1     #far-field
+    gamma: 1    #phase
+    delta: 1    #derivatives
+
+#--------------------------------
+#       All paths
+#--------------------------------
+#path_root: '/home/marshall/research/cai_2023'
+path_root: '/develop/'
+path_data: 'data/'
+path_train: 'train/'
+path_valid: 'valid/'
+path_model: 'model_checkpoints/'
+path_results: 'results/'
+path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
+path_resims: 'resims/'
+
+#--------------------------------
+#       Physical Params
+#--------------------------------
+
+#Metasurface simulation
+Nx_metaAtom: 3
+Ny_metaAtom: 3
+Lx_metaAtom: 680.e-9
+Ly_metaAtom: 680.e-9
+
+n_fusedSilica: 1.44
+n_PDMS: 1.4
+n_amorphousSilica: 3.48
+
+h_pillar: 102.e-9
+thickness_pml: 780.e-9
+thickness_fusedSilica: 780.e-9
+thickness_PDMS: 1560.e-9
+
+#General
+wavelength: 1550.e-9
+
+#Fourier propagation
+distance: 10.e-6
+Nxp: 176
+Nyp: 176
+Lxp: 2.04e-6
+Lyp: 2.04e-6
+adaptive: True
+
+#--------------------------------
+#       Datamodule Params
+#--------------------------------
+which: 'CAI'
+n_cpus: 5
