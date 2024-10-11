@@ -10,8 +10,13 @@ import numpy as np #TODO: Needed?
 from typing import Optional
 from torchvision import transforms
 from pytorch_lightning import LightningDataModule
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, DataLoader, Subset
 import pickle
+import yaml
+import torch
+import matplotlib.pyplot as plt
+from utils import parameter_manager
+from pytorch_lightning import seed_everything
 
 #--------------------------------
 # Import: Custom Python Libraries
@@ -28,52 +33,67 @@ class NF_Datamodule(LightningDataModule):
 
         self.params = params.copy()
         self.n_cpus = self.params['n_cpus']
+        self.seed = self.params['seed']
+        self.n_folds = self.params['n_folds']
 
         self.path_data = self.params['path_data']
         self.path_root = self.params['path_root']
         self.path_data = os.path.join(self.path_root,self.path_data)
         logging.debug("datamodule.py - Setting path_data to {}".format(self.path_data))
+        
         self.batch_size = self.params['batch_size']
-       
         self.transform = transform #TODO
+        self.dataset = None
+        self.train = None
+        self.valid = None
+        self.test = None
 
         self.initialize_cpus(self.n_cpus)
 
     def initialize_cpus(self, n_cpus):
-        # Make sure default number of cpus is not more than the system has
+        # Ensure the number of CPUs doesn't exceed the system's capacity
         if n_cpus > os.cpu_count():
             n_cpus = 1
         self.n_cpus = n_cpus 
         logging.debug("NF_DataModule | Setting CPUS to {}".format(self.n_cpus))
 
     def prepare_data(self):
-        pass
+        # if necessary, preprocessing steps could be built in right here
         #preprocess_data.preprocess_data(path = os.path.join(self.path_data, 'raw'))
+        pass
 
     def setup(self, stage: Optional[str] = None):
-        #TODO
-        #train_file = 'preprocessed/cai_data_newInterpolate.pt'
-        #valid_file = None
-        #test_file = None
+        # load the full dataset
         data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
-
-        if stage == "fit" or stage is None:
-            dataset = NF_Dataset(data, self.transform)
-            train_set_size = int(len(dataset)*0.8)
-            valid_set_size = len(dataset) - train_set_size
-            self.train, self.valid = random_split(dataset, [train_set_size, valid_set_size])
-        if stage == "test" or stage is None:
-            #self.test = NF_Dataset(torch.load(os.path.join(self.path_data, test_file)), self.transform)
-            self.test = self.valid
+        self.dataset = NF_Dataset(data, self.transform)
+            
+    def setup_fold(self, train_idx, val_idx):
+        # create subsets for the current fold
+        self.train = Subset(self.dataset, train_idx)
+        self.valid = Subset(self.dataset, val_idx)
 
     def train_dataloader(self):
-        return DataLoader(self.train, batch_size=self.batch_size, num_workers=self.n_cpus, persistent_workers=True, shuffle=True)
+        return DataLoader(self.train,
+                          batch_size=self.batch_size,
+                          num_workers=self.n_cpus,
+                          persistent_workers=True,
+                          shuffle=True
+                        )
 
     def val_dataloader(self):
-        return DataLoader(self.valid, batch_size=self.batch_size, num_workers=self.n_cpus, shuffle=False, persistent_workers=True)
+        return DataLoader(self.valid,
+                          batch_size=self.batch_size,
+                          num_workers=self.n_cpus, 
+                          shuffle=False,
+                          persistent_workers=True
+                        )
 
     def test_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size, num_workers=self.n_cpus, shuffle=False)
+        return DataLoader(self.test,
+                          batch_size=self.batch_size,
+                          num_workers=self.n_cpus,
+                          shuffle=False
+                        )
 
 class NF_Dataset(Dataset):
     def __init__(self, data, transform):
@@ -83,26 +103,24 @@ class NF_Dataset(Dataset):
         self.radii = data['radii']
         self.phases = data['phases']
         self.derivatives = data['derivatives']
-        # various wavelengths, right now we'll just focus on 1550 in y
-        self.all_near_fields = data['all_near_fields']
         
-        # perform reshaping to utimately drop x and z dims
-        temp_nf_1550 = self.all_near_fields['near_fields_1550']
+        # focus on 1550 wavelength in y for now
+        temp_nf_1550 = data['all_near_fields']['near_fields_1550']
         temp_nf_1550 = torch.stack(temp_nf_1550, dim=0) # stack all sample tensors
         temp_nf_1550 = temp_nf_1550.squeeze(1) # remove redundant dimension
         self.near_fields = temp_nf_1550[:, 1, :, :, :] # [num_samples, r/i, 166, 166]
-        
-        #self.transform = ct.per_sample_normalize()
-        self.transform = None
 
     def __len__(self):
         return len(self.near_fields)
 
     def __getitem__(self, idx):
+        near_field = self.near_fields[idx]
+        radius = self.radii[idx].float()
+        
         if self.transform:   
-            return self.transform(self.near_fields[idx]), self.radii[idx].float()
-        else:   
-            return self.near_fields[idx], self.radii[idx].float()
+            near_field = self.transform(near_field)
+        
+        return near_field, radius
         
 def select_data(params):
     if params['which'] == 'NFRP':
@@ -152,11 +170,6 @@ def load_pickle_data(train_path, valid_path, save_path):
 #--------------------------------
 
 if __name__=="__main__":
-    import yaml
-    import torch
-    import matplotlib.pyplot as plt
-    from utils import parameter_manager
-    from pytorch_lightning import seed_everything
 
     logging.basicConfig(level=logging.DEBUG)
     seed_everything(1337)

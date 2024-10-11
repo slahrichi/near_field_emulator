@@ -17,10 +17,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from core import datamodule, model
 
 
-def select_model(pm):
+def select_model(pm, fold_idx=None):
     logging.debug("select_model.py - Selecting model") 
     network = None
-    network = model.FieldResponseModel(pm.params_model)
+    network = model.FieldResponseModel(pm.params_model, fold_idx)
     #network = model.Encoder(pm.params_model)
 
     if pm.load_checkpoint:

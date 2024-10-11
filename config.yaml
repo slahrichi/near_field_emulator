@@ -1,11 +1,11 @@
 resim : 1
 
 mlp_real:
-    layers: [1024, 4096]
+    layers: [2048, 512]
     activation: 'relu'
 
 mlp_imag:
-    layers: [1024, 4096]
+    layers: [2048, 512]
     activation: 'relu'
 
 #--------------------------------
@@ -13,7 +13,7 @@ mlp_imag:
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'setup_test'
+model_id: '5epoch_test'
 #torch_home: '~/.cache/torch/'
 torch_home: '/develop/pretrained_models'
 
@@ -25,7 +25,7 @@ num_design_params: 9
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 2
+num_epochs: 5
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -95,3 +95,4 @@ adaptive: True
 #--------------------------------
 which: 'NFRP' # near-field response prediction
 n_cpus: 5
+n_folds: 5 # number of folds for cross-validation

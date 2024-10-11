@@ -62,6 +62,7 @@ class Parameter_Manager():
             # Load: Datamodule Params
             self._which = params['which']
             self.n_cpus = params['n_cpus']
+            self.n_folds = params['n_folds']
             
             # Load: Physical Params
             self._distance = params['distance']
@@ -154,7 +155,9 @@ class Parameter_Manager():
                                 'n_cpus'        : self.n_cpus,
                                 'path_root'     : self.path_root, 
                                 'path_data'     : self.path_data, 
-                                'batch_size'    : self.batch_size, 
+                                'batch_size'    : self.batch_size,
+                                'n_folds'       : self.n_folds,
+                                'seed'          : self.seed_value,
                                 }
 
         self._params_trainer = {
