@@ -13,7 +13,7 @@ mlp_imag:
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'baseline_mse_v3'
+model_id: 'setup_test'
 #torch_home: '~/.cache/torch/'
 torch_home: '/develop/pretrained_models'
 
@@ -25,7 +25,7 @@ num_design_params: 9
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 150
+num_epochs: 2
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -40,9 +40,6 @@ learning_rate: 1.e-6
 transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
-
-freeze_method: False # do we isolate model training?
-pretrain_epochs: 100 # threshold for switching
 
 mcl_params:
     alpha: 1     #near-field
@@ -96,5 +93,5 @@ adaptive: True
 #--------------------------------
 #       Datamodule Params
 #--------------------------------
-which: 'CAI'
+which: 'NFRP' # near-field response prediction
 n_cpus: 5
