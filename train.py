@@ -10,7 +10,7 @@ import logging
 from sklearn.model_selection import KFold
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.callbacks import ModelCheckpoint, TQDMProgressBar
+from pytorch_lightning.callbacks import ModelCheckpoint, TQDMProgressBar, EarlyStopping
 from pytorch_lightning.callbacks.progress.tqdm_progress import Tqdm
 from pytorch_lightning.plugins.environments import SLURMEnvironment
 
@@ -64,12 +64,26 @@ def run(params):
 
         # Initialize: The logger
         logger = custom_logger.Logger(
-            all_paths=pm.all_paths, name=f"{pm.model_id}_fold{fold_idx}", version=0
+            all_paths=pm.all_paths, name=f"{pm.model_id}_fold{fold_idx + 1}", version=0, fold_idx=fold_idx
         )
 
         # Initialize:  PytorchLighting model checkpoint
         checkpoint_path = os.path.join(pm.path_root, pm.path_model, f"fold{fold_idx}")
-        checkpoint_callback = ModelCheckpoint(dirpath = checkpoint_path)
+        checkpoint_callback = ModelCheckpoint(
+            dirpath = checkpoint_path,
+            save_top_k=1,
+            monitor='val_loss',
+            mode='min',
+            verbose=True
+        )
+        
+        early_stopping = CustomEarlyStopping(
+            monitor='val_loss',
+            patience=pm.patience,
+            min_delta=0.001,
+            mode='min',
+            verbose=True
+        )
     
         logging.debug(f'Checkpoint path: {checkpoint_path}')
         logging.debug('Setting matmul precision to HIGH')
@@ -89,7 +103,7 @@ def run(params):
                               enable_progress_bar=True,
                               enable_model_summary=True,
                               default_root_dir = pm.path_root,
-                              callbacks = [checkpoint_callback, progress_bar],
+                              callbacks = [checkpoint_callback, early_stopping, progress_bar],
                               check_val_every_n_epoch = pm.valid_rate,
                               num_sanity_val_steps = 1,
                               log_every_n_steps=1
@@ -105,7 +119,7 @@ def run(params):
                               enable_model_summary = True,
                               default_root_dir = pm.path_root, 
                               check_val_every_n_epoch = pm.valid_rate,
-                              callbacks = [checkpoint_callback, progress_bar],
+                              callbacks = [checkpoint_callback, early_stopping, progress_bar],
                               num_sanity_val_steps = 1,
                               log_every_n_steps=1
                             )
@@ -128,6 +142,7 @@ def run(params):
     #custom_logger.save_results(fold_results, results_path, pm.model_id)
     
 class CustomProgressBar(TQDMProgressBar):
+    """Custom progress bar that adds fold information"""
     def __init__(self, fold_idx, total_folds):
         super().__init__()
         self.fold_idx = fold_idx
@@ -139,16 +154,66 @@ class CustomProgressBar(TQDMProgressBar):
         # Add fold information
         base_metrics["fold"] = f"{self.fold_idx + 1}/{self.total_folds}"
         return base_metrics
-        
-    '''def init_train_tqdm(self):
-        bar = super().init_train_tqdm()
-        bar.set_description(f"Fold {self.fold_idx + 1}/{self.total_folds} Training")
-        return bar
     
-    def on_train_epoch_start(self, trainer, pl_module):
-        if self.train_progress_bar is not None:
-            self.train_progress_bar.set_description(
-                f"Fold {self.fold_idx + 1}/{self.total_folds} Training Epoch {trainer.current_epoch + 1}"
-            )'''
-
+class CustomEarlyStopping(EarlyStopping):
+    """Custom Early Stopping class for controlling the training loop;  
+    ensuring that we terminate the model after it stops improving.
+    """
+    def __init__(self, monitor='val_loss', patience=5, min_delta=0.01, mode='min', verbose=True):
+        super().__init__(monitor=monitor, patience=patience, min_delta=min_delta, mode=mode, verbose=verbose)
+        self.wait_count = 0
+        self.initial_score = None
+        self.last_epoch_processed = -1
+        
+    def on_validation_epoch_end(self, trainer, pl_module):
+        # only once per epoch
+        if trainer.current_epoch == self.last_epoch_processed:
+            return
+        self.last_epoch_processed = trainer.current_epoch
+        
+        # Get the current score
+        current_score = trainer.callback_metrics[self.monitor]
+        if current_score is None:
+            # Metric not available; do nothing
+            return
+        
+        # Ensure current_score is a float
+        if isinstance(current_score, torch.Tensor):
+            current_score = current_score.item()
+        
+        # set the initial score
+        if self.initial_score is None:
+            self.initial_score = current_score
+            self.wait_count = 0
+            
+        # Calculate total improvement over the patience period
+        if self.mode == 'min':
+            total_improvement = self.initial_score - current_score
+            # total_improvement should be negative to match min_delta    
+            total_improvement = -total_improvement
+        else:  # mode == 'max'
+            total_improvement = current_score - self.initial_score
+            
+        # Ensure total_improvement is a float
+        if isinstance(total_improvement, torch.Tensor):
+            total_improvement = total_improvement.item()
+            
+        #if self.verbose:
+        #    print(f"\nEpoch {trainer.current_epoch}: total_improvement = {total_improvement:.5f}, min_delta = {self.min_delta}\n")
+            
+        # check if total_improvement exceeds min_delta
+        if total_improvement <= self.min_delta:
+            # reset counters
+            self.initial_score = current_score
+            self.wait_count = 0
+            if self.verbose:
+                print(f"\nEpoch {trainer.current_epoch}: Improvement of {total_improvement:.5f} observed; continuing training.\n")
+        else: # didn't improve enough
+            self.wait_count += 1
+            if self.verbose:
+                print(f"\nEpoch {trainer.current_epoch}: No sufficient improvement; wait_count = {self.wait_count}/{self.patience}\n")
+            if self.wait_count >= self.patience:
+                if self.verbose:
+                    print(f"\nEarlyStopping at epoch {trainer.current_epoch}: {self.monitor} did not improve by at least {self.min_delta} over the last {self.patience} epochs.\n")
+                trainer.should_stop = True
     

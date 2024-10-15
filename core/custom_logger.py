@@ -19,30 +19,29 @@ from pytorch_lightning.loggers.logger import rank_zero_experiment
 #--------------------------------
 
 class Writer:
-    def __init__(self, path, name = "loss.csv"):
+    def __init__(self, path, name = "loss.csv", fold_idx=None):
         
         logging.debug("custom_logger.py - Initializing Writer")
 
         self.name = name
         self.path = path
+        self.fold_idx = fold_idx
         self.metrics = []
+        
+        # Add fold-specific paths for good organization
+        if self.fold_idx is not None:
+            self.path_metrics = os.path.join(self.path, f"loss_fold{self.fold_idx+1}.csv")
+            self.path_train = os.path.join(self.path, "train_info", f"fold{self.fold_idx+1}")
+            self.path_valid = os.path.join(self.path, "valid_info", f"fold{self.fold_idx+1}")
+        else:
+            self.path_metrics = os.path.join(self.path, "loss.csv")
+            self.path_train = os.path.join(self.path, "train_info")
+            self.path_valid = os.path.join(self.path, "valid_info")
 
-        # Initialize: Paths 
-
-        self.path_metrics = os.path.join(self.path, self.name)
-        self.path_train = os.path.join(self.path, "train_info")
-        self.path_valid = os.path.join(self.path, "valid_info")
-
-        if(os.path.exists(self.path_valid)):
-            logging.debug("Writer | Removing {}".format(self.path_valid))
-            shutil.rmtree(self.path_valid)
-        if(os.path.exists(self.path_train)):
-            logging.debug("Writer | Removing {}".format(self.path_train))
-            shutil.rmtree(self.path_train)
-
-        os.makedirs(self.path_valid)
-        os.makedirs(self.path_train)
-
+        # Ensure fold-specific directories exist
+        os.makedirs(self.path_valid, exist_ok=True)
+        os.makedirs(self.path_train, exist_ok=True)
+        
     #----------------------------
     # Update: Performance Metrics 
     #----------------------------
@@ -95,7 +94,7 @@ class Writer:
 #--------------------------------
 
 class Logger(Logger):
-    def __init__(self, all_paths, name = "default", version = None, prefix = ""):
+    def __init__(self, all_paths, name = "default", version = None, prefix = "", fold_idx=None):
         super().__init__()
         logging.debug("custom_logger.py - Initializing Logger")
 
@@ -105,6 +104,7 @@ class Logger(Logger):
         self._version = version
         root = all_paths['path_root']
         self._save_dir = os.path.join(root,all_paths['path_results'])
+        self.fold_idx = fold_idx
 
         self.display_paths(all_paths)
         
@@ -215,6 +215,6 @@ class Logger(Logger):
 
         os.makedirs(self.root_dir, exist_ok=True)
 
-        self._experiment = Writer(path = self.log_dir)
+        self._experiment = Writer(path = self.log_dir, fold_idx=self.fold_idx)
 
         return self._experiment

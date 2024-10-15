@@ -1,19 +1,21 @@
 resim : 1
 
 mlp_real:
-    layers: [2048, 512]
+    layers: [64, 128, 512]
     activation: 'relu'
 
 mlp_imag:
-    layers: [2048, 512]
+    layers: [64, 128, 512]
     activation: 'relu'
+
+patch_mlps: False
 
 #--------------------------------
 #       General Params
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: '5epoch_test'
+model_id: 'with_scheduler_v2'
 #torch_home: '~/.cache/torch/'
 torch_home: '/develop/pretrained_models'
 
@@ -25,7 +27,7 @@ num_design_params: 9
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 5
+num_epochs: 100
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -36,10 +38,11 @@ weights:
 num_classes: 1
 optimizer: 'ADAM'
 backbone: 'resnet18'
-learning_rate: 1.e-6
+learning_rate: 1.e-3
 transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
+patience: 9
 
 mcl_params:
     alpha: 1     #near-field

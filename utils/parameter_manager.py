@@ -42,6 +42,7 @@ class Parameter_Manager():
             self.valid_rate = params['valid_rate']
             self.accelerator = params['accelerator']
             self.gpu_flag, self.gpu_list = params['gpu_config']
+            self.patience = params['patience']
 
             # Load: Model Params
             self.weights = params['weights']
@@ -58,6 +59,7 @@ class Parameter_Manager():
             # Load: MLP params
             self._mlp_real = params['mlp_real']
             self._mlp_imag = params['mlp_imag']
+            self._patch_mlps = params['patch_mlps']
 
             # Load: Datamodule Params
             self._which = params['which']
@@ -134,6 +136,7 @@ class Parameter_Manager():
                                 'num_design_params'     : self.num_design_params,
                                 'mlp_real'              : self._mlp_real,
                                 'mlp_imag'              : self._mlp_imag,
+                                'patch_mlps'            : self._patch_mlps,
                                 }
 
              
@@ -163,7 +166,8 @@ class Parameter_Manager():
         self._params_trainer = {
                             'num_epochs'        : self.num_epochs, 
                             'valid_rate'        : self.valid_rate,
-                            'accelerator'       : self.accelerator, 
+                            'accelerator'       : self.accelerator,
+                            'patience'          : self.patience,
                             }
 
         self._params_meep = {

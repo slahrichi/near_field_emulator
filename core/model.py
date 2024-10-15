@@ -12,6 +12,9 @@ from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 from torchvision.models import resnet50, resnet18, resnet34
 import torch.nn as nn
 from pytorch_lightning import LightningModule
+import os
+import pickle
+import math
 
 #--------------------------------
 # Import: Custom Python Libraries
@@ -31,15 +34,30 @@ class FieldResponseModel(LightningModule):
         self.loss_func = self.params['objective_function']
         self.fold_idx = fold_idx
         
-        # Build MLPs based on parameters
-        self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
-        self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
+        # patch test
+        self.patch_mlps = self.params['patch_mlps'] # whether or not to split things up
+        if self.patch_mlps:
+            self.patch_size = 16
+            self.num_patches_height = math.ceil(166 / self.patch_size)
+            self.num_patches_width = math.ceil(166 / self.patch_size)
+            self.num_patches = self.num_patches_height * self.num_patches_width
+            # Build MLPs for each patch
+            self.mlp_real = nn.ModuleList([
+                self.build_mlp(self.num_design_params, self.params['mlp_real']) for _ in range(self.num_patches)
+            ])
+            self.mlp_imag = nn.ModuleList([
+                self.build_mlp(self.num_design_params, self.params['mlp_imag']) for _ in range(self.num_patches)
+        ])
+        else:
+            # Build full MLPs
+            self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
+            self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
         
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
         self.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
-                             'val': {'nf_pred': [], 'nf_truth': []}}
+                             'valid': {'nf_pred': [], 'nf_truth': []}}
         
         # Initialize metrics
         self.train_psnr = PeakSignalNoiseRatio(data_range=1.0)
@@ -47,14 +65,18 @@ class FieldResponseModel(LightningModule):
         self.val_psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.val_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
          
-    def build_mlp(self, input_size, mlp_params):
+    def build_mlp(self, input_size, mlp_params, patches=False):
         layers = []
         in_features = input_size
         for layer_size in mlp_params['layers']:
             layers.append(nn.Linear(in_features, layer_size))
             layers.append(self.get_activation_function(mlp_params['activation']))
             in_features = layer_size
-        layers.append(nn.Linear(in_features, 166 * 166))  # 166x166 near field
+        if self.patch_mlps: # just a single patch
+            output_size = self.patch_size * self.patch_size  
+        else: # 166x166 near field
+            output_size = 166 * 166
+        layers.append(nn.Linear(in_features, output_size))  
         return nn.Sequential(*layers)
         
     def get_activation_function(self, activation_name):
@@ -70,17 +92,77 @@ class FieldResponseModel(LightningModule):
             raise ValueError(f"Unsupported activation function: {activation_name}")
         
     def forward(self, radii):
-        real_output = self.mlp_real(radii)
-        imag_output = self.mlp_imag(radii)
-        
-        # Reshape to image size
-        real_output = real_output.view(-1, 166, 166)
-        imag_output = imag_output.view(-1, 166, 166)
+        # multiple sets of MLPs for our patches
+        if self.patch_mlps:
+            batch_size = radii.size(0)
+            real_patches = []
+            imag_patches = []
+
+            for i in range(self.num_patches):
+                # Real part
+                real_patch = self.mlp_real[i](radii)
+                real_patch = real_patch.view(batch_size, self.patch_size, self.patch_size)
+                real_patches.append(real_patch)
+
+                # Imaginary part
+                imag_patch = self.mlp_imag[i](radii)
+                imag_patch = imag_patch.view(batch_size, self.patch_size, self.patch_size)
+                imag_patches.append(imag_patch)
+
+            # Assemble patches
+            real_output = self.assemble_patches(real_patches, batch_size)
+            imag_output = self.assemble_patches(imag_patches, batch_size)
+
+            # Crop to original size if necessary
+            real_output = real_output[:, :166, :166]
+            imag_output = imag_output[:, :166, :166]
+        else:
+            # grab output directly
+            real_output = self.mlp_real(radii)
+            imag_output = self.mlp_imag(radii)
+            # Reshape to image size
+            real_output = real_output.view(-1, 166, 166)
+            imag_output = imag_output.view(-1, 166, 166)
         
         return real_output, imag_output
         
+    def assemble_patches(self, patches, batch_size):
+        # reshape patches into grid
+        patches_per_row = self.num_patches_width
+        patches_per_col = self.num_patches_height
+        patch_size = self.patch_size
+
+        patches_tensor = torch.stack(patches, dim=1)  # Shape: [batch_size, num_patches, patch_size, patch_size]
+        patches_tensor = patches_tensor.view(
+            batch_size,
+            patches_per_col,
+            patches_per_row,
+            patch_size,
+            patch_size
+        )
+
+        # permute and reshape to assemble the image
+        output = patches_tensor.permute(0, 1, 3, 2, 4).contiguous()
+        output = output.view(
+            batch_size,
+            patches_per_col * patch_size,
+            patches_per_row * patch_size
+        )
+
+        return output 
+        
     def configure_optimizers(self):
-        return torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        scheduler = {
+            'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
+                                                                    factor=0.1, patience=5, 
+                                                                    verbose=True, min_lr=1e-6,
+                                                                    threshold=0.001),
+            'monitor': 'val_loss',
+            'interval': 'epoch',
+            'frequency': 1,
+        }
+        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
     
     def compute_loss(self, preds, labels, choice):
         if choice == 'mse':
@@ -104,8 +186,11 @@ class FieldResponseModel(LightningModule):
         elif choice == 'ssim':
             # Structural Similarity Index
             preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
-            fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
-            loss = fn(preds, labels)
+            torch.use_deterministic_algorithms(True, warn_only=True)
+            with torch.backends.cudnn.flags(enabled=False):
+                fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
+                ssim_value = fn(preds, labels)
+                loss = 1 - ssim_value  # SSIM is a similarity metric
         else:
             raise ValueError(f"Unsupported loss function: {choice}")
             
@@ -193,8 +278,8 @@ class FieldResponseModel(LightningModule):
         
         # Store predictions and ground truths for analysis after testing
         if dataloader_idx == 0:  # val dataloader
-            self.test_results['val']['nf_pred'].append(preds_combined)
-            self.test_results['val']['nf_truth'].append(truths_combined)
+            self.test_results['valid']['nf_pred'].append(preds_combined)
+            self.test_results['valid']['nf_truth'].append(truths_combined)
         elif dataloader_idx == 1:  # train dataloader
             self.test_results['train']['nf_pred'].append(preds_combined)
             self.test_results['train']['nf_truth'].append(truths_combined)
@@ -203,16 +288,21 @@ class FieldResponseModel(LightningModule):
         
     def on_test_end(self):
         # Concatenate results from all batches
-        for mode in ['train', 'val']:
+        for mode in ['train', 'valid']:
             self.test_results[mode]['nf_pred'] = np.concatenate(self.test_results[mode]['nf_pred'], axis=0)
             self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
-        
-        # save results with fold idx
-        fold_suffix = f"_fold{self.fold_idx}" if self.fold_idx is not None else ""
-        
-        self.logger.experiment.log_results(
-            results=self.test_results['val'], epoch=None, count=5, mode="val", name=f"results{fold_suffix}"
-        )
-        self.logger.experiment.log_results(
-            results=self.test_results['train'], epoch=None, count=5, mode="train", name=f"results{fold_suffix}"
-        )
+       
+            # Ensure fold index is valid
+            if self.fold_idx is not None:
+                fold_suffix = f"_fold{self.fold_idx+1}"
+            else:
+                raise ValueError("fold_idx is not set!")
+
+            # Log results for the current fold
+            name = f"results{fold_suffix}"
+            self.logger.experiment.log_results(
+                results=self.test_results[mode],
+                epoch=None,
+                mode=mode,
+                name=name
+            )
