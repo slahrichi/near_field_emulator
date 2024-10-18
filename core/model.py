@@ -3,28 +3,29 @@
 #--------------------------------
 
 import sys
-import yaml
 import torch
 import numpy as np
 from geomloss import SamplesLoss
-from copy import deepcopy as copy
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
-from torchvision.models import resnet50, resnet18, resnet34
+#from torchvision.models import resnet50, resnet18, resnet34
 import torch.nn as nn
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from pytorch_lightning import LightningModule
-import os
-import pickle
 import math
 
 #--------------------------------
 # Import: Custom Python Libraries
 #--------------------------------
+from utils import parameter_manager
+from core.ConvLSTM import ConvLSTM
+
 sys.path.append("../")
 
-from utils import parameter_manager
 
-
-class FieldResponseModel(LightningModule):
+class WaveMLP(LightningModule):
+    """Near Field Response Prediction Model  
+    Architecture: MLPs (real and imaginary)  
+    Modes: Full, patch-wise"""
     def __init__(self, params_model, fold_idx=None):
         super().__init__()
         
@@ -306,3 +307,186 @@ class FieldResponseModel(LightningModule):
                 mode=mode,
                 name=name
             )
+            
+
+class WaveLSTM(LightningModule):
+    """Near Field Response Time Series Prediction Model  
+    Architecture: LSTM"""
+    def __init__(self, params_model, fold_idx=None):
+        super().__init__()
+        
+        self.params = params_model
+        self.num_design_params = int(self.params['num_design_params'])
+        self.learning_rate = self.params['learning_rate']
+        self.loss_func = self.params['objective_function']
+        self.fold_idx = fold_idx
+        self.arch, self.linear = None, None
+        
+        # regular LSTM or ConvLSTM
+        if self.params['arch'] == 1:
+            self.name = 'lstm'
+            self.arch_params = self.params['lstm']
+            self.create_architecture()
+        elif self.params['arch'] == 2:
+            self.name = 'conv_lstm'
+            self.arch_params = self.params['conv_lstm']
+            self.create_architecture()
+        else:
+            raise ValueError("Model architecture not recognized")
+        
+        self.save_hyperparameters()
+        
+        # Store necessary lists for tracking metrics per fold
+        self.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
+                             'valid': {'nf_pred': [], 'nf_truth': []}}
+        
+        # Initialize metrics
+        self.train_psnr = PeakSignalNoiseRatio(data_range=1.0)
+        self.train_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
+        self.val_psnr = PeakSignalNoiseRatio(data_range=1.0)
+        self.val_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
+        
+        # setup
+        def create_architecture():
+            seq_len = self.params['seq_len']
+            
+            if self.name == 'lstm':
+                self.arch = torch.nn.LSTM(input_size=self.arch_params['i_dims'],
+                                          hidden_size=self.arch_params['h_dims'],
+                                          num_layers=self.arch_params['num_layers'],
+                                          batch_first=True)
+                
+                self.linear = torch.nn.Sequential(torch.nn.Linear(self.arch_params['h_dims'],
+                                                                  self.arch_params['i_dims']),
+                                                  torch.nn.Tanh())
+                
+            else: # ConvLSTM
+                spatial = self.arch_params['spatial']
+                kernel_size = self.arch_params['kernel_size']
+                padding = self.arch_params['padding']
+                in_channels = self.arch_params['in_channels']
+                out_channels = self.arch_params['out_channels']
+                num_layers = self.arch_params['num_layers']
+                
+                spatial = (spatial, spatial) # here (166, 166)
+                
+                for i in range(num_layers):
+                    name = "convlstm_%s" % i
+                    layer = ConvLSTM(out_channels=out_channels,
+                                        in_channels=in_channels,
+                                        seq_len=seq_len,
+                                        kernel_size=kernel_size,
+                                        padding=padding,
+                                        frame_size=spatial)
+                    
+                    self.arch.add_moudle(name, layer)
+                    
+                self.arch.add_module("tanh", torch.nn.Tanh())
+                
+    def configure_optimizers(self):
+        # Create: Optimization Routine
+        
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        
+        # Create: LR Scheduler
+        
+        lr_scheduler = CosineAnnealingLR(optimizer, T_max=self.params['num_epochs'])
+        lr_scheduler_config = {"scheduler": lr_scheduler,
+                               "interval": "epoch", "frequency": 1}
+
+        return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}
+    
+    def compute_loss(self, preds, labels, choice='mse'):
+        if choice == 'mse':
+            # Mean Squared Error
+            preds = preds.to(torch.float32).contiguous()
+            labels = labels.to(torch.float32).contiguous()
+            fn = torch.nn.MSELoss()
+            loss = fn(preds, labels)
+            
+        elif choice == 'emd':
+            # Earth Mover's Distance / Sinkhorn
+            preds = preds.to(torch.float64).contiguous()
+            labels = labels.to(torch.float64).contiguous()
+            fn = SamplesLoss("sinkhorn", p=1, blur=0.05)
+            loss = fn(preds, labels)
+            loss = torch.mean(loss)  # Aggregating the loss
+            
+        elif choice == 'psnr':
+            # Peak Signal-to-Noise Ratio
+            preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
+            fn = PeakSignalNoiseRatio(data_range=1.0).to(self.device)
+            loss = fn(preds, labels)
+            
+        elif choice == 'ssim':
+            # Structural Similarity Index
+            preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
+            torch.use_deterministic_algorithms(True, warn_only=True)
+            with torch.backends.cudnn.flags(enabled=False):
+                fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
+                ssim_value = fn(preds, labels)
+                loss = 1 - ssim_value  # SSIM is a similarity metric
+                
+        else:
+            raise ValueError(f"Unsupported loss function: {choice}")
+            
+        return loss
+    
+    def objective(self, preds, labels):
+        loss = self.compute_loss(preds, labels, choice=self.loss_func)
+        
+        return {"loss": loss}
+    
+    def forward(self, x, target_seq):
+        batch, seq_len, channel, height, width = x.size()
+        
+        all_pred = torch.zeros(batch, target_seq, channel, 
+                               height, width).to(x.device)
+        
+        # Forward Pass: LSTM
+        if self.name == 'lstm':
+            x = x.view(batch, seq_len, -1)
+            h = torch.zeros(self.arch_params['num_layers'], 
+                            batch, self.arch_params['h_dims']).to(x.device)
+            c = torch.zeros(self.arch_params['num_layers'], 
+                            batch, self.arch_params['h_dims']).to(x.device)
+            meta = (h, c)
+            
+            for i in range(target_seq):
+                pred, meta = self.arch(x, meta)
+                pred = self.linear(pred.reshape(batch, -1))
+                pred = pred.view((batch, channel, height, width))
+                all_pred[:, i, :, :, :] = pred
+                
+        # Forward Pass: ConvLSTM
+        else:
+            all_pred = self.arch(x) #TODO Not fully functional yet
+        
+        return all_pred
+    
+    def shared_step(self, batch, batch_idx):
+        samples, labels = batch
+        
+        # Gather: Model Predictions
+        target_seq = labels.size()[1]
+        preds = self.arch(samples, target_seq)
+        
+        # Calcuate: Loss
+        loss = self.objective(preds, labels)
+        
+        return loss, preds
+    
+    def training_step(self, batch, batch_idx):
+        loss, preds = self.shared_step(batch, batch_idx)
+        
+        self.log("train_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
+        
+        return {'loss': loss, 'output': preds, 'target': batch}
+    
+    def validation_step(self, batch, batch_idx):
+        loss, preds = self.shared_step(batch, batch_idx)
+        
+        self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
+        
+        return {'loss': loss, 'output': preds, 'target': batch}
+        

@@ -1,5 +1,32 @@
 resim : 1
 
+#--------------------------------
+#       General Params
+#--------------------------------
+seed: [True, 1337]
+train: True
+model_id: 'initial_lstm_test'
+torch_home: '/develop/pretrained_models'
+exp_name: 'Test One'
+num_design_params: 9
+
+
+
+#--------------------------------
+#       Network Params
+#--------------------------------
+
+# General Parameters
+# - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM)
+
+arch: 1
+
+# MLP Parameters
+# - ***separate MLPs for real and imaginary parts***
+# - layers: Hidden layer neuron counts, len(layers) = number of hidden layers
+# - activation: Activation function for hidden layers
+# - patch_mlps: Whether to use patch-wise MLPs
+
 mlp_real:
     layers: [64, 128, 512]
     activation: 'relu'
@@ -10,18 +37,30 @@ mlp_imag:
 
 patch_mlps: False
 
-#--------------------------------
-#       General Params
-#--------------------------------
-seed: [True, 1337]
-train: True
-model_id: 'with_scheduler_v2'
-#torch_home: '~/.cache/torch/'
-torch_home: '/develop/pretrained_models'
+# LSTM Parameters
+# - num_layers: number of lstm layers (i.e., stacked networks)
+# - i_dims: number of input dimensions for lstm
+# - h_dims: number of hidden dimensions for lstm
 
-exp_name: 'Test One'
+lstm:
+    num_layers: 1
+    i_dims: 512
+    h_dims: 512
 
-num_design_params: 9
+# ConvLSTM Parameters
+# - in_channels: number of input channels for conv
+# - kernel_size: size of the conv kernel
+# - padding: padding for the conv layer
+
+conv_lstm:
+    num_layers: 1
+    in_channels: 2
+    out_channels: 2
+    kernel_size: 3
+    padding: 1
+    spatial: 166
+
+seq_len: 5 # for time-series models
 
 #--------------------------------
 #       Training Params
@@ -96,6 +135,5 @@ adaptive: True
 #--------------------------------
 #       Datamodule Params
 #--------------------------------
-which: 'NFRP' # near-field response prediction
 n_cpus: 5
-n_folds: 5 # number of folds for cross-validation
+n_folds: 5

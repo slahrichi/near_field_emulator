@@ -19,9 +19,15 @@ from core import datamodule, model
 
 def select_model(pm, fold_idx=None):
     logging.debug("select_model.py - Selecting model") 
-    network = None
-    network = model.FieldResponseModel(pm.params_model, fold_idx)
-    #network = model.Encoder(pm.params_model)
+    if pm.arch == 0:
+        network = model.WaveMLP(pm.params_model, fold_idx)
+    elif pm.which == 1:
+        network = model.WaveLSTM(pm.params_model, fold_idx)
+    elif pm.which == 2:
+        # TODO ConvLSTM
+        raise NotImplementedError
+    else:
+        raise ValueError("Model not recognized")
 
     if pm.load_checkpoint:
          

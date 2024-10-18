@@ -55,14 +55,15 @@ class Parameter_Manager():
             self.transfer_learn = params['transfer_learn']
             self.load_checkpoint = params['load_checkpoint']
             self.objective_function = params['objective_function']
-            
-            # Load: MLP params
-            self._mlp_real = params['mlp_real']
-            self._mlp_imag = params['mlp_imag']
-            self._patch_mlps = params['patch_mlps']
+            self._arch = params['arch']
+            self.mlp_real = params['mlp_real']
+            self.mlp_imag = params['mlp_imag']
+            self.patch_mlps = params['patch_mlps']
+            self.lstm = params['lstm']
+            self.conv_lstm = params['conv_lstm']
+            self.seq_len = params['seq_len']
 
             # Load: Datamodule Params
-            self._which = params['which']
             self.n_cpus = params['n_cpus']
             self.n_folds = params['n_folds']
             
@@ -134,9 +135,13 @@ class Parameter_Manager():
                                 'objective_function'    : self.objective_function,
                                 'mcl_params'            : self._mcl_params,
                                 'num_design_params'     : self.num_design_params,
-                                'mlp_real'              : self._mlp_real,
-                                'mlp_imag'              : self._mlp_imag,
-                                'patch_mlps'            : self._patch_mlps,
+                                'arch'                  : self._arch,
+                                'mlp_real'              : self.mlp_real,
+                                'mlp_imag'              : self.mlp_imag,
+                                'patch_mlps'            : self.patch_mlps,
+                                'lstm'                  : self.lstm,
+                                'conv_lstm'             : self.conv_lstm,
+                                'seq_len'               : self.seq_len,
                                 }
 
              
@@ -154,13 +159,13 @@ class Parameter_Manager():
         self._params_datamodule = {
                                 'Nxp'           : self.Nxp, 
                                 'Nyp'           : self.Nyp, 
-                                'which'         : self._which,
                                 'n_cpus'        : self.n_cpus,
                                 'path_root'     : self.path_root, 
                                 'path_data'     : self.path_data, 
                                 'batch_size'    : self.batch_size,
                                 'n_folds'       : self.n_folds,
                                 'seed'          : self.seed_value,
+                                'seq_len'       : self.seq_len,
                                 }
 
         self._params_trainer = {
@@ -195,8 +200,6 @@ class Parameter_Manager():
                         'path_model'                    : self.path_model,
                         'path_train'                    : self.path_train, 
                         'path_valid'                    : self.path_valid,
-                        'path_results'                  : self.path_results, 
-                        'path_model'                    : self.path_model, 
                         'path_results'                  : self.path_results, 
                         'path_checkpoint'               : self._path_checkpoint,
                         'path_resims'                   : self.path_resims
@@ -255,13 +258,13 @@ class Parameter_Manager():
         self.collect_params()
 
     @property
-    def which(self):
-        return self._which
+    def arch(self):
+        return self._arch
 
-    @which.setter
-    def which(self, value):
-        logging.debug("Parameter_Manager | setting which to {}".format(value))
-        self._which = value
+    @arch.setter
+    def arch(self, value):
+        logging.debug("Parameter_Manager | setting arch to {}".format(value))
+        self._arch = value
         self.collect_params()
 
     @property
