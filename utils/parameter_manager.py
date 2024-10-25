@@ -52,8 +52,8 @@ class Parameter_Manager():
 
             # Load: Model Params
             self.weights = params['weights']
-            self.backbone = params['backbone']
             self.optimizer = params['optimizer']
+            self.lr_scheduler = params['lr_scheduler']
             self._mcl_params = params['mcl_params']
             self.num_classes = params['num_classes']
             self.num_design_params = params['num_design_params']
@@ -65,6 +65,7 @@ class Parameter_Manager():
             self.mlp_real = params['mlp_real']
             self.mlp_imag = params['mlp_imag']
             self.mlp_strategy = params['mlp_strategy']
+            self.patch_size = params['patch_size']
             self.lstm = params['lstm']
             self.conv_lstm = params['conv_lstm']
             self.seq_len = params['seq_len']
@@ -130,8 +131,8 @@ class Parameter_Manager():
         logging.debug("Parameter_Manager | collecting parameters")
         self._params_model = {
                                 'weights'               : self.weights,
-                                'backbone'              : self.backbone,
                                 'optimizer'             : self.optimizer,
+                                'lr_scheduler'          : self.lr_scheduler,
                                 'data_shape'            : self.data_shape,
                                 'num_epochs'            : self.num_epochs,
                                 'num_classes'           : self.num_classes,
@@ -146,6 +147,7 @@ class Parameter_Manager():
                                 'mlp_real'              : self.mlp_real,
                                 'mlp_imag'              : self.mlp_imag,
                                 'mlp_strategy'          : self.mlp_strategy,
+                                'patch_size'            : self.patch_size,
                                 'lstm'                  : self.lstm,
                                 'conv_lstm'             : self.conv_lstm,
                                 'seq_len'               : self.seq_len,
@@ -175,6 +177,7 @@ class Parameter_Manager():
                                 'seq_len'       : self.seq_len,
                                 'arch'          : self._arch,
                                 'mlp_strategy'  : self.mlp_strategy,
+                                'patch_size'    : self.patch_size,
                                 }
 
         self._params_trainer = {

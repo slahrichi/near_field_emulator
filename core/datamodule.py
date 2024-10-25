@@ -27,6 +27,9 @@ sys.path.append('../')
 from core import curvature
 from utils import parameter_manager, mapping
 
+# debugging
+#logging.basicConfig(level=logging.DEBUG)
+
 class NF_Datamodule(LightningDataModule):
     def __init__(self, params, transform = None):
         super().__init__() 
@@ -39,7 +42,7 @@ class NF_Datamodule(LightningDataModule):
         self.seed = self.params['seed']
         self.n_folds = self.params['n_folds']
         self.mlp_strategy = self.params['mlp_strategy']
-
+        self.patch_size = self.params['patch_size']
         self.path_data = self.params['path_data']
         self.path_root = self.params['path_root']
         self.path_data = os.path.join(self.path_root,self.path_data)
@@ -70,7 +73,7 @@ class NF_Datamodule(LightningDataModule):
         # load the full dataset
         if self.arch == 0: # MLP
             data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
-            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy)
+            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
         elif self.arch == 1 or self.arch == 2: # LSTM
             datafile = os.path.join(self.path_data, 'slices_dataset.pt')
             self.dataset = format_temporal_data(datafile, self.params['seq_len'])
@@ -104,11 +107,12 @@ class NF_Datamodule(LightningDataModule):
                         )
 
 class WaveMLP_Dataset(Dataset):
-    def __init__(self, data, transform, approach=0):
+    def __init__(self, data, transform, approach=0, patch_size=1):
         logging.debug("datamodule.py - Initializing WaveMLP_Dataset")
         self.transform = transform
-        self.approach = approach
         logging.debug("NF_Dataset | Setting transform to {}".format(self.transform))
+        self.approach = approach
+        self.patch_size = patch_size
         self.radii = data['radii']
         self.phases = data['phases']
         self.derivatives = data['derivatives']
@@ -124,10 +128,13 @@ class WaveMLP_Dataset(Dataset):
             self.distributed_indices = self.get_distributed_indices()
             
     def get_distributed_indices(self):
-        # generate 9 evenly distributed indices across the whole spatial output field
-        x = np.linspace(0, 165, 3).astype(int)
-        y = np.linspace(0, 165, 3).astype(int)
-        return list(itertools.product(x, y))
+        if self.patch_size == 1: # center the single pixel on the middle
+            middle_index = 165 // 2
+            return np.array([[middle_index, middle_index]])
+        else: # generate patch_size evenly distributed indices
+            x = np.linspace(0, 165, self.patch_size).astype(int)
+            y = np.linspace(0, 165, self.patch_size).astype(int)
+            return list(itertools.product(x, y))
 
     def __len__(self):
         return len(self.near_fields)
@@ -137,12 +144,15 @@ class WaveMLP_Dataset(Dataset):
         radius = self.radii[idx].float()
         
         if self.approach == 2:
-            # selecting 9 evenly distributed pixels
+            # selecting patch_size evenly distributed pixels
             x_indices, y_indices = zip(*self.distributed_indices)
+            logging.debug(f"WaveMLP_Dataset | x_indices: {x_indices}, y_indices: {y_indices}")
             near_field = near_field[:, x_indices, y_indices]
-            near_field = near_field.reshape(2, 3, 3)
+            near_field = near_field.reshape(2, self.patch_size, self.patch_size)
         if self.transform:   
             near_field = self.transform(near_field)
+        
+        logging.debug(f"WaveMLP_Dataset | near_field shape: {near_field.shape}")
         
         return near_field, radius
     

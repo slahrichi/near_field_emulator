@@ -5,7 +5,7 @@ resim : 1
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'mlp_3x3_v3'
+model_id: 'mlp_1x1_v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -26,16 +26,18 @@ arch: 0
 # - layers: Hidden layer neuron counts, len(layers) = number of hidden layers
 # - activation: Activation function for hidden layers
 # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset
+# - patch_size: patch height/width for patch wise or distributed subset
 
 mlp_real:
-    layers: [1024, 512, 128, 64]
+    layers: [64, 16]
     activation: 'relu'
 
 mlp_imag:
-    layers: [1024, 512, 128, 64]
+    layers: [64, 16]
     activation: 'relu'
 
 mlp_strategy: 2
+patch_size: 1
 
 # LSTM Parameters
 # - num_layers: number of lstm layers (i.e., stacked networks)
@@ -66,7 +68,7 @@ seq_len: 5 # for time-series models
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 150
+num_epochs: 200 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -76,12 +78,12 @@ valid_rate: 1
 weights: 
 num_classes: 1
 optimizer: 'ADAM'
-backbone: 'resnet18'
 learning_rate: 1.e-3
+lr_scheduler: 'ReduceLROnPlateau'
 transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
-patience: 9
+patience: 15 # early stopping patience
 
 mcl_params:
     alpha: 1     #near-field

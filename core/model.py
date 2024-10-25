@@ -35,10 +35,10 @@ class WaveMLP(LightningModule):
         self.loss_func = self.params['objective_function']
         self.fold_idx = fold_idx
         self.approach = self.params['mlp_strategy']
-
+        self.patch_size = self.params['patch_size'] # for non-default approaches
+        
         if self.approach == 1: 
             # patch approach
-            self.patch_size = 16
             self.output_size = (self.patch_size)**2
             self.num_patches_height = math.ceil(166 / self.patch_size)
             self.num_patches_width = math.ceil(166 / self.patch_size)
@@ -52,7 +52,7 @@ class WaveMLP(LightningModule):
         ])
         elif self.approach == 2: 
             # distributed subset approach
-            self.output_size = 9 # 3x3 subfield
+            self.output_size = (self.patch_size)**2
             # build MLPs
             self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
             self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
@@ -126,9 +126,9 @@ class WaveMLP(LightningModule):
             # grab output directly
             real_output = self.mlp_real(radii)
             imag_output = self.mlp_imag(radii)
-            # reshape to 3x3
-            real_output = real_output.view(-1, 3, 3)
-            imag_output = imag_output.view(-1, 3, 3)
+            # reshape to patch_size x patch_size    
+            real_output = real_output.view(-1, self.patch_size, self.patch_size)
+            imag_output = imag_output.view(-1, self.patch_size, self.patch_size)
         else:
             real_output = self.mlp_real(radii)
             imag_output = self.mlp_imag(radii)
@@ -167,9 +167,9 @@ class WaveMLP(LightningModule):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         scheduler = {
             'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
-                                                                    factor=0.1, patience=5, 
+                                                                    factor=0.5, patience=5, 
                                                                     verbose=True, min_lr=1e-6,
-                                                                    threshold=0.001),
+                                                                    threshold=0.001, cooldown=2),
             'monitor': 'val_loss',
             'interval': 'epoch',
             'frequency': 1,
@@ -234,8 +234,18 @@ class WaveMLP(LightningModule):
         
         for key in choices:
             if key != self.loss_func:
-                loss_real = self.compute_loss(pred_real.squeeze(), real_near_fields, choice=key)
-                loss_imag = self.compute_loss(pred_imag.squeeze(), imag_near_fields, choice=key)
+                if key == 'emd':
+                    # Reshape tensors to (batch_size, num_pixels, 1)
+                    pred_real_reshaped = pred_real.view(pred_real.size(0), -1, 1)
+                    real_near_fields_reshaped = real_near_fields.view(real_near_fields.size(0), -1, 1)
+                    pred_imag_reshaped = pred_imag.view(pred_imag.size(0), -1, 1)
+                    imag_near_fields_reshaped = imag_near_fields.view(imag_near_fields.size(0), -1, 1)
+
+                    loss_real = self.compute_loss(pred_real_reshaped, real_near_fields_reshaped, choice=key)
+                    loss_imag = self.compute_loss(pred_imag_reshaped, imag_near_fields_reshaped, choice=key)
+                else:
+                    loss_real = self.compute_loss(pred_real, real_near_fields, choice=key)
+                    loss_imag = self.compute_loss(pred_imag, imag_near_fields, choice=key)
                 loss = loss_real + loss_imag
                 choices[key] = loss
         
@@ -547,7 +557,7 @@ class WaveLSTM(LightningModule):
                 fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
                 
                 # Log or save results
-                name = f"results{fold_suffix}_{mode}"
+                name = f"results{fold_suffix}"
                 self.logger.experiment.log_results(
                     results=self.test_results[mode],
                     epoch=None,

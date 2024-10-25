@@ -11,6 +11,7 @@ from matplotlib.font_manager import FontProperties
 import matplotlib.cm as cm
 import scipy.stats as stats
 import yaml
+from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 
 fontsize = 8
 font = FontProperties()
@@ -83,15 +84,47 @@ def gather_info(folder_path):
         with open(file_path, 'r') as file:
             yaml_content = yaml.safe_load(file)
             key_dict = {}    
-            lr = key_dict['lr'] = yaml_content['learning_rate']
-            optimizer = key_dict['optimizer'] = yaml_content['optimizer']
-            batch_size = key_dict['batch_size'] = yaml_content['batch_size']
-            mlp_real = key_dict['mlp_real'] = yaml_content['mlp_real']
-            mlp_imag = key_dict['mlp_imag'] = yaml_content['mlp_imag']
-            n_folds = key_dict['n_folds'] = yaml_content['n_folds']
+            key_dict['arch'] = yaml_content['arch']
+            key_dict['lr'] = yaml_content['learning_rate']
+            key_dict['optimizer'] = yaml_content['optimizer']
+            #key_dict['lr_scheduler'] = yaml_content['lr_scheduler']
+            key_dict['batch_size'] = yaml_content['batch_size']
+            if yaml_content['arch'] == 0:
+                key_dict['mlp_real'] = yaml_content['mlp_real']
+                key_dict['mlp_imag'] = yaml_content['mlp_imag']
+                if yaml_content['mlp_strategy'] != 0:
+                    key_dict['patch_size'] = yaml_content['patch_size']
+            elif yaml_content['arch'] == 1:
+                key_dict['lstm_num_layers'] = yaml_content['lstm']['num_layers']
+                key_dict['lstm_i_dims'] = yaml_content['lstm']['i_dims']
+                key_dict['lstm_h_dims'] = yaml_content['lstm']['h_dims']
+                key_dict['seq_len'] = yaml_content['seq_len']
+            key_dict['n_folds'] = yaml_content['n_folds']
             key_dict['title'] = folder_path.replace(excess, "")
 
             return key_dict
+        
+def save_eval_item(save_dir, eval_item, file_name, type):
+    """Save metrics or plot(s) to a specified file"""
+    if 'metrics' in type:
+        save_path = os.path.join(save_dir, "performance_metrics")
+    elif type == 'loss':
+        save_path = os.path.join(save_dir, "loss_plots")
+    elif type == 'dft':
+        save_path = os.path.join(save_dir, "dft_plots")
+    os.makedirs(save_path, exist_ok=True)
+    save_path = os.path.join(save_path, file_name)
+    if 'metrics' in type:
+        with open(save_path, 'w') as file:
+            for metric, value in eval_item.items():
+                if type == 'all_metrics':
+                    file.write(f"{metric}: {np.mean(value):.4f} ± {np.std(value):.4f}\n")
+                else:
+                    file.write(f"{metric}: {value:.4f}\n")
+    else:
+        eval_item.savefig(save_path)
+    print(f"Evaluation item saved to {save_path}")
+    
 
 def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save_dir=None):
     
@@ -99,10 +132,20 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
     title = model_info['title'].split("/")[-1]
     lr = model_info['lr']
     optimizer = model_info['optimizer']
+    #lr_scheduler = model_info['lr_scheduler']
     batch_size = model_info['batch_size']
-    mlp_layers = model_info['mlp_real']['layers']
-    model_identifier = f'{title} - lr: {lr}, optimizer: {optimizer}, batch_size: {batch_size}, mlp_layers: {mlp_layers}'
-    #model_identifier = f'{title} - lr: {lr}, optimizer: {optimizer}, batch_size: {batch_size}'
+    if model_info['arch'] == 0:
+        mlp_layers = model_info['mlp_real']['layers']
+        model_identifier = f'{title} - lr: {lr}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
+        if model_info['mlp_strategy'] != 0:
+            patch_size = model_info['patch_size']
+            model_identifier += f", patch_size: {patch_size}"
+    elif model_info['arch'] == 1:
+        lstm_num_layers = model_info['lstm_num_layers']
+        lstm_i_dims = model_info['lstm_i_dims']
+        lstm_h_dims = model_info['lstm_h_dims']
+        seq_len = model_info['seq_len']
+        model_identifier = f'{title} - lr: {lr}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
     
     plt.style.use("ggplot")
     
@@ -166,14 +209,74 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
     
     # Save the plot if requested
     if save_fig:
-        if save_dir is None:
-            save_dir = os.getcwd()
-        loss_plots_dir = os.path.join(save_dir, "loss_plots")
-        os.makedirs(loss_plots_dir, exist_ok=True)
-        fig.savefig(os.path.join(loss_plots_dir, f'{title}.pdf'))
-        print(f"Figure saved to {os.path.join(loss_plots_dir, f'{title}.pdf')}")
+        if not save_dir:
+            raise ValueError("Please specify a save directory")
+        file_name = f'{title}.pdf'
+        save_eval_item(save_dir, fig, file_name, 'loss')
 
-def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", sample_idx=0, save_fig=False, save_dir=None):
+def calculate_metrics(truth, pred):
+    """Calculate various metrics between ground truth and predictions."""
+    mae = np.mean(np.abs(truth - pred))
+    rmse = np.sqrt(np.mean((truth - pred) ** 2))
+    correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
+    psnr = PeakSignalNoiseRatio(data_range=1.0)(torch.tensor(pred), torch.tensor(truth))
+    try: # if spatial size is too small set SSIM to 0
+        ssim = StructuralSimilarityIndexMeasure(data_range=1.0)(torch.tensor(pred), torch.tensor(truth))
+    except:
+        ssim = torch.tensor(0.0)
+    
+    return {
+        'MAE': mae,
+        'RMSE': rmse,
+        'Correlation': correlation,
+        'PSNR': psnr.item(),
+        'SSIM': ssim.item()
+    }
+
+def print_metrics(fold_results, fold_idx=None, dataset='valid', save_fig=False, save_dir=None):
+    """Print metrics for a specific fold and dataset (train or valid)."""
+    if fold_idx is not None:
+        results = fold_results[fold_idx][dataset]
+        truth = results['nf_truth']
+        pred = results['nf_pred']
+        
+        metrics = calculate_metrics(truth, pred)
+        print(f"Metrics for Fold {fold_idx + 1} - {dataset.capitalize()} Dataset:")
+        for metric, value in metrics.items():
+            print(f"{metric}: {value:.4f}")
+            
+        # save to file
+        if save_fig:
+            if not save_dir:
+                raise ValueError("Please specify a save directory")
+            file_name = f'{dataset}_metrics_fold{fold_idx+1}.txt'
+            save_eval_item(save_dir, metrics, file_name, 'metrics')
+    else:
+        # calculate metrics for all folds
+        all_metrics = {metric: [] for metric in ['MAE', 'RMSE', 'Correlation', 'PSNR', 'SSIM']}
+        for fold_idx, fold in enumerate(fold_results):
+            results = fold[dataset]
+            truth = results['nf_truth']
+            pred = results['nf_pred']
+            
+            metrics = calculate_metrics(truth, pred)
+            for metric, value in metrics.items():
+                all_metrics[metric].append(value)
+        
+        print(f"Average Metrics for All Folds - {dataset.capitalize()} Dataset:")
+        for metric, values in all_metrics.items():
+            print(f"{metric}: {np.mean(values):.4f} ± {np.std(values):.4f}")
+            
+        # save to file
+        if save_fig:
+            if not save_dir:
+                raise ValueError("Please specify a save directory")
+            file_name = f'{dataset}_metrics.txt'
+            save_eval_item(save_dir, all_metrics, file_name, 'all_metrics')
+
+def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", 
+                    sample_idx=0, save_fig=False, save_dir=None,
+                    arch='mlp'):
     """
     Parameters:
     - fold_results: List of dictionaries containing train and valid results for each fold
@@ -181,59 +284,84 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", sample_idx=0,
     - plot_type: "best" to plot best-performing fold, "worst" to plot worst-performing fold, or "specific" if fold_idx is provided
     """
     def plot_single_set(results, title, save_path, sample_idx):
-        # extract the specific sample from the results
-        truth_real = results['nf_truth'][sample_idx, 0, :, :]
-        truth_imag = results['nf_truth'][sample_idx, 1, :, :]
-        pred_real = results['nf_pred'][sample_idx, 0, :, :]
-        pred_imag = results['nf_pred'][sample_idx, 1, :, :]
+        if arch == 'mlp':
+            # extract the specific sample from the results
+            truth_real = results['nf_truth'][sample_idx, 0, :, :]
+            truth_imag = results['nf_truth'][sample_idx, 1, :, :]
+            pred_real = results['nf_pred'][sample_idx, 0, :, :]
+            pred_imag = results['nf_pred'][sample_idx, 1, :, :]
         
-        # convert to magnitude and phase
-        #truth_mag = np.sqrt(truth_real**2 + truth_imag**2)
-        #truth_phase = np.arctan2(truth_imag, truth_real)
-        #pred_mag = np.sqrt(pred_real**2 + pred_imag**2)
-        #pred_phase = np.arctan2(pred_imag, pred_real)
-        # (if we wanted to keep and plot real/imag)
-        truth_mag = truth_real
-        truth_phase = truth_imag
-        pred_mag = pred_real
-        pred_phase = pred_imag
-        
-        # 4 subplots (2x2 grid)
-        fig, ax = plt.subplots(2, 2, figsize=(8, 8))
-        fig.suptitle(title, fontsize=16)
-        fig.text(0.5, 0.92, model_identifier, ha='center', fontsize=12)
+            # convert to magnitude and phase
+            truth_mag = truth_real
+            truth_phase = truth_imag
+            pred_mag = pred_real
+            pred_phase = pred_imag
+            
+            # 4 subplots (2x2 grid)
+            fig, ax = plt.subplots(2, 2, figsize=(8, 8))
+            fig.suptitle(title, fontsize=16)
+            fig.text(0.5, 0.92, model_identifier, ha='center', fontsize=12)
 
-        # real part of the truth
-        ax[0, 0].imshow(truth_mag, cmap='viridis')
-        ax[0, 0].set_title('Truth Magnitude')
-        ax[0, 0].axis('off')
+            # real part of the truth
+            print(f"Truth Magnitude: {truth_mag.shape}")
+            print(f"Pred Magnitude: {pred_mag.shape}")
+            ax[0, 0].imshow(truth_mag, cmap='viridis')
+            ax[0, 0].set_title('Truth Magnitude')
+            ax[0, 0].axis('off')
 
-        # real part of the prediction
-        ax[0, 1].imshow(pred_mag, cmap='viridis')
-        ax[0, 1].set_title('Predicted Magnitude')
-        ax[0, 1].axis('off')
+            # real part of the prediction
+            ax[0, 1].imshow(pred_mag, cmap='viridis')
+            ax[0, 1].set_title('Predicted Magnitude')
+            ax[0, 1].axis('off')
 
-        # imaginary part of the truth
-        ax[1, 0].imshow(truth_phase, cmap='twilight_shifted')
-        ax[1, 0].set_title('True Phase')
-        ax[1, 0].axis('off')
+            # imaginary part of the truth
+            ax[1, 0].imshow(truth_phase, cmap='twilight_shifted')
+            ax[1, 0].set_title('True Phase')
+            ax[1, 0].axis('off')
 
-        # imaginary part of the prediction
-        ax[1, 1].imshow(pred_phase, cmap='twilight_shifted')  
-        ax[1, 1].set_title('Predicted Phase')
-        ax[1, 1].axis('off')
-
+            # imaginary part of the prediction
+            ax[1, 1].imshow(pred_phase, cmap='twilight_shifted')  
+            ax[1, 1].set_title('Predicted Phase')
+            ax[1, 1].axis('off')
+        elif arch == 'lstm':
+            # (sequence length, 166x166)
+            truth_real = results['nf_truth'][sample_idx, :, 0, :, :]
+            truth_imag = results['nf_truth'][sample_idx, :, 1, :, :]
+            pred_real = results['nf_pred'][sample_idx, :, 0, :, :]
+            pred_imag = results['nf_pred'][sample_idx, :, 1, :, :]
+            
+            seq_len = truth_real.shape[0]
+            
+            # 4 rows: truth magnitude, pred magnitude, truth phase, pred phase
+            fig, axs = plt.subplots(4, seq_len, figsize=(4*seq_len, 16))
+            fig.suptitle(title, fontsize=16)
+            fig.text(0.5, 0.92, model_identifier, ha='center', fontsize=12)
+            
+            for t in range(seq_len):
+                axs[0, t].imshow(truth_real[t], cmap='viridis')
+                axs[0, t].set_title(f'Truth Magnitude t={t}')
+                axs[0, t].axis('off')
+                
+                axs[1, t].imshow(pred_real[t], cmap='viridis')
+                axs[1, t].set_title(f'Pred Magnitude t={t}')
+                axs[1, t].axis('off')
+                
+                axs[2, t].imshow(truth_imag[t], cmap='twilight_shifted')
+                axs[2, t].set_title(f'Truth Phase t={t}')
+                axs[2, t].axis('off')
+                
+                axs[3, t].imshow(pred_imag[t], cmap='twilight_shifted')
+                axs[3, t].set_title(f'Pred Phase t={t}')
+                axs[3, t].axis('off')
+                
         fig.tight_layout()
 
         # save the plot if specified
         if save_fig:
-            if save_path is None:
-                save_path = os.getcwd()
-            other_plots_dir = os.path.join(save_path, "other_plots")
-            os.makedirs(other_plots_dir, exist_ok=True)
+            if not save_dir:
+                raise ValueError("Please specify a save directory")
             file_name = f'{title}_dft_sample_idx_{sample_idx}.pdf'
-            fig.savefig(os.path.join(other_plots_dir, file_name))
-            print(f"Figure saved to {os.path.join(other_plots_dir, file_name)}")
+            save_eval_item(save_dir, fig, file_name, 'dft')
 
         plt.show()
 
