@@ -188,15 +188,15 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", sample_idx=0,
         pred_imag = results['nf_pred'][sample_idx, 1, :, :]
         
         # convert to magnitude and phase
-        truth_mag = np.sqrt(truth_real**2 + truth_imag**2)
-        truth_phase = np.arctan2(truth_imag, truth_real)
-        pred_mag = np.sqrt(pred_real**2 + pred_imag**2)
-        pred_phase = np.arctan2(pred_imag, pred_real)
+        #truth_mag = np.sqrt(truth_real**2 + truth_imag**2)
+        #truth_phase = np.arctan2(truth_imag, truth_real)
+        #pred_mag = np.sqrt(pred_real**2 + pred_imag**2)
+        #pred_phase = np.arctan2(pred_imag, pred_real)
         # (if we wanted to keep and plot real/imag)
-        '''truth_mag = truth_real
+        truth_mag = truth_real
         truth_phase = truth_imag
         pred_mag = pred_real
-        pred_phase = pred_imag'''
+        pred_phase = pred_imag
         
         # 4 subplots (2x2 grid)
         fig, ax = plt.subplots(2, 2, figsize=(8, 8))

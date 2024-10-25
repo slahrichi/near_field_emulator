@@ -5,7 +5,7 @@ resim : 1
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'initial_lstm_test'
+model_id: 'mlp_3x3_v3'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -19,23 +19,23 @@ num_design_params: 9
 # General Parameters
 # - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM)
 
-arch: 1
+arch: 0
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts***
 # - layers: Hidden layer neuron counts, len(layers) = number of hidden layers
 # - activation: Activation function for hidden layers
-# - patch_mlps: Whether to use patch-wise MLPs
+# - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset
 
 mlp_real:
-    layers: [64, 128, 512]
+    layers: [1024, 512, 128, 64]
     activation: 'relu'
 
 mlp_imag:
-    layers: [64, 128, 512]
+    layers: [1024, 512, 128, 64]
     activation: 'relu'
 
-patch_mlps: False
+mlp_strategy: 2
 
 # LSTM Parameters
 # - num_layers: number of lstm layers (i.e., stacked networks)
@@ -44,8 +44,8 @@ patch_mlps: False
 
 lstm:
     num_layers: 1
-    i_dims: 512
-    h_dims: 512
+    i_dims: 55112 # this is (r/i * 166 * 166)
+    h_dims: 256
 
 # ConvLSTM Parameters
 # - in_channels: number of input channels for conv
@@ -66,7 +66,7 @@ seq_len: 5 # for time-series models
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 100
+num_epochs: 150
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]

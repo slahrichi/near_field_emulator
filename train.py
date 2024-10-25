@@ -21,6 +21,9 @@ from pytorch_lightning.plugins.environments import SLURMEnvironment
 from core import datamodule, model, custom_logger, curvature
 from utils import parameter_manager, model_loader
 
+# debugging
+#logging.basicConfig(level=logging.DEBUG)
+
 #--------------------------------
 # Initialize: Training
 #--------------------------------
@@ -28,7 +31,6 @@ from utils import parameter_manager, model_loader
 def run(params):
     OMP_NUM_THREADS=1
     logging.debug("train.py() | running training")
-    #logging.basicConfig(level=logging.DEBUG)
 
     # Initialize: Parameter manager
     pm = parameter_manager.Parameter_Manager(params=params)

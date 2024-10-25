@@ -5,6 +5,9 @@ import traceback
 import sys
 import os
 
+# debugging
+#logging.basicConfig(level=logging.DEBUG)
+
 class Parameter_Manager():
     def __init__(self, config = None,  params = None):
         logging.debug("parameter_manager.py - Initializing Parameter_Manager")
@@ -26,6 +29,9 @@ class Parameter_Manager():
             
     def parse_params(self, params):
         try:
+            logging.debug(f"Keys in params: {params.keys()}")
+
+
             # Load: Paths 
             self.path_root = params['path_root']
             self.path_data = params['path_data']
@@ -58,7 +64,7 @@ class Parameter_Manager():
             self._arch = params['arch']
             self.mlp_real = params['mlp_real']
             self.mlp_imag = params['mlp_imag']
-            self.patch_mlps = params['patch_mlps']
+            self.mlp_strategy = params['mlp_strategy']
             self.lstm = params['lstm']
             self.conv_lstm = params['conv_lstm']
             self.seq_len = params['seq_len']
@@ -127,6 +133,7 @@ class Parameter_Manager():
                                 'backbone'              : self.backbone,
                                 'optimizer'             : self.optimizer,
                                 'data_shape'            : self.data_shape,
+                                'num_epochs'            : self.num_epochs,
                                 'num_classes'           : self.num_classes,
                                 'learning_rate'         : self.learning_rate,
                                 'transfer_learn'        : self.transfer_learn, 
@@ -138,7 +145,7 @@ class Parameter_Manager():
                                 'arch'                  : self._arch,
                                 'mlp_real'              : self.mlp_real,
                                 'mlp_imag'              : self.mlp_imag,
-                                'patch_mlps'            : self.patch_mlps,
+                                'mlp_strategy'          : self.mlp_strategy,
                                 'lstm'                  : self.lstm,
                                 'conv_lstm'             : self.conv_lstm,
                                 'seq_len'               : self.seq_len,
@@ -166,6 +173,8 @@ class Parameter_Manager():
                                 'n_folds'       : self.n_folds,
                                 'seed'          : self.seed_value,
                                 'seq_len'       : self.seq_len,
+                                'arch'          : self._arch,
+                                'mlp_strategy'  : self.mlp_strategy,
                                 }
 
         self._params_trainer = {

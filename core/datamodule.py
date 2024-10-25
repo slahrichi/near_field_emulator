@@ -1,6 +1,7 @@
 #--------------------------------
 # Import: Basic Python Libraries
 #--------------------------------
+import itertools
 import os
 import sys
 import glob #TODO: Needed?
@@ -8,7 +9,7 @@ import torch
 import logging
 import numpy as np #TODO: Needed?
 from typing import Optional
-from torchvision import transforms
+#from torchvision import transforms
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import Dataset, DataLoader, Subset
 import pickle
@@ -32,11 +33,12 @@ class NF_Datamodule(LightningDataModule):
         logging.debug("datamodule.py - Initializing NF_DataModule")
 
         self.params = params.copy()
-        pm = parameter_manager.Parameter_Manager(params=params)
-        self.arch = pm.arch
+        logging.debug("datamodule.py - Setting params to {}".format(self.params))
+        self.arch = params['arch']
         self.n_cpus = self.params['n_cpus']
         self.seed = self.params['seed']
         self.n_folds = self.params['n_folds']
+        self.mlp_strategy = self.params['mlp_strategy']
 
         self.path_data = self.params['path_data']
         self.path_root = self.params['path_root']
@@ -68,7 +70,7 @@ class NF_Datamodule(LightningDataModule):
         # load the full dataset
         if self.arch == 0: # MLP
             data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
-            self.dataset = WaveMLP_Dataset(data, self.transform)
+            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy)
         elif self.arch == 1 or self.arch == 2: # LSTM
             datafile = os.path.join(self.path_data, 'slices_dataset.pt')
             self.dataset = format_temporal_data(datafile, self.params['seq_len'])
@@ -102,9 +104,10 @@ class NF_Datamodule(LightningDataModule):
                         )
 
 class WaveMLP_Dataset(Dataset):
-    def __init__(self, data, transform):
+    def __init__(self, data, transform, approach=0):
         logging.debug("datamodule.py - Initializing WaveMLP_Dataset")
         self.transform = transform
+        self.approach = approach
         logging.debug("NF_Dataset | Setting transform to {}".format(self.transform))
         self.radii = data['radii']
         self.phases = data['phases']
@@ -115,6 +118,16 @@ class WaveMLP_Dataset(Dataset):
         temp_nf_1550 = torch.stack(temp_nf_1550, dim=0) # stack all sample tensors
         temp_nf_1550 = temp_nf_1550.squeeze(1) # remove redundant dimension
         self.near_fields = temp_nf_1550[:, 1, :, :, :] # [num_samples, r/i, 166, 166]
+        
+        # distributed subset approach
+        if self.approach == 2:
+            self.distributed_indices = self.get_distributed_indices()
+            
+    def get_distributed_indices(self):
+        # generate 9 evenly distributed indices across the whole spatial output field
+        x = np.linspace(0, 165, 3).astype(int)
+        y = np.linspace(0, 165, 3).astype(int)
+        return list(itertools.product(x, y))
 
     def __len__(self):
         return len(self.near_fields)
@@ -123,6 +136,11 @@ class WaveMLP_Dataset(Dataset):
         near_field = self.near_fields[idx]
         radius = self.radii[idx].float()
         
+        if self.approach == 2:
+            # selecting 9 evenly distributed pixels
+            x_indices, y_indices = zip(*self.distributed_indices)
+            near_field = near_field[:, x_indices, y_indices]
+            near_field = near_field.reshape(2, 3, 3)
         if self.transform:   
             near_field = self.transform(near_field)
         

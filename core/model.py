@@ -16,7 +16,7 @@ import math
 #--------------------------------
 # Import: Custom Python Libraries
 #--------------------------------
-from utils import parameter_manager
+#from utils import parameter_manager
 from core.ConvLSTM import ConvLSTM
 
 sys.path.append("../")
@@ -34,11 +34,12 @@ class WaveMLP(LightningModule):
         self.learning_rate = self.params['learning_rate']
         self.loss_func = self.params['objective_function']
         self.fold_idx = fold_idx
-        
-        # patch test
-        self.patch_mlps = self.params['patch_mlps'] # whether or not to split things up
-        if self.patch_mlps:
+        self.approach = self.params['mlp_strategy']
+
+        if self.approach == 1: 
+            # patch approach
             self.patch_size = 16
+            self.output_size = (self.patch_size)**2
             self.num_patches_height = math.ceil(166 / self.patch_size)
             self.num_patches_width = math.ceil(166 / self.patch_size)
             self.num_patches = self.num_patches_height * self.num_patches_width
@@ -49,8 +50,16 @@ class WaveMLP(LightningModule):
             self.mlp_imag = nn.ModuleList([
                 self.build_mlp(self.num_design_params, self.params['mlp_imag']) for _ in range(self.num_patches)
         ])
+        elif self.approach == 2: 
+            # distributed subset approach
+            self.output_size = 9 # 3x3 subfield
+            # build MLPs
+            self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
+            self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
+            
         else:
             # Build full MLPs
+            self.output_size = 166 * 166
             self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
             self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
         
@@ -73,11 +82,7 @@ class WaveMLP(LightningModule):
             layers.append(nn.Linear(in_features, layer_size))
             layers.append(self.get_activation_function(mlp_params['activation']))
             in_features = layer_size
-        if self.patch_mlps: # just a single patch
-            output_size = self.patch_size * self.patch_size  
-        else: # 166x166 near field
-            output_size = 166 * 166
-        layers.append(nn.Linear(in_features, output_size))  
+        layers.append(nn.Linear(in_features, self.output_size))  
         return nn.Sequential(*layers)
         
     def get_activation_function(self, activation_name):
@@ -94,7 +99,7 @@ class WaveMLP(LightningModule):
         
     def forward(self, radii):
         # multiple sets of MLPs for our patches
-        if self.patch_mlps:
+        if self.approach == 1:
             batch_size = radii.size(0)
             real_patches = []
             imag_patches = []
@@ -117,8 +122,14 @@ class WaveMLP(LightningModule):
             # Crop to original size if necessary
             real_output = real_output[:, :166, :166]
             imag_output = imag_output[:, :166, :166]
-        else:
+        elif self.approach == 2:
             # grab output directly
+            real_output = self.mlp_real(radii)
+            imag_output = self.mlp_imag(radii)
+            # reshape to 3x3
+            real_output = real_output.view(-1, 3, 3)
+            imag_output = imag_output.view(-1, 3, 3)
+        else:
             real_output = self.mlp_real(radii)
             imag_output = self.mlp_imag(radii)
             # Reshape to image size
@@ -186,12 +197,15 @@ class WaveMLP(LightningModule):
             loss = fn(preds, labels)
         elif choice == 'ssim':
             # Structural Similarity Index
-            preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
-            torch.use_deterministic_algorithms(True, warn_only=True)
-            with torch.backends.cudnn.flags(enabled=False):
-                fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
-                ssim_value = fn(preds, labels)
-                loss = 1 - ssim_value  # SSIM is a similarity metric
+            if preds.size(-1) < 11 or preds.size(-2) < 11:
+                loss = 0 # if the size is too small, SSIM is not defined
+            else:
+                preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
+                torch.use_deterministic_algorithms(True, warn_only=True)
+                with torch.backends.cudnn.flags(enabled=False):
+                    fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
+                    ssim_value = fn(preds, labels)
+                    loss = 1 - ssim_value  # SSIM is a similarity metric
         else:
             raise ValueError(f"Unsupported loss function: {choice}")
             
@@ -346,42 +360,42 @@ class WaveLSTM(LightningModule):
         self.val_psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.val_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
         
-        # setup
-        def create_architecture():
-            seq_len = self.params['seq_len']
+    # setup
+    def create_architecture(self):
+        seq_len = self.params['seq_len']
+        
+        if self.name == 'lstm':
+            self.arch = torch.nn.LSTM(input_size=self.arch_params['i_dims'],
+                                      hidden_size=self.arch_params['h_dims'],
+                                      num_layers=self.arch_params['num_layers'],
+                                      batch_first=True)
             
-            if self.name == 'lstm':
-                self.arch = torch.nn.LSTM(input_size=self.arch_params['i_dims'],
-                                          hidden_size=self.arch_params['h_dims'],
-                                          num_layers=self.arch_params['num_layers'],
-                                          batch_first=True)
+            self.linear = torch.nn.Sequential(
+                torch.nn.Linear(self.arch_params['h_dims'], self.arch_params['i_dims']),
+                torch.nn.Tanh())
+            
+        else: # ConvLSTM
+            spatial = self.arch_params['spatial']
+            kernel_size = self.arch_params['kernel_size']
+            padding = self.arch_params['padding']
+            in_channels = self.arch_params['in_channels']
+            out_channels = self.arch_params['out_channels']
+            num_layers = self.arch_params['num_layers']
+            
+            spatial = (spatial, spatial) # here (166, 166)
+            
+            for i in range(num_layers):
+                name = "convlstm_%s" % i
+                layer = ConvLSTM(out_channels=out_channels,
+                                 in_channels=in_channels,
+                                 seq_len=seq_len,
+                                 kernel_size=kernel_size,
+                                 padding=padding,
+                                 frame_size=spatial)
                 
-                self.linear = torch.nn.Sequential(torch.nn.Linear(self.arch_params['h_dims'],
-                                                                  self.arch_params['i_dims']),
-                                                  torch.nn.Tanh())
+                self.arch.add_moudle(name, layer)
                 
-            else: # ConvLSTM
-                spatial = self.arch_params['spatial']
-                kernel_size = self.arch_params['kernel_size']
-                padding = self.arch_params['padding']
-                in_channels = self.arch_params['in_channels']
-                out_channels = self.arch_params['out_channels']
-                num_layers = self.arch_params['num_layers']
-                
-                spatial = (spatial, spatial) # here (166, 166)
-                
-                for i in range(num_layers):
-                    name = "convlstm_%s" % i
-                    layer = ConvLSTM(out_channels=out_channels,
-                                        in_channels=in_channels,
-                                        seq_len=seq_len,
-                                        kernel_size=kernel_size,
-                                        padding=padding,
-                                        frame_size=spatial)
-                    
-                    self.arch.add_moudle(name, layer)
-                    
-                self.arch.add_module("tanh", torch.nn.Tanh())
+            self.arch.add_module("tanh", torch.nn.Tanh())
                 
     def configure_optimizers(self):
         # Create: Optimization Routine
@@ -437,42 +451,54 @@ class WaveLSTM(LightningModule):
         
         return {"loss": loss}
     
-    def forward(self, x, target_seq):
-        batch, seq_len, channel, height, width = x.size()
-        
-        all_pred = torch.zeros(batch, target_seq, channel, 
-                               height, width).to(x.device)
+    def forward(self, x, meta=None):
+        batch, seq_len, input = x.size()
         
         # Forward Pass: LSTM
         if self.name == 'lstm':
-            x = x.view(batch, seq_len, -1)
-            h = torch.zeros(self.arch_params['num_layers'], 
-                            batch, self.arch_params['h_dims']).to(x.device)
-            c = torch.zeros(self.arch_params['num_layers'], 
-                            batch, self.arch_params['h_dims']).to(x.device)
-            meta = (h, c)
-            
-            for i in range(target_seq):
-                pred, meta = self.arch(x, meta)
-                pred = self.linear(pred.reshape(batch, -1))
-                pred = pred.view((batch, channel, height, width))
-                all_pred[:, i, :, :, :] = pred
+            if meta is None: # Init hidden and cell states if not provided
+                h = torch.zeros(self.arch_params['num_layers'], 
+                                batch, self.arch_params['h_dims']).to(x.device)
+                c = torch.zeros(self.arch_params['num_layers'], 
+                                batch, self.arch_params['h_dims']).to(x.device)
+                meta = (h, c)
+                
+            lstm_out, meta = self.arch(x, meta)
+            preds = self.linear(lstm_out)
                 
         # Forward Pass: ConvLSTM
         else:
-            all_pred = self.arch(x) #TODO Not fully functional yet
+            if meta is None: # Init hidden and cell states if not provided
+                pass
+            raise NotImplementedError # TODO: Implement ConvLSTM
         
-        return all_pred
+        return preds, meta
     
     def shared_step(self, batch, batch_idx):
-        samples, labels = batch
+        samples, labels = batch # samples: (batch_size, 1, r/i, xdim, ydim)
+                                # labels: (batch_size, seq_len, r/i, xdim, ydim)
+                                
+        # concat samples and labels to form full sequence
+        full_seq = torch.cat((samples, labels), dim=1) # (batch_size, seq_len_total, r/i, xdim, ydim)
         
-        # Gather: Model Predictions
-        target_seq = labels.size()[1]
-        preds = self.arch(samples, target_seq)
+        # prepare input and target sequences
+        input_seq = full_seq[:, :-1, :, :, :] # t=0 to t=seq_len-1
+        target_seq = full_seq[:, 1:, :, :, :] # t=1 to t=seq_len
         
-        # Calcuate: Loss
-        loss = self.objective(preds, labels)
+        # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
+        batch_size, seq_len, r_i, xdim, ydim = input_seq.size()
+        input_seq = input_seq.view(batch_size, seq_len, -1)
+        target_seq = target_seq.view(batch_size, seq_len, -1)                        
+        
+        # Forward pass
+        preds, _ = self.forward(input_seq)
+        
+        # Compute loss
+        loss_dict = self.objective(preds, target_seq)
+        loss = loss_dict['loss']
+        
+        # reshape preds for metrics
+        preds = preds.view(batch_size, seq_len, r_i, xdim, ydim)
         
         return loss, preds
     
@@ -489,4 +515,45 @@ class WaveLSTM(LightningModule):
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         
         return {'loss': loss, 'output': preds, 'target': batch}
+    
+    def test_step(self, batch, batch_idx, dataloader_idx=0):
+        loss, preds = self.shared_step(batch, batch_idx)
+        self.organize_testing(preds, batch, batch_idx, dataloader_idx)
+        
+    def organize_testing(self, preds, batch, batch_idx, dataloader_idx=0):
+        samples, labels = batch
+        preds_np = preds.detach().cpu().numpy()
+        labels_np = labels.detach().cpu().numpy()
+        
+        # Determine the mode based on dataloader_idx
+        if dataloader_idx == 0:
+            mode = 'valid'
+        elif dataloader_idx == 1:
+            mode = 'train'
+        else:
+            raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
+        
+        # Append predictions and truths
+        self.test_results[mode]['nf_pred'].append(preds_np)
+        self.test_results[mode]['nf_truth'].append(labels_np)
+
+    def on_test_end(self):
+        for mode in ['train', 'valid']:
+            if self.test_results[mode]['nf_pred']:
+                self.test_results[mode]['nf_pred'] = np.concatenate(self.test_results[mode]['nf_pred'], axis=0)
+                self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
+                
+                # Handle fold index
+                fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
+                
+                # Log or save results
+                name = f"results{fold_suffix}_{mode}"
+                self.logger.experiment.log_results(
+                    results=self.test_results[mode],
+                    epoch=None,
+                    mode=mode,
+                    name=name
+                )
+            else:
+                print(f"No test results for mode: {mode}")
         
