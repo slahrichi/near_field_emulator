@@ -5,7 +5,7 @@
 import sys
 import torch
 import numpy as np
-from geomloss import SamplesLoss
+#from geomloss import SamplesLoss
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 #from torchvision.models import resnet50, resnet18, resnet34
 import torch.nn as nn
@@ -184,12 +184,14 @@ class WaveMLP(LightningModule):
             fn = torch.nn.MSELoss()
             loss = fn(preds, labels)
         elif choice == 'emd':
-            # Earth Mover's Distance / Sinkhorn
+            # ignoring emd for now
+            raise NotImplementedError("Earth Mover's Distance not implemented!")
+            '''# Earth Mover's Distance / Sinkhorn
             preds = preds.to(torch.float64).contiguous()
             labels = labels.to(torch.float64).contiguous()
             fn = SamplesLoss("sinkhorn", p=1, blur=0.05)
             loss = fn(preds, labels)
-            loss = torch.mean(loss)  # Aggregating the loss
+            loss = torch.mean(loss)  # Aggregating the loss'''
         elif choice == 'psnr':
             # Peak Signal-to-Noise Ratio
             preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
@@ -227,14 +229,15 @@ class WaveMLP(LightningModule):
         # compute other metrics for logging besides specified loss function
         choices = {
             'mse': None,
-            'emd': None,
+            #'emd': None,
             'ssim': None,
             'psnr': None
         }
         
         for key in choices:
             if key != self.loss_func:
-                if key == 'emd':
+                # ignoring emd for now - geomloss library has issues
+                '''if key == 'emd':
                     # Reshape tensors to (batch_size, num_pixels, 1)
                     pred_real_reshaped = pred_real.view(pred_real.size(0), -1, 1)
                     real_near_fields_reshaped = real_near_fields.view(real_near_fields.size(0), -1, 1)
@@ -243,9 +246,9 @@ class WaveMLP(LightningModule):
 
                     loss_real = self.compute_loss(pred_real_reshaped, real_near_fields_reshaped, choice=key)
                     loss_imag = self.compute_loss(pred_imag_reshaped, imag_near_fields_reshaped, choice=key)
-                else:
-                    loss_real = self.compute_loss(pred_real, real_near_fields, choice=key)
-                    loss_imag = self.compute_loss(pred_imag, imag_near_fields, choice=key)
+                else:'''
+                loss_real = self.compute_loss(pred_real, real_near_fields, choice=key)
+                loss_imag = self.compute_loss(pred_imag, imag_near_fields, choice=key)
                 loss = loss_real + loss_imag
                 choices[key] = loss
         
@@ -429,12 +432,14 @@ class WaveLSTM(LightningModule):
             loss = fn(preds, labels)
             
         elif choice == 'emd':
-            # Earth Mover's Distance / Sinkhorn
+            # ignoring emd for now
+            raise NotImplementedError("Earth Mover's Distance not implemented!")
+            '''# Earth Mover's Distance / Sinkhorn
             preds = preds.to(torch.float64).contiguous()
             labels = labels.to(torch.float64).contiguous()
             fn = SamplesLoss("sinkhorn", p=1, blur=0.05)
             loss = fn(preds, labels)
-            loss = torch.mean(loss)  # Aggregating the loss
+            loss = torch.mean(loss)  # Aggregating the loss'''
             
         elif choice == 'psnr':
             # Peak Signal-to-Noise Ratio
@@ -498,10 +503,19 @@ class WaveLSTM(LightningModule):
         # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
         batch_size, seq_len, r_i, xdim, ydim = input_seq.size()
         input_seq = input_seq.view(batch_size, seq_len, -1)
-        target_seq = target_seq.view(batch_size, seq_len, -1)                        
+        target_seq = target_seq.view(batch_size, seq_len, -1) 
+        
+        # Initialize or retrieve hidden state
+        #if self.prev_meta is None:
+        #    meta = None # init to zeros
+        #else:
+        #    meta = self.prev_meta
         
         # Forward pass
         preds, _ = self.forward(input_seq)
+        
+        # store hidden for next sequence
+        #self.prev_meta = meta.detach()
         
         # Compute loss
         loss_dict = self.objective(preds, target_seq)

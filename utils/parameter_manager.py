@@ -73,7 +73,7 @@ class Parameter_Manager():
             # Load: Datamodule Params
             self.n_cpus = params['n_cpus']
             self.n_folds = params['n_folds']
-            
+            self.interpolate_fields = params['interpolate_fields']
             # Load: Physical Params
             self._distance = params['distance']
             if(not(isinstance(self._distance, torch.Tensor))):
@@ -178,6 +178,7 @@ class Parameter_Manager():
                                 'arch'          : self._arch,
                                 'mlp_strategy'  : self.mlp_strategy,
                                 'patch_size'    : self.patch_size,
+                                'interpolate_fields': self.interpolate_fields,
                                 }
 
         self._params_trainer = {

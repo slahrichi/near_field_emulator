@@ -73,6 +73,8 @@ class NF_Datamodule(LightningDataModule):
         # load the full dataset
         if self.arch == 0: # MLP
             data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
+            if self.params['interpolate_fields']: # interpolate fields to lower resolution
+                data = interpolate_fields(data)
             self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
         elif self.arch == 1 or self.arch == 2: # LSTM
             datafile = os.path.join(self.path_data, 'slices_dataset.pt')
@@ -116,12 +118,16 @@ class WaveMLP_Dataset(Dataset):
         self.radii = data['radii']
         self.phases = data['phases']
         self.derivatives = data['derivatives']
-        
         # focus on 1550 wavelength in y for now
         temp_nf_1550 = data['all_near_fields']['near_fields_1550']
         temp_nf_1550 = torch.stack(temp_nf_1550, dim=0) # stack all sample tensors
         temp_nf_1550 = temp_nf_1550.squeeze(1) # remove redundant dimension
-        self.near_fields = temp_nf_1550[:, 1, :, :, :] # [num_samples, r/i, 166, 166]
+        temp_nf_1550 = temp_nf_1550[:, 1, :, :, :] # [num_samples, mag/phase, 166, 166]
+        # convert to cartesian coords
+        mag, phase = mapping.polar_to_cartesian(temp_nf_1550[:, 0, :, :], temp_nf_1550[:, 1, :, :])
+        mag = mag.unsqueeze(1)
+        phase = phase.unsqueeze(1)
+        self.near_fields = torch.cat((mag, phase), dim=1) # [num_samples, r/i, 166, 166]
         
         # distributed subset approach
         if self.approach == 2:
@@ -256,6 +262,38 @@ def format_temporal_data(datafile, seq_len, order=(-1, 0, 1, 2)):
         all_labels.append(label)
         
     return WaveLSTM_Dataset(all_samples, all_labels)
+
+def interpolate_fields(data):
+    """Interpolates the fields to a lower resolution. Currently supports 2x downsampling.  
+
+    Args:
+        data (dict): dictionary containing the near fields, phases, and radii
+        
+    Returns:
+        dataset (WaveLSTM_Dataset): formatted dataset
+    """
+    near_fields = data['all_near_fields']['near_fields_1550']
+    near_fields = torch.stack(near_fields, dim=0)
+    # y-component, real component -> [samples, r/i, xdim, ydim]
+    real_fields = near_fields[:, :, 1, 0, :, :] 
+    imag_fields = near_fields[:, :, 1, 1, :, :]
+    # interpolate and combine r/i
+    real_fields_interp = torch.nn.functional.interpolate(real_fields, scale_factor=0.5, mode='bilinear')
+    imag_fields_interp = torch.nn.functional.interpolate(imag_fields, scale_factor=0.5, mode='bilinear')
+    near_fields_new = torch.cat((real_fields_interp, imag_fields_interp), dim=1)
+    # create a new list to store interpolated tensors
+    near_fields_new_list = []
+    for i in range(near_fields.shape[0]):
+        # match dimensions accordingly to the original data
+        modified = torch.zeros(1, 3, 2, 83, 83)
+        modified[0, 1, :, :, :] = near_fields_new[i]
+        near_fields_new_list.append(modified)
+    
+    # update the data    
+    data['all_near_fields']['near_fields_1550'] = near_fields_new_list
+    
+    return data
+    
     
 #--------------------------------
 # Initialize: Testing

@@ -13,6 +13,9 @@ import scipy.stats as stats
 import yaml
 from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 
+sys.path.append('../')
+import utils.mapping as mapping
+
 fontsize = 8
 font = FontProperties()
 colors = ['darkgreen','purple','#4e88d9'] 
@@ -87,8 +90,9 @@ def gather_info(folder_path):
             key_dict['arch'] = yaml_content['arch']
             key_dict['lr'] = yaml_content['learning_rate']
             key_dict['optimizer'] = yaml_content['optimizer']
-            #key_dict['lr_scheduler'] = yaml_content['lr_scheduler']
+            key_dict['lr_scheduler'] = yaml_content['lr_scheduler']
             key_dict['batch_size'] = yaml_content['batch_size']
+            key_dict['loss_func'] = yaml_content['objective_function']
             if yaml_content['arch'] == 0:
                 key_dict['mlp_real'] = yaml_content['mlp_real']
                 key_dict['mlp_imag'] = yaml_content['mlp_imag']
@@ -132,20 +136,20 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
     title = model_info['title'].split("/")[-1]
     lr = model_info['lr']
     optimizer = model_info['optimizer']
-    #lr_scheduler = model_info['lr_scheduler']
+    lr_scheduler = model_info['lr_scheduler']
     batch_size = model_info['batch_size']
     if model_info['arch'] == 0:
         mlp_layers = model_info['mlp_real']['layers']
-        model_identifier = f'{title} - lr: {lr}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
-        if model_info['mlp_strategy'] != 0:
-            patch_size = model_info['patch_size']
-            model_identifier += f", patch_size: {patch_size}"
+        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
+        #if model_info['mlp_strategy'] != 0:
+        #    patch_size = model_info['patch_size']
+        #    model_identifier += f", patch_size: {patch_size}"
     elif model_info['arch'] == 1:
         lstm_num_layers = model_info['lstm_num_layers']
         lstm_i_dims = model_info['lstm_i_dims']
         lstm_h_dims = model_info['lstm_h_dims']
         seq_len = model_info['seq_len']
-        model_identifier = f'{title} - lr: {lr}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
+        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
     
     plt.style.use("ggplot")
     
@@ -186,7 +190,7 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
                        mean_train_loss.values - std_train_loss.values, 
                        mean_train_loss.values + std_train_loss.values, 
                        color='red', alpha=0.3, label='Training Std Dev')
-    ax[0].set_ylabel("Loss", fontsize=10)
+    ax[0].set_ylabel(f"{model_info['loss_func']} Loss", fontsize=10)
     ax[0].set_xlabel("Epoch", fontsize=10)
     ax[0].set_title(f"Training Loss", fontsize=12)
     ax[0].set_ylim([min_list[0], max_list[0]])
@@ -198,7 +202,7 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
                        mean_val_loss.values - std_val_loss.values, 
                        mean_val_loss.values + std_val_loss.values, 
                        color='blue', alpha=0.3, label='Validation Std Dev')
-    ax[1].set_ylabel("Loss", fontsize=10)
+    ax[1].set_ylabel(f"{model_info['loss_func']} Loss", fontsize=10)
     ax[1].set_xlabel("Epoch", fontsize=10)
     ax[1].set_title(f"Validation Loss", fontsize=12)
     ax[1].set_ylim([min_list[1], max_list[1]])
@@ -276,82 +280,107 @@ def print_metrics(fold_results, fold_idx=None, dataset='valid', save_fig=False, 
 
 def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", 
                     sample_idx=0, save_fig=False, save_dir=None,
-                    arch='mlp'):
+                    arch='mlp', format='polar'):
     """
     Parameters:
     - fold_results: List of dictionaries containing train and valid results for each fold
     - fold_idx: Optional, if you want to visualize a specific fold by index
-    - plot_type: "best" to plot best-performing fold, "worst" to plot worst-performing fold, or "specific" if fold_idx is provided
+    - plot_type: "best" to plot best-performing fold, "worst" to plot worst-performing fold,  
+      or "specific" if fold_idx is provided  
+    - sample_idx: Index of the sample to plot
+    - save_fig: Whether to save the plot to a file
+    - save_dir: Directory to save the plot to
+    - arch: "mlp" or "lstm"
+    - format: "cartesian" or "polar"
     """
-    def plot_single_set(results, title, save_path, sample_idx):
+    def plot_single_set(results, title, format, save_path, sample_idx):
         if arch == 'mlp':
-            # extract the specific sample from the results
-            truth_real = results['nf_truth'][sample_idx, 0, :, :]
-            truth_imag = results['nf_truth'][sample_idx, 1, :, :]
-            pred_real = results['nf_pred'][sample_idx, 0, :, :]
-            pred_imag = results['nf_pred'][sample_idx, 1, :, :]
-        
-            # convert to magnitude and phase
-            truth_mag = truth_real
-            truth_phase = truth_imag
-            pred_mag = pred_real
-            pred_phase = pred_imag
-            
+            # extract and convert to tensors
+            truth_real = torch.from_numpy(results['nf_truth'][sample_idx, 0, :, :])
+            truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, 1, :, :])
+            pred_real = torch.from_numpy(results['nf_pred'][sample_idx, 0, :, :])
+            pred_imag = torch.from_numpy(results['nf_pred'][sample_idx, 1, :, :])
+
+            # determine which coordinate format to plot
+            if format == 'polar':
+                component_1 = "Magnitude"
+                component_2 = "Phase"
+                # convert to magnitude and phase
+                truth_component_1, truth_component_2 = mapping.cartesian_to_polar(truth_real, truth_imag)
+                pred_component_1, pred_component_2 = mapping.cartesian_to_polar(pred_real, pred_imag)
+            else:
+                component_1 = "Real"
+                component_2 = "Imaginary"
+                truth_component_1, truth_component_2 = truth_real, truth_imag
+                pred_component_1, pred_component_2 = pred_real, pred_imag
+
             # 4 subplots (2x2 grid)
             fig, ax = plt.subplots(2, 2, figsize=(8, 8))
             fig.suptitle(title, fontsize=16)
             fig.text(0.5, 0.92, model_identifier, ha='center', fontsize=12)
 
             # real part of the truth
-            print(f"Truth Magnitude: {truth_mag.shape}")
-            print(f"Pred Magnitude: {pred_mag.shape}")
-            ax[0, 0].imshow(truth_mag, cmap='viridis')
-            ax[0, 0].set_title('Truth Magnitude')
+            ax[0, 0].imshow(truth_component_1, cmap='viridis')
+            ax[0, 0].set_title(f'True {component_1} Component')
             ax[0, 0].axis('off')
 
             # real part of the prediction
-            ax[0, 1].imshow(pred_mag, cmap='viridis')
-            ax[0, 1].set_title('Predicted Magnitude')
+            ax[0, 1].imshow(pred_component_1, cmap='viridis')
+            ax[0, 1].set_title(f'Predicted {component_1} Component')
             ax[0, 1].axis('off')
 
             # imaginary part of the truth
-            ax[1, 0].imshow(truth_phase, cmap='twilight_shifted')
-            ax[1, 0].set_title('True Phase')
+            ax[1, 0].imshow(truth_component_2, cmap='twilight_shifted')
+            ax[1, 0].set_title(f'True {component_2} Component')
             ax[1, 0].axis('off')
 
             # imaginary part of the prediction
-            ax[1, 1].imshow(pred_phase, cmap='twilight_shifted')  
-            ax[1, 1].set_title('Predicted Phase')
+            ax[1, 1].imshow(pred_component_2, cmap='twilight_shifted')  
+            ax[1, 1].set_title(f'Predicted {component_2} Component')
             ax[1, 1].axis('off')
+                
         elif arch == 'lstm':
-            # (sequence length, 166x166)
-            truth_real = results['nf_truth'][sample_idx, :, 0, :, :]
-            truth_imag = results['nf_truth'][sample_idx, :, 1, :, :]
-            pred_real = results['nf_pred'][sample_idx, :, 0, :, :]
-            pred_imag = results['nf_pred'][sample_idx, :, 1, :, :]
+            # extract and convert to tensors
+            truth_real = torch.from_numpy(results['nf_truth'][sample_idx, :, 0, :, :])
+            truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, :, 1, :, :])
+            pred_real = torch.from_numpy(results['nf_pred'][sample_idx, :, 0, :, :])
+            pred_imag = torch.from_numpy(results['nf_pred'][sample_idx, :, 1, :, :])
             
-            seq_len = truth_real.shape[0]
+            # determine which coordinate format to plot
+            if format == 'polar':
+                component_1 = "Magnitude"
+                component_2 = "Phase"
+                # convert to magnitude and phase
+                truth_component_1, truth_component_2 = mapping.cartesian_to_polar(truth_real, truth_imag)
+                pred_component_1, pred_component_2 = mapping.cartesian_to_polar(pred_real, pred_imag)
+            else:
+                component_1 = "Real"
+                component_2 = "Imaginary"
+                truth_component_1, truth_component_2 = truth_real, truth_imag
+                pred_component_1, pred_component_2 = pred_real, pred_imag
             
-            # 4 rows: truth magnitude, pred magnitude, truth phase, pred phase
+            seq_len = truth_component_1.shape[0]
+            
+            # 4 rows: truth component_1, pred component_1, truth component_2, pred component_2
             fig, axs = plt.subplots(4, seq_len, figsize=(4*seq_len, 16))
             fig.suptitle(title, fontsize=16)
             fig.text(0.5, 0.92, model_identifier, ha='center', fontsize=12)
             
             for t in range(seq_len):
-                axs[0, t].imshow(truth_real[t], cmap='viridis')
-                axs[0, t].set_title(f'Truth Magnitude t={t}')
+                axs[0, t].imshow(truth_component_1[t], cmap='viridis')
+                axs[0, t].set_title(f'Truth {component_1} t={t+1}')
                 axs[0, t].axis('off')
                 
-                axs[1, t].imshow(pred_real[t], cmap='viridis')
-                axs[1, t].set_title(f'Pred Magnitude t={t}')
+                axs[1, t].imshow(pred_component_1[t], cmap='viridis')
+                axs[1, t].set_title(f'Pred {component_1} t={t+1}')
                 axs[1, t].axis('off')
                 
-                axs[2, t].imshow(truth_imag[t], cmap='twilight_shifted')
-                axs[2, t].set_title(f'Truth Phase t={t}')
+                axs[2, t].imshow(truth_component_2[t], cmap='twilight_shifted')
+                axs[2, t].set_title(f'Truth {component_2} t={t+1}')
                 axs[2, t].axis('off')
                 
-                axs[3, t].imshow(pred_imag[t], cmap='twilight_shifted')
-                axs[3, t].set_title(f'Pred Phase t={t}')
+                axs[3, t].imshow(pred_component_2[t], cmap='twilight_shifted')
+                axs[3, t].set_title(f'Pred {component_2} t={t+1}')
                 axs[3, t].axis('off')
                 
         fig.tight_layout()
@@ -360,7 +389,7 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
         if save_fig:
             if not save_dir:
                 raise ValueError("Please specify a save directory")
-            file_name = f'{title}_dft_sample_idx_{sample_idx}.pdf'
+            file_name = f'{title}_dft_sample_idx_{sample_idx}_{format}.pdf'
             save_eval_item(save_dir, fig, file_name, 'dft')
 
         plt.show()
@@ -384,5 +413,5 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
         raise ValueError("Invalid plot_type or fold_idx provided")
 
     # Plot both training and validation results for the selected fold
-    plot_single_set(selected_results['train'], f"{title} - Training Dataset", save_dir, sample_idx)
-    plot_single_set(selected_results['valid'], f"{title} - Validation Dataset", save_dir, sample_idx)
+    plot_single_set(selected_results['train'], f"{title} - Training Dataset - {format}", format, save_dir, sample_idx)
+    plot_single_set(selected_results['valid'], f"{title} - Validation Dataset - {format}", format, save_dir, sample_idx)

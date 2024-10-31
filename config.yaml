@@ -5,7 +5,7 @@ resim : 1
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'mlp_1x1_v1'
+model_id: 'lstm_v2_seq10'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -19,7 +19,7 @@ num_design_params: 9
 # General Parameters
 # - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM)
 
-arch: 0
+arch: 1
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts***
@@ -29,15 +29,16 @@ arch: 0
 # - patch_size: patch height/width for patch wise or distributed subset
 
 mlp_real:
-    layers: [64, 16]
+    layers: [128, 64]
     activation: 'relu'
 
 mlp_imag:
-    layers: [64, 16]
+    layers: [128, 64]
     activation: 'relu'
 
 mlp_strategy: 2
-patch_size: 1
+patch_size: 3
+interpolate_fields: False
 
 # LSTM Parameters
 # - num_layers: number of lstm layers (i.e., stacked networks)
@@ -62,12 +63,12 @@ conv_lstm:
     padding: 1
     spatial: 166
 
-seq_len: 5 # for time-series models
+seq_len: 10 # for time-series models
 
 #--------------------------------
 #       Training Params
 #--------------------------------
-batch_size: 8
+batch_size: 1
 num_epochs: 200 # maximum
 
 accelerator: 'gpu' 
@@ -83,7 +84,7 @@ lr_scheduler: 'ReduceLROnPlateau'
 transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
-patience: 15 # early stopping patience
+patience: 12 # early stopping patience
 
 mcl_params:
     alpha: 1     #near-field
@@ -138,4 +139,4 @@ adaptive: True
 #       Datamodule Params
 #--------------------------------
 n_cpus: 5
-n_folds: 5
+n_folds: 3
