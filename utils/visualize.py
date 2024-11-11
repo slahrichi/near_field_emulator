@@ -18,6 +18,9 @@ def animate_fields(fields, title, cmap='viridis', save_path=None, frames=63, int
     # Initialize: Frame 0
     im = ax.imshow(fields[:, :, 0], cmap=cmap, animated=True)
     ax.set_title(f'{title} - Frame 0/{frames}')
+    ax.grid(False)
+    ax.set_xticks([])
+    ax.set_yticks([])
     
     # frame updating
     def update(frame):

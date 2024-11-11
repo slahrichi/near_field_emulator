@@ -229,7 +229,7 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
                 'radii': radii_tensor}, save_path)
     print(f"Data saved to {save_path}")
     
-def format_temporal_data(datafile, seq_len, order=(-1, 0, 1, 2)):
+def format_temporal_data(datafile, seq_len, stride=2, order=(-1, 0, 1, 2)):
     """Formats the preprocessed data file into the correct setup  
     and order for the LSTM model.
 
@@ -252,7 +252,7 @@ def format_temporal_data(datafile, seq_len, order=(-1, 0, 1, 2)):
         total = full_sequence.shape[-1] # all time slices
         
         # Sliding window approach
-        for start in range(total - seq_len):
+        for start in range(0, total - seq_len, stride):
             sample = full_sequence[:, :, :, start:start+1] # t=start slice
             label = full_sequence[:, :, :, start+1:start+seq_len+1] # next seq_len slices
             
@@ -262,7 +262,6 @@ def format_temporal_data(datafile, seq_len, order=(-1, 0, 1, 2)):
             
             all_samples.append(sample)
             all_labels.append(label)
-        
         
         '''# distributed subsequence
         sample = full_sequence[:, :, :, :1] # t=0 slice

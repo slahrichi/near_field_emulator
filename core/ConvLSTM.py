@@ -20,71 +20,98 @@ from pytorch_lightning import LightningModule
 sys.path.append("../")
 
 
-class ConvLSTMCell(LightningModule):
-
+class ConvLSTMCell(nn.Module):
+    """
+    ConvLSTMCell class
+    """
     def __init__(self, in_channels, out_channels,
                  kernel_size, padding, frame_size):
-
         super().__init__()
+        
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.padding = padding
+        self.frame_size = frame_size
 
-        self.conv = nn.Conv2d(in_channels=in_channels + out_channels,
-                              out_channels=4 * out_channels,
-                              kernel_size=kernel_size, padding=padding)
+        # primary conv layer -> processes concatenated input and prev hidden state
+        # output channels = 4 * out_channels (i, f, c, o)
+        self.conv = nn.Conv2d(in_channels=self.in_channels + self.out_channels,
+                              out_channels=4 * self.out_channels,
+                              kernel_size=self.kernel_size, padding=self.padding)
 
-        self.W_ci = nn.Parameter(torch.Tensor(out_channels, *frame_size))
-        self.W_co = nn.Parameter(torch.Tensor(out_channels, *frame_size))
-        self.W_cf = nn.Parameter(torch.Tensor(out_channels, *frame_size))
+        # learnable weights for input, output, and forget gates
+        self.W_ci = nn.Parameter(torch.zeros(self.out_channels, *self.frame_size)) 
+        self.W_co = nn.Parameter(torch.zeros(self.out_channels, *self.frame_size))
+        self.W_cf = nn.Parameter(torch.zeros(self.out_channels, *self.frame_size))
+        
+        # init weights
+        nn.init.xavier_uniform_(self.conv.weight)
+        nn.init.zeros_(self.conv.bias)
 
     def forward(self, x, h_prev, c_prev):
-
+        # concat input and prev hidden state
         conv_output = self.conv(torch.cat([x, h_prev], dim=1))
 
+        # split into input, forget, cell, and output gates
         i_conv, f_conv, c_conv, o_conv = torch.chunk(conv_output,
                                                      chunks=4, dim=1)
 
+        # apply sigmoid to input, forget, and cell gates
         input_gate = torch.sigmoid(i_conv + self.W_ci * c_prev)
         forget_gate = torch.sigmoid(f_conv + self.W_cf * c_prev)
 
+        # apply tanh to update the cell state
         c = forget_gate * c_prev + input_gate * torch.tanh(c_conv)
 
+        # apply sigmoid to output gate and calculate output
         output_gate = torch.sigmoid(o_conv + self.W_co * c)
-
         h = output_gate * torch.tanh(c)
 
         return h, c
 
 
-class ConvLSTM(LightningModule):
-
+class ConvLSTM(nn.Module):
+    """
+    ConvLSTM class
+    """
     def __init__(self, in_channels, out_channels, seq_len,
                  kernel_size, padding, frame_size):
-
         super().__init__()
-
+        
+        self.in_channels = in_channels
+        self.out_channels = out_channels
         self.target_len = seq_len
+
         self.convLSTMcell = ConvLSTMCell(in_channels, out_channels,
                                          kernel_size, padding, frame_size)
 
-    def forward(self, x):
-
+    def forward(self, x, meta=None):
         batch_size, seq_len, channel, height, width = x.size()
 
-        h = torch.zeros(batch_size, channel,
-                        height, width, device=x.device)
+        if meta is None:
+            # init hidden and cell states
+            h = torch.zeros(batch_size, self.out_channels,
+                            height, width, device=x.device)
+            c = torch.zeros(batch_size, self.out_channels,
+                            height, width, device=x.device)
+            meta = (h, c)
 
-        c = torch.zeros(batch_size, channel,
-                        height, width, device=x.device)
-
+        # prepare output tensor
         output = torch.zeros(batch_size, self.target_len,
-                             channel, height, width, device=x.device)
+                             self.out_channels, height, width, device=x.device)
 
         if seq_len == 1:
+            # single timestep case
             x = x.squeeze(dim=1)
-        else:
-            raise NotImplementedError
-
-        for time_step in range(self.target_len):
             h, c = self.convLSTMcell(x, h, c)
-            output[:, time_step] = h
+            output[:, 0] = h
+        else:
+            # multiple timesteps
+            for t in range(seq_len):
+                current_input = x[:, t] # [batch, channel, height, width]
+                h,c = self.convLSTMcell(current_input, h, c)
+                if t < self.target_len:
+                    output[:, t] = h
 
-        return output
+        return output, meta

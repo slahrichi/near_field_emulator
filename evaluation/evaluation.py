@@ -103,6 +103,12 @@ def gather_info(folder_path):
                 key_dict['lstm_i_dims'] = yaml_content['lstm']['i_dims']
                 key_dict['lstm_h_dims'] = yaml_content['lstm']['h_dims']
                 key_dict['seq_len'] = yaml_content['seq_len']
+            elif yaml_content['arch'] == 2:
+                key_dict['in_channels'] = yaml_content['conv_lstm']['in_channels']
+                key_dict['out_channels'] = yaml_content['conv_lstm']['out_channels']
+                key_dict['kernel_size'] = yaml_content['conv_lstm']['kernel_size']
+                key_dict['padding'] = yaml_content['conv_lstm']['padding']
+                key_dict['spatial'] = yaml_content['conv_lstm']['spatial']
             key_dict['n_folds'] = yaml_content['n_folds']
             key_dict['title'] = folder_path.replace(excess, "")
 
@@ -150,6 +156,12 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
         lstm_h_dims = model_info['lstm_h_dims']
         seq_len = model_info['seq_len']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
+    elif model_info['arch'] == 2:
+        in_channels = model_info['in_channels']
+        out_channels = model_info['out_channels']
+        kernel_size = model_info['kernel_size']
+        padding = model_info['padding']
+        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, kernel_size: {kernel_size}, padding: {padding}'
     
     plt.style.use("ggplot")
     

@@ -21,11 +21,8 @@ def select_model(pm, fold_idx=None):
     logging.debug("select_model.py - Selecting model") 
     if pm.arch == 0:
         network = model.WaveMLP(pm.params_model, fold_idx)
-    elif pm.arch == 1:
+    elif pm.arch == 1 or pm.arch == 2: # parameters will distinguish
         network = model.WaveLSTM(pm.params_model, fold_idx)
-    elif pm.arch == 2:
-        # TODO ConvLSTM
-        raise NotImplementedError
     else:
         raise ValueError("Model not recognized")
 

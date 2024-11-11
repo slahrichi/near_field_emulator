@@ -410,7 +410,20 @@ class WaveLSTM(LightningModule):
             
             spatial = (spatial, spatial) # here (166, 166)
             
-            for i in range(num_layers):
+            # Create single ConvLSTM layer
+            self.arch = ConvLSTM(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                seq_len=seq_len,
+                kernel_size=kernel_size,
+                padding=padding,
+                frame_size=spatial
+            )
+            
+            # just a tanh activation
+            self.linear = torch.nn.Tanh()
+            
+            '''for i in range(num_layers):
                 name = "convlstm_%s" % i
                 layer = ConvLSTM(out_channels=out_channels,
                                  in_channels=in_channels,
@@ -421,7 +434,7 @@ class WaveLSTM(LightningModule):
                 
                 self.arch.add_moudle(name, layer)
                 
-            self.arch.add_module("tanh", torch.nn.Tanh())
+            self.arch.add_module("tanh", torch.nn.Tanh())'''
                 
     def configure_optimizers(self):
         # Create: Optimization Routine
@@ -480,10 +493,10 @@ class WaveLSTM(LightningModule):
         return {"loss": loss}
     
     def forward(self, x, meta=None):
-        batch, seq_len, input = x.size()
         
         # Forward Pass: LSTM
         if self.name == 'lstm':
+            batch, seq_len, input = x.size()
             if meta is None: # Init hidden and cell states if not provided
                 h = torch.zeros(self.arch_params['num_layers'], 
                                 batch, self.arch_params['h_dims']).to(x.device)
@@ -496,10 +509,12 @@ class WaveLSTM(LightningModule):
                 
         # Forward Pass: ConvLSTM
         else:
-            if meta is None: # Init hidden and cell states if not provided
-                pass
-            raise NotImplementedError # TODO: Implement ConvLSTM
-        
+            batch, seq_len, r_i, xdim, ydim = x.size()
+            x = x.view(batch, seq_len, self.arch_params['in_channels'], 
+                       self.arch_params['spatial'], self.arch_params['spatial'])
+            lstm_out, meta = self.arch(x)
+            preds = self.linear(lstm_out)
+            
         return preds, meta
     
     def shared_step(self, batch, batch_idx):
@@ -513,11 +528,14 @@ class WaveLSTM(LightningModule):
         input_seq = full_seq[:, :-1, :, :, :] # t=0 to t=seq_len-1
         target_seq = full_seq[:, 1:, :, :, :] # t=1 to t=seq_len
         
-        # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
+        # extract sizes
         batch_size, seq_len, r_i, xdim, ydim = input_seq.size()
-        input_seq = input_seq.view(batch_size, seq_len, -1)
-        target_seq = target_seq.view(batch_size, seq_len, -1) 
         
+        if self.name == 'lstm':
+            # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
+            input_seq = input_seq.view(batch_size, seq_len, -1)
+            target_seq = target_seq.view(batch_size, seq_len, -1)
+
         # Initialize or retrieve hidden state
         #if self.prev_meta is None:
         #    meta = None # init to zeros
@@ -531,6 +549,11 @@ class WaveLSTM(LightningModule):
         #self.prev_meta = meta.detach()
         
         # Compute loss
+        # print some values from preds and target_seq
+        #print(f"preds: {preds.shape}")
+        #print(f"target_seq: {target_seq.shape}")
+        #print(f"preds[0]: {preds[0]}")
+        #print(f"target_seq[0]: {target_seq[0]}")
         loss_dict = self.objective(preds, target_seq)
         loss = loss_dict['loss']
         
