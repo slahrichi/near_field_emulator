@@ -249,6 +249,22 @@ def format_temporal_data(datafile, seq_len, order=(-1, 0, 1, 2)):
     # [100, 2, 166, 166, 63] --> access each of the 100 datapoints
     for i in range(data['near_fields'].shape[0]):
         full_sequence = data['near_fields'][i] # [2, xdim, ydim, total_slices]
+        total = full_sequence.shape[-1] # all time slices
+        
+        # Sliding window approach
+        for start in range(total - seq_len):
+            sample = full_sequence[:, :, :, start:start+1] # t=start slice
+            label = full_sequence[:, :, :, start+1:start+seq_len+1] # next seq_len slices
+            
+            # rearrange dims
+            sample = sample.permute(order) # [1, 2, xdim, ydim]
+            label = label.permute(order) # [seq_len, 2, xdim, ydim]
+            
+            all_samples.append(sample)
+            all_labels.append(label)
+        
+        
+        '''# distributed subsequence
         sample = full_sequence[:, :, :, :1] # t=0 slice
         total = full_sequence.shape[-1] # all time slices
         indices = np.linspace(1, total-1, seq_len).astype(int) # indices for sequence blocks
@@ -259,7 +275,7 @@ def format_temporal_data(datafile, seq_len, order=(-1, 0, 1, 2)):
         label = label.permute(order) # [seq_len, 2, xdim, ydim]
         
         all_samples.append(sample)
-        all_labels.append(label)
+        all_labels.append(label)'''
         
     return WaveLSTM_Dataset(all_samples, all_labels)
 

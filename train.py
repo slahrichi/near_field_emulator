@@ -82,7 +82,7 @@ def run(params):
         early_stopping = CustomEarlyStopping(
             monitor='val_loss',
             patience=pm.patience,
-            min_delta=0.001,
+            min_delta=pm.min_delta,
             mode='min',
             verbose=True
         )

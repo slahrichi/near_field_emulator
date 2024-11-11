@@ -49,7 +49,7 @@ class Parameter_Manager():
             self.accelerator = params['accelerator']
             self.gpu_flag, self.gpu_list = params['gpu_config']
             self.patience = params['patience']
-
+            self.min_delta = params['min_delta']
             # Load: Model Params
             self.weights = params['weights']
             self.optimizer = params['optimizer']
@@ -186,6 +186,7 @@ class Parameter_Manager():
                             'valid_rate'        : self.valid_rate,
                             'accelerator'       : self.accelerator,
                             'patience'          : self.patience,
+                            'min_delta'         : self.min_delta,
                             }
 
         self._params_meep = {

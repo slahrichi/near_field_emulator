@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-def animate_fields(fields, title, cmap='viridis', save_path=None):
+def animate_fields(fields, title, cmap='viridis', save_path=None, frames=63, interval=100):
     """
     Create an animation of 2D field slices over time.
     
@@ -17,20 +17,20 @@ def animate_fields(fields, title, cmap='viridis', save_path=None):
     
     # Initialize: Frame 0
     im = ax.imshow(fields[:, :, 0], cmap=cmap, animated=True)
-    ax.set_title(f'{title} - Frame 0/63')
+    ax.set_title(f'{title} - Frame 0/{frames}')
     
     # frame updating
     def update(frame):
         im.set_array(fields[:, :, frame])
-        ax.set_title(f'{title} - Frame {frame}/63')
+        ax.set_title(f'{title} - Frame {frame}/{frames}')
         return [im]
     
     # Create: Animation object
     anim = FuncAnimation(
         fig, 
         update,
-        frames=63,
-        interval=100, # ms between frames 
+        frames=frames,
+        interval=interval, # ms between frames 
         blit=True
     )
     

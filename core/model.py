@@ -32,6 +32,7 @@ class WaveMLP(LightningModule):
         self.params = params_model
         self.num_design_params = int(self.params['num_design_params'])
         self.learning_rate = self.params['learning_rate']
+        self.lr_scheduler = self.params['lr_scheduler']
         self.loss_func = self.params['objective_function']
         self.fold_idx = fold_idx
         self.approach = self.params['mlp_strategy']
@@ -165,15 +166,27 @@ class WaveMLP(LightningModule):
         
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        scheduler = {
-            'scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
+        # setup specified scheduler
+        if self.lr_scheduler == 'ReduceLROnPlateau':
+            choice = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
                                                                     factor=0.5, patience=5, 
-                                                                    verbose=True, min_lr=1e-6,
-                                                                    threshold=0.001, cooldown=2),
-            'monitor': 'val_loss',
+                                                                    min_lr=1e-6, threshold=0.001, 
+                                                                    cooldown=2)
+        elif self.lr_scheduler == 'CosineAnnealingLR':
+            choice = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
+                                                                T_max=self.params['num_epochs'])
+        elif self.lr_scheduler == 'None':
+            return optimizer
+        else:
+            raise ValueError(f"Unsupported LR scheduler: {self.lr_scheduler}")
+        
+        scheduler = {
+            'scheduler': choice,
             'interval': 'epoch',
-            'frequency': 1,
+            'monitor': 'val_loss',
+            'frequency': 1
         }
+
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
     
     def compute_loss(self, preds, labels, choice):
