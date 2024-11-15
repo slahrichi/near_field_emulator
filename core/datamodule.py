@@ -38,6 +38,7 @@ class NF_Datamodule(LightningDataModule):
         self.params = params.copy()
         logging.debug("datamodule.py - Setting params to {}".format(self.params))
         self.arch = params['arch']
+        self.training_task = params['training_task']
         self.n_cpus = self.params['n_cpus']
         self.seed = self.params['seed']
         self.n_folds = self.params['n_folds']
@@ -71,14 +72,18 @@ class NF_Datamodule(LightningDataModule):
 
     def setup(self, stage: Optional[str] = None):
         # load the full dataset
-        if self.arch == 0: # MLP
-            data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
-            if self.params['interpolate_fields']: # interpolate fields to lower resolution
-                data = interpolate_fields(data)
-            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
-        elif self.arch == 1 or self.arch == 2: # LSTM
+        if self.training_task == 1: # autoencoder pretraining
             datafile = os.path.join(self.path_data, 'slices_dataset.pt')
-            self.dataset = format_temporal_data(datafile, self.params)
+            self.dataset = format_ae_data(datafile, self.params)
+        else:
+            if self.arch == 0: # MLP
+                data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
+                if self.params['interpolate_fields']: # interpolate fields to lower resolution
+                    data = interpolate_fields(data)
+                self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
+            elif self.arch == 1 or self.arch == 2: # LSTM
+                datafile = os.path.join(self.path_data, 'slices_dataset.pt')
+                self.dataset = format_temporal_data(datafile, self.params)
             
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
@@ -315,6 +320,30 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
         
     return WaveLSTM_Dataset(all_samples, all_labels)
 
+def format_ae_data(datafile, config):
+    """Formats the preprocessed data file into the correct setup  
+    and order for the autoencoder pretraining.
+
+    Args:
+        datafile (str): path to the file containing the preprocessed data
+        config (dict): configuration parameters
+        
+    Returns:
+        dataset (WaveLSTM_Dataset): formatted dataset
+    """
+    all_samples = []
+    data = torch.load(datafile)
+    
+    # 100 samples, 63 slices per sample, 63*100 = 6300 samples/labels to train on
+    for i in range(data['near_fields'].shape[0]):
+        full_sequence = data['near_fields'][i] # [2, xdim, ydim, total_slices]
+        for t in range(full_sequence.shape[-1]):
+            sample = full_sequence[:, :, :, t] # [2, xdim, ydim] single sample
+            all_samples.append(sample)
+            
+    # were training on reconstruction, so samples == labels
+    return WaveLSTM_Dataset(all_samples, all_samples)
+        
 def interpolate_fields(data):
     """Interpolates the fields to a lower resolution. Currently supports 2x downsampling.  
 

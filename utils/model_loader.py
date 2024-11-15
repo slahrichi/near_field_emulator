@@ -14,17 +14,20 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 # Import: Custom Python Libraries
 #--------------------------------
 
-from core import datamodule, model
+from core import datamodule, model, autoencoder
 
 
 def select_model(pm, fold_idx=None):
     logging.debug("select_model.py - Selecting model") 
-    if pm.arch == 0:
-        network = model.WaveMLP(pm.params_model, fold_idx)
-    elif pm.arch == 1 or pm.arch == 2: # parameters will distinguish
-        network = model.WaveLSTM(pm.params_model, fold_idx)
-    else:
-        raise ValueError("Model not recognized")
+    if pm.training_task == 1: # autoencoder pretraining
+        network = autoencoder.Autoencoder(pm.params_model, fold_idx)
+    else: # full training
+        if pm.arch == 0:
+            network = model.WaveMLP(pm.params_model, fold_idx)
+        elif pm.arch == 1 or pm.arch == 2: # parameters will distinguish
+            network = model.WaveLSTM(pm.params_model, fold_idx)
+        else:
+            raise ValueError("Model not recognized")
 
     if pm.load_checkpoint:
          

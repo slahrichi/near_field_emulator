@@ -18,7 +18,7 @@ import math
 #--------------------------------
 #from utils import parameter_manager
 from core.ConvLSTM import ConvLSTM
-
+from core.autoencoder import Encoder, Decoder
 sys.path.append("../")
 
 
@@ -402,14 +402,39 @@ class WaveLSTM(LightningModule):
                 torch.nn.Tanh())
             
         else: # ConvLSTM
-            spatial = self.arch_params['spatial']
             kernel_size = self.arch_params['kernel_size']
             padding = self.arch_params['padding']
-            in_channels = self.arch_params['in_channels']
             out_channels = self.arch_params['out_channels']
             num_layers = self.arch_params['num_layers']
             
-            spatial = (spatial, spatial) # here (166, 166)
+            if self.arch_params['use_ae'] == True: # setup autoencoder
+                # Calculate size after each conv layer
+                temp_spatial = self.arch_params['spatial']
+                for _ in range(len(self.arch_params['encoder_channels']) - 1):
+                    # mimicking the downsampling to determine the reduced spatial size
+                    # (spatial + 2*padding - kernel_size) // stride + 1
+                    temp_spatial = ((temp_spatial + 2*1 - 3) // 2) + 1
+                reduced_spatial = temp_spatial
+                
+                # Encoder: downsampling
+                self.encoder = Encoder(
+                    channels=self.arch_params['encoder_channels'],
+                    spatial_size=self.arch_params['spatial']
+                )
+                
+                # Decoder: upsampling
+                self.decoder = Decoder(
+                    channels=self.arch_params['decoder_channels'],
+                    spatial_size=self.arch_params['spatial']
+                )
+                
+                # different since representation space
+                in_channels = self.arch_params['encoder_channels'][-1]
+                spatial = reduced_spatial
+                
+            else: # in stays vanilla, full spatial
+                in_channels = self.arch_params['in_channels']
+                spatial = self.arch_params['spatial'] # 166
             
             # Create single ConvLSTM layer
             self.arch = ConvLSTM(
@@ -418,7 +443,7 @@ class WaveLSTM(LightningModule):
                 seq_len=seq_len,
                 kernel_size=kernel_size,
                 padding=padding,
-                frame_size=spatial
+                frame_size=(spatial, spatial)
             )
             
             # conv reduction + activation to arrive back at real/imag
@@ -533,16 +558,38 @@ class WaveLSTM(LightningModule):
             batch, seq_len, r_i, xdim, ydim = x.size()
             x = x.view(batch, seq_len, self.arch_params['in_channels'], 
                        self.arch_params['spatial'], self.arch_params['spatial'])
+
+            if self.arch_params['use_ae'] == True:
+                # process sequence through encoder
+                encoded_sequence = []
+                for t in range(seq_len):
+                    # encode each t
+                    encoded = self.encoder(x[:, t]) # [batch, latent_dim]
+                    encoded_sequence.append(encoded)
+                # stack to get [batch, seq_len, latent_dim]
+                encoded_sequence = torch.stack(encoded_sequence, dim=1)
+                
+                # process through LSTM in latent space
+                lstm_out, meta = self.arch(encoded_sequence, meta, mode=self.io_mode)
+                
+                # decode outputted sequence
+                decoded_sequence = []
+                for t in range(lstm_out.size(1)):
+                    # decode each t
+                    decoded = self.decoder(lstm_out[:, t])
+                    decoded_sequence.append(decoded)
+                preds = torch.stack(decoded_sequence, dim=1) 
             
-            # invoke for specified mode (i.e. many_to_many)
-            lstm_out, meta = self.arch(x, meta, mode=self.io_mode)
-            # reshape for conv
-            b, s, ch, he, w = lstm_out.size()
-            lstm_out = lstm_out.view(b * s, ch, he, w)
-            # apply conv + tanh
-            preds = self.linear(lstm_out)
-            # reshape back
-            preds = preds.view(b, s, 2, he, w)
+            else: # no AE
+                # invoke for specified mode (i.e. many_to_many)
+                lstm_out, meta = self.arch(x, meta, mode=self.io_mode)
+                # reshape for conv
+                b, s, ch, he, w = lstm_out.size()
+                lstm_out = lstm_out.view(b * s, ch, he, w)
+                # apply conv + tanh
+                preds = self.linear(lstm_out)
+                # reshape back
+                preds = preds.view(b, s, 2, he, w)
             
         else:
             return NotImplementedError(f"Recurrent architecture '{self.name}' is not currently implemented.")
@@ -632,4 +679,3 @@ class WaveLSTM(LightningModule):
                 )
             else:
                 print(f"No test results for mode: {mode}")
-        

@@ -1,11 +1,15 @@
-resim : 1
+# What type of training we're performing
+# 0: full training (pretrained autoencoder + model)
+# 1: autoencoder pretraining
+
+training_task: 1
 
 #--------------------------------
 #       General Params
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'convlstm_12M_bigger_v2'
+model_id: 'autoencoder_v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -52,6 +56,10 @@ lstm:
 # - in_channels: number of input channels for conv
 # - kernel_size: size of the conv kernel
 # - padding: padding for the conv layer
+# - use_ae: utilize autoencoder
+# - latent_dim: latent dimension for autoencoder
+# - encoder_channels: encoder channel progression
+# - decoder_channels: decoder channel progression
 
 conv_lstm:
     num_layers: 1
@@ -60,6 +68,9 @@ conv_lstm:
     kernel_size: 5
     padding: 2
     spatial: 166
+    use_ae: True
+    encoder_channels: [2, 32, 64] # each step halves
+    decoder_channels: [64, 32, 2] # each step doubles
 
 # General Time Series Parameters
 # - seq_len: number of time steps
@@ -68,13 +79,13 @@ conv_lstm:
 
 seq_len: 10
 io_mode: 'one_to_many'
-spacing_mode: 'sequential'
+spacing_mode: 'distributed'
 
 #--------------------------------
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 10 # maximum
+num_epochs: 200 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
