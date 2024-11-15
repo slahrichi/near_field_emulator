@@ -359,6 +359,7 @@ class WaveLSTM(LightningModule):
         self.num_design_params = int(self.params['num_design_params'])
         self.learning_rate = self.params['learning_rate']
         self.loss_func = self.params['objective_function']
+        self.io_mode = self.params['io_mode']
         self.fold_idx = fold_idx
         self.arch, self.linear = None, None
         
@@ -420,29 +421,17 @@ class WaveLSTM(LightningModule):
                 frame_size=spatial
             )
             
-            # just a tanh activation
-            self.linear = torch.nn.Tanh()
-            
-            '''for i in range(num_layers):
-                name = "convlstm_%s" % i
-                layer = ConvLSTM(out_channels=out_channels,
-                                 in_channels=in_channels,
-                                 seq_len=seq_len,
-                                 kernel_size=kernel_size,
-                                 padding=padding,
-                                 frame_size=spatial)
-                
-                self.arch.add_moudle(name, layer)
-                
-            self.arch.add_module("tanh", torch.nn.Tanh())'''
+            # conv reduction + activation to arrive back at real/imag
+            self.linear = nn.Sequential(
+                nn.Conv2d(out_channels, 2, kernel_size=1),
+                nn.Tanh(),
+            )
                 
     def configure_optimizers(self):
-        # Create: Optimization Routine
-        
+        # Optimization routine
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         
-        # Create: LR Scheduler
-        
+        # LR scheduler setup
         lr_scheduler = CosineAnnealingLR(optimizer, T_max=self.params['num_epochs'])
         lr_scheduler_config = {"scheduler": lr_scheduler,
                                "interval": "epoch", "frequency": 1}
@@ -503,62 +492,89 @@ class WaveLSTM(LightningModule):
                 c = torch.zeros(self.arch_params['num_layers'], 
                                 batch, self.arch_params['h_dims']).to(x.device)
                 meta = (h, c)
+            
+            predictions = [] # to store each successive pred as we pass through
+            
+            if self.io_mode == 'one_to_many':
+                # first timestep: use our single slice input
+                lstm_out, meta = self.arch(x, meta)
+                pred = self.linear(lstm_out)
+                predictions.append(pred) # t+1 (or + delta split)
                 
-            lstm_out, meta = self.arch(x, meta)
-            preds = self.linear(lstm_out)
+                # remaining t: no input, we pass 0's as dummy vals
+                for _ in range(self.params['seq_len'] - 1):
+                    dummy_input = torch.zeros_like(x)
+                    lstm_out, meta = self.arch(dummy_input, meta)
+                    pred = self.linear(lstm_out)
+                    predictions.append(pred)
                 
+            elif self.io_mode == 'many_to_many':
+                # Encoder phase: process all input t's
+                for t in range(x.size(1)):
+                    lstm_out, meta = self.arch(x[:, t:t+1, :])
+                    
+                # Decoder phase: generate preds with dummy inputs
+                for _ in range(self.params['seq_len']):
+                    dummy_input = torch.zeros_like(x[:, 0:1, :]) # the shape of a single t
+                    lstm_out, meta = self.arch(dummy_input, meta)
+                    pred = self.linear(lstm_out)
+                    predictions.append(pred)
+                    
+            else:
+                # other io modes not currently implemented
+                return NotImplementedError(f'Recurrent input-output mode "{self.io_mode}" is not implemented.')
+                
+            # Stack predictions along sequence dimension
+            predictions = torch.cat(predictions, dim=1)
+            return predictions, meta
+        
         # Forward Pass: ConvLSTM
-        else:
+        elif self.name == 'conv_lstm':
             batch, seq_len, r_i, xdim, ydim = x.size()
             x = x.view(batch, seq_len, self.arch_params['in_channels'], 
                        self.arch_params['spatial'], self.arch_params['spatial'])
-            lstm_out, meta = self.arch(x)
-            preds = self.linear(lstm_out)
             
+            # invoke for specified mode (i.e. many_to_many)
+            lstm_out, meta = self.arch(x, meta, mode=self.io_mode)
+            # reshape for conv
+            b, s, ch, he, w = lstm_out.size()
+            lstm_out = lstm_out.view(b * s, ch, he, w)
+            # apply conv + tanh
+            preds = self.linear(lstm_out)
+            # reshape back
+            preds = preds.view(b, s, 2, he, w)
+            
+        else:
+            return NotImplementedError(f"Recurrent architecture '{self.name}' is not currently implemented.")
+                
         return preds, meta
     
     def shared_step(self, batch, batch_idx):
-        samples, labels = batch # samples: (batch_size, 1, r/i, xdim, ydim)
-                                # labels: (batch_size, seq_len, r/i, xdim, ydim)
-                                
-        # concat samples and labels to form full sequence
-        full_seq = torch.cat((samples, labels), dim=1) # (batch_size, seq_len_total, r/i, xdim, ydim)
+        samples, labels = batch
         
-        # prepare input and target sequences
-        input_seq = full_seq[:, :-1, :, :, :] # t=0 to t=seq_len-1
-        target_seq = full_seq[:, 1:, :, :, :] # t=1 to t=seq_len
-        
-        # extract sizes
-        batch_size, seq_len, r_i, xdim, ydim = input_seq.size()
+        # extract sizes - input sequence could be len=1 if 12M
+        batch_size, input_seq_len, r_i, xdim, ydim = samples.size()
         
         if self.name == 'lstm':
             # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
-            input_seq = input_seq.view(batch_size, seq_len, -1)
-            target_seq = target_seq.view(batch_size, seq_len, -1)
-
-        # Initialize or retrieve hidden state
-        #if self.prev_meta is None:
-        #    meta = None # init to zeros
-        #else:
-        #    meta = self.prev_meta
+            samples = samples.view(batch_size, input_seq_len, -1)
+            labels = labels.view(batch_size, self.params['seq_len'], -1)
         
         # Forward pass
-        preds, _ = self.forward(input_seq)
-        
-        # store hidden for next sequence
-        #self.prev_meta = meta.detach()
+        preds, _ = self.forward(samples)
         
         # Compute loss
-        # print some values from preds and target_seq
-        #print(f"preds: {preds.shape}")
-        #print(f"target_seq: {target_seq.shape}")
-        #print(f"preds[0]: {preds[0]}")
-        #print(f"target_seq[0]: {target_seq[0]}")
-        loss_dict = self.objective(preds, target_seq)
+        loss_dict = self.objective(preds, labels)
         loss = loss_dict['loss']
         
         # reshape preds for metrics
-        preds = preds.view(batch_size, seq_len, r_i, xdim, ydim)
+        if self.io_mode == "one_to_many":
+            preds = preds.view(batch_size, self.params['seq_len'], r_i, xdim, ydim)
+        elif self.io_mode == "many_to_many":
+            preds = preds.view(batch_size, self.params['seq_len'], r_i, xdim, ydim)
+        else:
+            # other modes not implemented
+            raise NotImplementedError
         
         return loss, preds
     

@@ -54,6 +54,8 @@ def run(params):
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
     
     fold_results = []
+    best_val_loss = float('inf')
+    best_model_path = None
     
     for fold_idx, (train_idx, val_idx) in enumerate(kf.split(full_dataset)):
         logging.info(f"Fold {fold_idx +1}/{n_splits}")
@@ -129,19 +131,33 @@ def run(params):
         # Training
         trainer.fit(model_instance, data_module)
         
+        # note validation loss of most recent fold
+        current_val_loss = checkpoint_callback.best_model_score.item()
+        
+        if current_val_loss < best_val_loss:
+            best_val_loss = current_val_loss
+            best_model_path = checkpoint_callback.best_model_path
+            logging.info(f"New best model found in fold {fold_idx + 1} with validation loss: {best_val_loss:.6f}")
+        
         # Testing
         trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
         
         # Analysis/Results and saving #TODO
         fold_results.append(model_instance.test_results)
+        
+    # After all folds complete, save only the best model
+    if best_model_path:
+        results_dir = os.path.join(pm.path_root, pm.path_results)
+        os.makedirs(results_dir, exist_ok=True)
+        checkpoint_path = os.path.join(results_dir, 'model.ckpt')
+        
+        # save best model
+        best_model = torch.load(best_model_path)
+        torch.save(best_model, checkpoint_path)
+        logging.info(f"Saved best overall model to {checkpoint_path}")
 
     # Dump config for future reference
     yaml.dump(params, open(os.path.join(pm.path_root, f'{pm.path_results}/params.yaml'), 'w'))
-    
-    # Save results
-    #results_path = os.path.join(pm.path_root, pm.path_results)
-    #logging.debug(f"Results path: {results_path}")
-    #custom_logger.save_results(fold_results, results_path, pm.model_id)
     
 class CustomProgressBar(TQDMProgressBar):
     """Custom progress bar that adds fold information"""

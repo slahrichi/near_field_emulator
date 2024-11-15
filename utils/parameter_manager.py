@@ -69,7 +69,8 @@ class Parameter_Manager():
             self.lstm = params['lstm']
             self.conv_lstm = params['conv_lstm']
             self.seq_len = params['seq_len']
-
+            self.io_mode = params['io_mode']
+            self.spacing_mode = params['spacing_mode']
             # Load: Datamodule Params
             self.n_cpus = params['n_cpus']
             self.n_folds = params['n_folds']
@@ -151,6 +152,8 @@ class Parameter_Manager():
                                 'lstm'                  : self.lstm,
                                 'conv_lstm'             : self.conv_lstm,
                                 'seq_len'               : self.seq_len,
+                                'io_mode'             : self.io_mode,
+                                'spacing_mode'          : self.spacing_mode,
                                 }
 
              
@@ -179,6 +182,8 @@ class Parameter_Manager():
                                 'mlp_strategy'  : self.mlp_strategy,
                                 'patch_size'    : self.patch_size,
                                 'interpolate_fields': self.interpolate_fields,
+                                'io_mode'      : self.io_mode,
+                                'spacing_mode'   : self.spacing_mode,
                                 }
 
         self._params_trainer = {

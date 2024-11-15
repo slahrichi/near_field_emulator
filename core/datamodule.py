@@ -78,7 +78,7 @@ class NF_Datamodule(LightningDataModule):
             self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
         elif self.arch == 1 or self.arch == 2: # LSTM
             datafile = os.path.join(self.path_data, 'slices_dataset.pt')
-            self.dataset = format_temporal_data(datafile, self.params['seq_len'])
+            self.dataset = format_temporal_data(datafile, self.params)
             
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
@@ -229,7 +229,7 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
                 'radii': radii_tensor}, save_path)
     print(f"Data saved to {save_path}")
     
-def format_temporal_data(datafile, seq_len, stride=2, order=(-1, 0, 1, 2)):
+def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
     """Formats the preprocessed data file into the correct setup  
     and order for the LSTM model.
 
@@ -242,8 +242,6 @@ def format_temporal_data(datafile, seq_len, stride=2, order=(-1, 0, 1, 2)):
         dataset (WaveLSTM_Dataset): formatted dataset
     """
     all_samples, all_labels = [], []
-    
-    # load the data
     data = torch.load(datafile)
     
     # [100, 2, 166, 166, 63] --> access each of the 100 datapoints
@@ -251,30 +249,69 @@ def format_temporal_data(datafile, seq_len, stride=2, order=(-1, 0, 1, 2)):
         full_sequence = data['near_fields'][i] # [2, xdim, ydim, total_slices]
         total = full_sequence.shape[-1] # all time slices
         
-        '''# Sliding window approach
-        for start in range(0, total - seq_len, stride):
-            sample = full_sequence[:, :, :, start:start+1] # t=start slice
-            label = full_sequence[:, :, :, start+1:start+seq_len+1] # next seq_len slices
+        if config['spacing_mode'] == 'distributed':
+            if config['io_mode'] == 'one_to_many':
+                # calculate seq_len+1 evenly spaced indices
+                indices = np.linspace(1, total-1, config['seq_len']+1)
+                distributed_block = full_sequence[:, :, :, indices]
+                # the sample is the first one, labels are the rest
+                sample = distributed_block[:, :, :, :1]  # [2, xdim, ydim, 1]
+                label = distributed_block[:, :, :, 1:]  # [2, xdim, ydim, seq_len]
+                
+            elif config['io_mode'] == 'many_to_many':
+                # input is the first seq_len evenly spaced indices
+                input_indices = np.linspace(1, total//2, config['seq_len'])
+                sample = full_sequence[:, :, :, input_indices]
+                # output is the next seq_len evenly spaced indices
+                output_indices = np.linspace(total//2 + 1, total-1, config['seq_len'])
+                label = full_sequence[:, :, :, output_indices]
+                
+            else:
+                # many to one, one to one not implemented
+                raise NotImplementedError(f'Specified recurrent input-output mode is not implemented.')
             
-            # rearrange dims
+            # rearrange dims and add to lists
             sample = sample.permute(order) # [1, 2, xdim, ydim]
             label = label.permute(order) # [seq_len, 2, xdim, ydim]
-            
             all_samples.append(sample)
-            all_labels.append(label)'''
+            all_labels.append(label)
+            
+        # note: this raise the total number of sample/label pairs
+        elif config['spacing_mode'] == 'sequential':
+            if config['io_mode'] == 'one_to_many':
+                for t in range(0, total, config['seq_len']+1):
+                    # check if there are enough timesteps left for a full block
+                    if t + config['seq_len'] < total:
+                        block = full_sequence[:, :, :, t:t+config['seq_len'] + 1]
+                        # ex: sample -> t=0 , label -> t=1, t=2, t=3 (if seq_len were 3)
+                        sample = block[:, :, :, :1]
+                        label = block[:, :, :, 1:]
+                        sample = sample.permute(order)
+                        label = label.permute(order)
+                        all_samples.append(sample)
+                        all_labels.append(label)
+                        
+            elif config['io_mode'] == 'many_to_many':
+                step_size = 2 * config['seq_len']
+                
+                for t in range(0, total, step_size):
+                    # check if there's enough
+                    if t + step_size <= total:
+                        # input is first seq_len steps in the block
+                        sample = full_sequence[:, :, :, t:t+config['seq_len']]
+                        # output is next seq_len steps
+                        label = full_sequence[:, :, :, t+config['seq_len']:t+step_size]
+                        sample = sample.permute(order)
+                        label = label.permute(order)
+                        all_samples.append(sample)
+                        all_labels.append(label)
+                        
+            else:
+                raise NotImplementedError(f'Specified recurrent input-output mode is not implemented.')
         
-        # distributed subsequence
-        sample = full_sequence[:, :, :, :1] # t=0 slice
-        total = full_sequence.shape[-1] # all time slices
-        indices = np.linspace(1, total-1, seq_len).astype(int) # indices for sequence blocks
-        label = full_sequence[:, :, :, indices] # [2, xdim, ydim, seq_len]
-        
-        # rearrange dims
-        sample = sample.permute(order) # [1, 2, xdim, ydim]
-        label = label.permute(order) # [seq_len, 2, xdim, ydim]
-        
-        all_samples.append(sample)
-        all_labels.append(label)
+        else:
+            # no other spacing modes are implemented
+            raise NotImplementedError(f'Specified recurrent dataloading configugration is not implemented.')
         
     return WaveLSTM_Dataset(all_samples, all_labels)
 

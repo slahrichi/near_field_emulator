@@ -86,7 +86,7 @@ class ConvLSTM(nn.Module):
         self.convLSTMcell = ConvLSTMCell(in_channels, out_channels,
                                          kernel_size, padding, frame_size)
 
-    def forward(self, x, meta=None):
+    def forward(self, x, meta=None, mode="one_to_many"):
         batch_size, seq_len, channel, height, width = x.size()
 
         if meta is None:
@@ -96,22 +96,35 @@ class ConvLSTM(nn.Module):
             c = torch.zeros(batch_size, self.out_channels,
                             height, width, device=x.device)
             meta = (h, c)
+        else:
+            h, c = meta
 
         # prepare output tensor
         output = torch.zeros(batch_size, self.target_len,
                              self.out_channels, height, width, device=x.device)
 
-        if seq_len == 1:
-            # single timestep case
-            x = x.squeeze(dim=1)
+        if mode == "one_to_many":
+            # process the single input t
+            x = x.squeeze(dim=1) # removing seq dim --> [batch, 2, 166, 166]
             h, c = self.convLSTMcell(x, h, c)
             output[:, 0] = h
-        else:
-            # multiple timesteps
+            
+            # generate remaining t's with zero inputs
+            dummy_input = torch.zeros_like(x)
+            for t in range(1, self.target_len): # 1 through the end
+                h, c = self.convLSTMcell(dummy_input, h, c)
+                output[:, t] = h
+                
+        elif mode == "many_to_many":
+            # Encoder phase: process all input t's
             for t in range(seq_len):
-                current_input = x[:, t] # [batch, channel, height, width]
-                h,c = self.convLSTMcell(current_input, h, c)
-                if t < self.target_len:
-                    output[:, t] = h
+                current_input = x[:, t]
+                h, c = self.convLSTMcell(current_input, h, c)
+            
+            # Decoder phase: generate preds
+            dummy_input = torch.zeros_like(x[:, 0])
+            for t in range(self.target_len):
+                h, c = self.convLSTMcell(dummy_input, h, c)
+                output[:, t] = h
 
-        return output, meta
+        return output, (h, c)

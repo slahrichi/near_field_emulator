@@ -373,27 +373,67 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
             
             seq_len = truth_component_1.shape[0]
             
-            # 4 rows: truth component_1, pred component_1, truth component_2, pred component_2
-            fig, axs = plt.subplots(4, seq_len, figsize=(4*seq_len, 16))
-            fig.suptitle(title, fontsize=16)
-            fig.text(0.5, 0.92, model_identifier, ha='center', fontsize=12)
+            # Create figure WITHOUT creating subplots
+            fig = plt.figure(figsize=(4*seq_len + 2, 16))
             
+            # Create gridspec with space for labels and column headers
+            gs = fig.add_gridspec(5, seq_len + 1,  # 5 rows: header + 4 data rows
+                                width_ratios=[0.3] + [1]*seq_len,
+                                height_ratios=[0.05] + [1]*4,
+                                hspace=0.1,
+                                wspace=0.1)
+            
+            # Create axes for column headers
+            header_axs = [fig.add_subplot(gs[0, j]) for j in range(1, seq_len + 1)]
+            
+            # Create axes for images
+            axs = [[fig.add_subplot(gs[i+1, j]) for j in range(1, seq_len + 1)] 
+                for i in range(4)]
+            
+            # Create axes for row labels
+            label_axs = [fig.add_subplot(gs[i+1, 0]) for i in range(4)]
+            
+            fig.suptitle(title, fontsize=24, y=0.95, fontweight='bold')
+            fig.text(0.5, 0.94, model_identifier, ha='center', fontsize=16)
+            
+            # Add column headers
+            for t, ax in enumerate(header_axs):
+                ax.axis('off')
+                ax.text(0.5, 0.3,
+                    f't={t+1}',
+                    ha='center',
+                    va='center',
+                    fontsize=20,
+                    fontweight='bold')
+            
+            # Add row labels
+            row_labels = [f'Ground Truth\n{component_1}',
+                        f'Predicted\n{component_1}',
+                        f'Ground Truth\n{component_2}',
+                        f'Predicted\n{component_2}']
+            
+            for ax, label in zip(label_axs, row_labels):
+                ax.axis('off')
+                ax.text(0.95, 0.5, 
+                    label,
+                    ha='right',
+                    va='center',
+                    fontsize=20,
+                    fontweight='bold')
+            
+            # Plot sequence
             for t in range(seq_len):
-                axs[0, t].imshow(truth_component_1[t], cmap='viridis')
-                axs[0, t].set_title(f'Truth {component_1} t={t+1}')
-                axs[0, t].axis('off')
+                axs[0][t].imshow(truth_component_1[t], cmap='viridis')
+                axs[0][t].axis('off')
                 
-                axs[1, t].imshow(pred_component_1[t], cmap='viridis')
-                axs[1, t].set_title(f'Pred {component_1} t={t+1}')
-                axs[1, t].axis('off')
+                axs[1][t].imshow(pred_component_1[t], cmap='viridis')
+                axs[1][t].axis('off')
                 
-                axs[2, t].imshow(truth_component_2[t], cmap='twilight_shifted')
-                axs[2, t].set_title(f'Truth {component_2} t={t+1}')
-                axs[2, t].axis('off')
+                axs[2][t].imshow(truth_component_2[t], cmap='twilight_shifted')
+                axs[2][t].axis('off')
                 
-                axs[3, t].imshow(pred_component_2[t], cmap='twilight_shifted')
-                axs[3, t].set_title(f'Pred {component_2} t={t+1}')
-                axs[3, t].axis('off')
+                axs[3][t].imshow(pred_component_2[t], cmap='twilight_shifted')
+                axs[3][t].axis('off')
                 
         fig.tight_layout()
 
@@ -409,12 +449,12 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
     # Determine which fold to plot based on plot_type
     if plot_type == "best":
         # Select the fold with the best validation loss
-        best_fold_idx = min(range(len(fold_results)), key=lambda i: fold_results[i]['losses']['val_loss'].iloc[-1])
+        best_fold_idx = min(range(len(fold_results)), key=lambda i: fold_results[i]['losses']['val_loss'].iloc[-2])
         selected_results = fold_results[best_fold_idx]
         title = f"Best Performing Fold - Fold {best_fold_idx + 1}"
     elif plot_type == "worst":
         # Select the fold with the worst validation loss
-        worst_fold_idx = max(range(len(fold_results)), key=lambda i: fold_results[i]['losses']['val_loss'].iloc[-1])
+        worst_fold_idx = max(range(len(fold_results)), key=lambda i: fold_results[i]['losses']['val_loss'].iloc[-2])
         selected_results = fold_results[worst_fold_idx]
         title = f"Worst Performing Fold - Fold {worst_fold_idx + 1}"
     elif plot_type == "specific" and fold_idx is not None:
@@ -425,5 +465,71 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
         raise ValueError("Invalid plot_type or fold_idx provided")
 
     # Plot both training and validation results for the selected fold
-    plot_single_set(selected_results['train'], f"{title} - Training Dataset - {format}", format, save_dir, sample_idx)
-    plot_single_set(selected_results['valid'], f"{title} - Validation Dataset - {format}", format, save_dir, sample_idx)
+    plot_single_set(selected_results['train'], f"{title} - Random Training Sample - {format}", format, save_dir, sample_idx)
+    plot_single_set(selected_results['valid'], f"{title} - Random Validation Sample - {format}", format, save_dir, sample_idx)
+    
+def plot_sequence_comparison(pred, truth, view='mag', save_fig=False, save_dir=None, title=None):
+    """
+    Plot a sequence of predicted vs ground truth fields for either magnitude or phase
+    
+    Args:
+        pred (tensor): Predicted fields of shape [2, 166, 166, 5]
+        truth (tensor): Ground truth fields of shape [2, 166, 166, 5]
+        view (str): Either 'mag' or 'phase' to specify which component to view
+        save_fig (bool): Whether to save the figure
+        save_dir (str): Directory to save figure if save_fig is True
+        title (str): Optional title for the plot
+    """
+    # Convert from real/imaginary to magnitude/phase
+    pred_real = pred[0]  # [166, 166, 5]
+    pred_imag = pred[1]
+    truth_real = truth[0]
+    truth_imag = truth[1]
+    
+    pred_mag, pred_phase = mapping.cartesian_to_polar(pred_real, pred_imag)
+    truth_mag, truth_phase = mapping.cartesian_to_polar(truth_real, truth_imag)
+    
+    # Select which view to display
+    if view.lower() == 'mag':
+        pred_view = pred_mag
+        truth_view = truth_mag
+        cmap = 'viridis'
+        component = 'Magnitude'
+    elif view.lower() == 'phase':
+        pred_view = pred_phase
+        truth_view = truth_phase
+        cmap = 'twilight_shifted'
+        component = 'Phase'
+    else:
+        raise ValueError("view must be either 'mag' or 'phase'")
+    
+    seq_len = pred_view.shape[-1]
+    
+    # create figure with 2 rows (truth/pred) and seq_len columns
+    fig, axs = plt.subplots(2, seq_len, figsize=(4*seq_len, 8))
+    
+    if title:
+        fig.suptitle(title, fontsize=16)
+    
+    # plot each timestep
+    for t in range(seq_len):
+        # truth
+        axs[0, t].imshow(truth_view[..., t], cmap=cmap)
+        axs[0, t].set_title(f'Ground Truth {component}\nt={t+1}')
+        axs[0, t].axis('off')
+        
+        # prediction
+        axs[1, t].imshow(pred_view[..., t], cmap=cmap)
+        axs[1, t].set_title(f'Predicted {component}\nt={t+1}')
+        axs[1, t].axis('off')
+    
+    plt.tight_layout()
+    
+    # save if requested
+    if save_fig:
+        if not save_dir:
+            raise ValueError("Please specify a save directory")
+        file_name = f'sequence_comparison_{view}_{title}.pdf' if title else f'sequence_comparison_{view}.pdf'
+        save_eval_item(save_dir, fig, file_name, 'dft')
+    
+    plt.show()

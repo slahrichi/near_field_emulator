@@ -5,12 +5,10 @@ resim : 1
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'conv_lstm_v2_delta1'
+model_id: 'convlstm_12M_bigger_v2'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
-
-
 
 #--------------------------------
 #       Network Params
@@ -58,18 +56,25 @@ lstm:
 conv_lstm:
     num_layers: 1
     in_channels: 2
-    out_channels: 2
-    kernel_size: 3
-    padding: 1
+    out_channels: 64
+    kernel_size: 5
+    padding: 2
     spatial: 166
 
-seq_len: 5 # for time-series models
+# General Time Series Parameters
+# - seq_len: number of time steps
+# - io_mode: 'one_to_many' or 'many_to_many'
+# - spacing_mode: 'sequential' or 'distributed'
+
+seq_len: 10
+io_mode: 'one_to_many'
+spacing_mode: 'sequential'
 
 #--------------------------------
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 200 # maximum
+num_epochs: 10 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -86,8 +91,8 @@ load_checkpoint: False
 objective_function: 'mse'
 
 # early stopping settings
-patience: 7
-min_delta: 0.001
+patience: 30
+min_delta: 0.0001
 
 mcl_params:
     alpha: 1     #near-field

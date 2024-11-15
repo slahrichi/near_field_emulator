@@ -37,9 +37,8 @@ def animate_fields(fields, title, cmap='viridis', save_path=None, frames=63, int
         blit=True
     )
     
-    plt.close()  # Prevent display of static plot
-    
     if save_path is not None:
         anim.save(save_path)
-        
-    return anim
+        plt.close() 
+    else:
+        return anim
