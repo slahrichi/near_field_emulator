@@ -41,6 +41,7 @@ class Parameter_Manager():
             self.path_results = params['path_results']
             self.path_resims = params['path_resims']
             self._path_checkpoint = params['path_checkpoint']
+            self.path_pretrained_ae = params['path_pretrained_ae']
  
             # Load: Trainer Params
             self.batch_size = params['batch_size']
@@ -158,6 +159,7 @@ class Parameter_Manager():
                                 'seq_len'               : self.seq_len,
                                 'io_mode'             : self.io_mode,
                                 'spacing_mode'          : self.spacing_mode,
+                                'path_pretrained_ae'    : self.path_pretrained_ae,
                                 }
 
              
@@ -227,7 +229,8 @@ class Parameter_Manager():
                         'path_valid'                    : self.path_valid,
                         'path_results'                  : self.path_results, 
                         'path_checkpoint'               : self._path_checkpoint,
-                        'path_resims'                   : self.path_resims
+                        'path_resims'                   : self.path_resims,
+                        'path_pretrained_ae'            : self.path_pretrained_ae,
                         }
 
     @property 

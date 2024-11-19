@@ -9,7 +9,7 @@ import numpy as np
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 #from torchvision.models import resnet50, resnet18, resnet34
 import torch.nn as nn
-from torch.optim.lr_scheduler import CosineAnnealingLR
+from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 import math
 
@@ -174,7 +174,8 @@ class WaveMLP(LightningModule):
                                                                     cooldown=2)
         elif self.lr_scheduler == 'CosineAnnealingLR':
             choice = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
-                                                                T_max=self.params['num_epochs'])
+                                                                T_max=self.params['num_epochs'],
+                                                                eta_min=1e-6)
         elif self.lr_scheduler == 'None':
             return optimizer
         else:
@@ -358,6 +359,7 @@ class WaveLSTM(LightningModule):
         self.params = params_model
         self.num_design_params = int(self.params['num_design_params'])
         self.learning_rate = self.params['learning_rate']
+        self.lr_scheduler = self.params['lr_scheduler']
         self.loss_func = self.params['objective_function']
         self.io_mode = self.params['io_mode']
         self.fold_idx = fold_idx
@@ -427,7 +429,32 @@ class WaveLSTM(LightningModule):
                     channels=self.arch_params['decoder_channels'],
                     spatial_size=self.arch_params['spatial']
                 )
-                
+            
+                if self.arch_params['pretrained_ae'] == True:
+                    # load pretrained autoencoder
+                    dirpath = '/develop/' + self.params['path_pretrained_ae']
+                    checkpoint = torch.load(dirpath + "model.ckpt")
+                    
+                    # extract respective layers for encoder and decoder
+                    encoder_state_dict = {}
+                    decoder_state_dict = {}
+                    for key, value in checkpoint['state_dict'].items():
+                        if key.startswith('encoder'):
+                            encoder_state_dict[key.replace('encoder.', '')] = value
+                        elif key.startswith('decoder'):
+                            decoder_state_dict[key.replace('decoder.', '')] = value
+                    
+                    # load respective state dicts
+                    self.encoder.load_state_dict(encoder_state_dict)
+                    self.decoder.load_state_dict(decoder_state_dict)
+                    
+                    # freeze ae weights
+                    if self.arch_params['freeze_ae_weights'] == True:
+                        for param in self.encoder.parameters():
+                            param.requires_grad = False
+                        for param in self.decoder.parameters():
+                            param.requires_grad = False
+            
                 # different since representation space
                 in_channels = self.arch_params['encoder_channels'][-1]
                 spatial = reduced_spatial
@@ -454,16 +481,37 @@ class WaveLSTM(LightningModule):
                 
     def configure_optimizers(self):
         # Optimization routine
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        #trainable_params = [p for p in self.parameters() if p.requires_grad]
+        trainable_params = self.parameters()
+        optimizer = torch.optim.Adam(trainable_params, lr=self.learning_rate)
         
         # LR scheduler setup
-        lr_scheduler = CosineAnnealingLR(optimizer, T_max=self.params['num_epochs'])
+        if self.lr_scheduler == 'CosineAnnealingLR':
+            lr_scheduler = CosineAnnealingLR(optimizer, 
+                                             T_max=self.params['num_epochs'],
+                                             eta_min=1e-6)
+        elif self.lr_scheduler == 'ReduceLROnPlateau':
+            lr_scheduler = ReduceLROnPlateau(optimizer, 
+                                             mode='min', 
+                                             factor=0.5, 
+                                             patience=5, 
+                                             min_lr=1e-6, 
+                                             threshold=0.001, 
+                                             cooldown=2
+                                            )
+        else:
+            raise ValueError(f"Unsupported LR scheduler: {self.lr_scheduler}")
         lr_scheduler_config = {"scheduler": lr_scheduler,
-                               "interval": "epoch", "frequency": 1}
+                               "interval": "epoch", "frequency": 1,
+                               "monitor": "val_loss"}
 
         return {"optimizer": optimizer, "lr_scheduler": lr_scheduler_config}
     
     def compute_loss(self, preds, labels, choice='mse'):
+        # Ensure tensors are properly set up for gradient computation
+        #if not preds.requires_grad:
+        #    preds = preds.detach().requires_grad_()
+        
         if choice == 'mse':
             # Mean Squared Error
             preds = preds.to(torch.float32).contiguous()
@@ -562,10 +610,17 @@ class WaveLSTM(LightningModule):
             if self.arch_params['use_ae'] == True:
                 # process sequence through encoder
                 encoded_sequence = []
-                for t in range(seq_len):
-                    # encode each t
-                    encoded = self.encoder(x[:, t]) # [batch, latent_dim]
-                    encoded_sequence.append(encoded)
+                if self.arch_params['freeze_ae_weights'] == True:
+                    with torch.no_grad(): # no grad for pretrained ae
+                        for t in range(seq_len):
+                            # encode each t
+                            encoded = self.encoder(x[:, t]) # [batch, latent_dim]
+                            encoded_sequence.append(encoded)
+                else: # trainable ae
+                    for t in range(seq_len):
+                        # encode each t
+                        encoded = self.encoder(x[:, t]) # [batch, latent_dim]
+                        encoded_sequence.append(encoded)
                 # stack to get [batch, seq_len, latent_dim]
                 encoded_sequence = torch.stack(encoded_sequence, dim=1)
                 
@@ -574,12 +629,21 @@ class WaveLSTM(LightningModule):
                 
                 # decode outputted sequence
                 decoded_sequence = []
-                for t in range(lstm_out.size(1)):
-                    # decode each t
-                    decoded = self.decoder(lstm_out[:, t])
-                    decoded_sequence.append(decoded)
-                preds = torch.stack(decoded_sequence, dim=1) 
-            
+                if self.arch_params['freeze_ae_weights'] == True:
+                    with torch.no_grad(): # no grad for pretrained ae
+                        for t in range(lstm_out.size(1)):
+                            # decode each t
+                            decoded = self.decoder(lstm_out[:, t])
+                            decoded_sequence.append(decoded)
+                else: # trainable decoder
+                    for t in range(lstm_out.size(1)):
+                        # decode each t
+                        decoded = self.decoder(lstm_out[:, t])
+                        decoded_sequence.append(decoded)
+                preds = torch.stack(decoded_sequence, dim=1)
+                # ensure predictions can recieve gradients
+                #preds = preds.detach().requires_grad_()
+                    
             else: # no AE
                 # invoke for specified mode (i.e. many_to_many)
                 lstm_out, meta = self.arch(x, meta, mode=self.io_mode)

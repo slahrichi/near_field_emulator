@@ -2,14 +2,14 @@
 # 0: full training (pretrained autoencoder + model)
 # 1: autoencoder pretraining
 
-training_task: 1
+training_task: 0
 
 #--------------------------------
 #       General Params
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'autoencoder_v1'
+model_id: 'convlstm_12M_pretrained_ae_v2'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -57,6 +57,7 @@ lstm:
 # - kernel_size: size of the conv kernel
 # - padding: padding for the conv layer
 # - use_ae: utilize autoencoder
+# - pretrained_ae: use pretrained autoencoder
 # - latent_dim: latent dimension for autoencoder
 # - encoder_channels: encoder channel progression
 # - decoder_channels: decoder channel progression
@@ -69,6 +70,8 @@ conv_lstm:
     padding: 2
     spatial: 166
     use_ae: True
+    pretrained_ae: True
+    freeze_ae_weights: False
     encoder_channels: [2, 32, 64] # each step halves
     decoder_channels: [64, 32, 2] # each step doubles
 
@@ -79,7 +82,7 @@ conv_lstm:
 
 seq_len: 10
 io_mode: 'one_to_many'
-spacing_mode: 'distributed'
+spacing_mode: 'sequential'
 
 #--------------------------------
 #       Training Params
@@ -96,7 +99,7 @@ weights:
 num_classes: 1
 optimizer: 'ADAM'
 learning_rate: 1.e-3
-lr_scheduler: 'ReduceLROnPlateau'
+lr_scheduler: 'CosineAnnealingLR'
 transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
@@ -123,6 +126,7 @@ path_model: 'model_checkpoints/'
 path_results: 'results/'
 path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
 path_resims: 'resims/'
+path_pretrained_ae: 'results/model_autoencoder_v3/'
 
 #--------------------------------
 #       Physical Params

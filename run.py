@@ -4,7 +4,7 @@ import argparse
 import yaml
 
 def run(params):
-    train.run(params)
+    train.train(params)
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

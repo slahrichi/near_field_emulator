@@ -28,7 +28,7 @@ from utils import parameter_manager, model_loader
 # Initialize: Training
 #--------------------------------
   
-def run(params):
+def train(params):
     OMP_NUM_THREADS=1
     logging.debug("train.py() | running training")
 
