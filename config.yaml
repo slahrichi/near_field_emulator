@@ -1,15 +1,18 @@
-# What type of training we're performing
-# 0: full training (pretrained autoencoder + model)
-# 1: autoencoder pretraining
+# Experiment type
+# - 0: train network
+# - 1: autoencoder pretraining
+# - 2: data compilation (preprocessed train/valid -> .pt file)
+# - 3: load results
+# - 4: run evaluation
 
-training_task: 0
+experiment: 2
 
 #--------------------------------
 #       General Params
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'convlstm_12M_pretrained_ae_v2'
+model_id: 'convlstm_12M_full_data_v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -82,7 +85,7 @@ conv_lstm:
 
 seq_len: 10
 io_mode: 'one_to_many'
-spacing_mode: 'sequential'
+spacing_mode: 'distributed'
 
 #--------------------------------
 #       Training Params
@@ -119,7 +122,7 @@ mcl_params:
 #--------------------------------
 #path_root: '/home/marshall/research/cai_2023'
 path_root: '/develop/'
-path_data: 'data/'
+path_data: 'data/preprocessed_data'
 path_train: 'train/'
 path_valid: 'valid/'
 path_model: 'model_checkpoints/'
@@ -163,3 +166,65 @@ adaptive: True
 #--------------------------------
 n_cpus: 5
 n_folds: 3
+
+#--------------------------------
+#       Kube Params
+#--------------------------------
+kube:
+    namespace : gpn-mizzou-muem
+    image : docker.io/kovaleskilab/ml_basic:v4
+    job_files : /develop/code/near_field_inverse_design/kube/kube_jobs  # this is a local directory
+    pvc_volumes : dft-volumes # use `kubectl get pvc` to see list of pvcs
+    pvc_preprocessed : preprocessed-data 
+    pvc_results : training-results
+
+    compile_job:
+        num_cpus : 4
+        num_mem_lim : 150Gi 
+        num_mem_req : 100Gi
+        kill_tag : compile-data
+
+        paths:
+            # local / repo path where meta-atom radii are stored
+
+            # interactive pod directories
+            data:
+                volumes: /develop/results  # points to folder containing reduced volumes in pvc called dft-volumes
+                preprocessed_data: /develop/data/preprocessed_data # points to folder containing data after it has been preprocessed in pvc called preprocessed-data 
+            timing: /develop/data/preprocessed_data/timing 
+
+            # local path where template is located
+            template: kube/templates/compile_job.txt
+
+    train_job :
+        num_cpus : 1
+        num_mem_lim : 12Gi
+        num_mem_req : 12Gi
+        num_gpus : 1
+        kill_tags : [rnn,lstm]
+        sequence :
+        arch :
+    
+        paths :
+        data :
+            train : /develop/data/preprocessed_data/train
+            valid : /develop/data/preprocessed_data/valid
+        results :
+            # interactive pod directories
+            model_results : /develop/results
+            model_checkpoints : /develop/results/checkpoints
+            analysis : /develop/results/analysis
+        logs : /develop/results/checkpoints/current_logs
+        # local path where template is located
+        template : templates/train_job.txt
+
+    load_results_job :
+        num_mem_req : 64Gi
+        num_mem_lim : 128Gi
+        paths :
+        template : templates/load_results_job.txt
+        params: /develop/code/meta_atom_rnn/configs/params.yaml
+
+    evaluation_job :
+        paths:
+        template : templates/evaluation_job.txt   

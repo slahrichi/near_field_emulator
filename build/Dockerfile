@@ -1,10 +1,10 @@
-FROM kovaleskilab/ml_basic:v1
+FROM kovaleskilab/ml_basic:v3
 
 SHELL ["/bin/bash", "-c"]
 
 RUN apt-get update && apt-get upgrade -y
 
-RUN pip install scikit-learn
+RUN pip install kubernetes
 
 WORKDIR /develop/data
 WORKDIR /develop/results

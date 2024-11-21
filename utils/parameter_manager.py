@@ -31,6 +31,7 @@ class Parameter_Manager():
         try:
             logging.debug(f"Keys in params: {params.keys()}")
 
+            self.experiment = params['experiment']
 
             # Load: Paths 
             self.path_root = params['path_root']
@@ -51,7 +52,6 @@ class Parameter_Manager():
             self.gpu_flag, self.gpu_list = params['gpu_config']
             self.patience = params['patience']
             self.min_delta = params['min_delta']
-            self.training_task = params['training_task']
             
             # Load: Model Params
             self.weights = params['weights']
@@ -79,6 +79,9 @@ class Parameter_Manager():
             self.n_cpus = params['n_cpus']
             self.n_folds = params['n_folds']
             self.interpolate_fields = params['interpolate_fields']
+            
+            # Load: Kube Params
+            self.kube = params['kube']
             
             # Load: Physical Params
             self._distance = params['distance']
@@ -190,7 +193,11 @@ class Parameter_Manager():
                                 'interpolate_fields': self.interpolate_fields,
                                 'io_mode'      : self.io_mode,
                                 'spacing_mode'   : self.spacing_mode,
-                                'training_task' : self.training_task,
+                                'experiment' : self.experiment,
+                                }
+        
+        self._params_kube = {
+                                'kube'          : self.kube,
                                 }
 
         self._params_trainer = {
@@ -199,7 +206,7 @@ class Parameter_Manager():
                             'accelerator'       : self.accelerator,
                             'patience'          : self.patience,
                             'min_delta'         : self.min_delta,
-                            'training_task'       : self.training_task
+                            'experiment'        : self.experiment
                             }
 
         self._params_meep = {
@@ -246,6 +253,10 @@ class Parameter_Manager():
     @property
     def params_datamodule(self):
         return self._params_datamodule
+    
+    @property
+    def params_kube(self):
+        return self._params_kube
 
     @property 
     def params_trainer(self):

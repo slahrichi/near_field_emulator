@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: temp-job
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: topology.kubernetes.io/region
+                operator: In
+                values:
+                - us-central 
+      containers:
+      - name: temp-container
+        image: docker.io/kovaleskilab/meep:v3_lightning
+        workingDir: /develop/code
+        command: ["/bin/bash", "-c"]
+        args: ["sleep 5000"]
+        volumeMounts:
+            - name: meep-dataset-v2
+              mountPath: /develop/data
+        resources:
+            limits:
+              memory: 4G
+              cpu: 2
+            requests:
+              memory: 4G
+              cpu: 2
+      volumes:
+      - name: meep-dataset-v2
+        persistentVolumeClaim:
+            claimName: meep-dataset-v2
+      restartPolicy: Never      
+  backoffLimit: 1

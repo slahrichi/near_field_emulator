@@ -4,28 +4,21 @@
 import itertools
 import os
 import sys
-import glob #TODO: Needed?
 import torch
 import logging
-import numpy as np #TODO: Needed?
+import numpy as np
 from typing import Optional
-#from torchvision import transforms
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import Dataset, DataLoader, Subset
 import pickle
-import yaml
 import torch
-import matplotlib.pyplot as plt
-from pytorch_lightning import seed_everything
 
 #--------------------------------
 # Import: Custom Python Libraries
 #--------------------------------
 sys.path.append('../')
-#from core import custom_transforms as ct
-#from core import preprocess_data
 from core import curvature
-from utils import parameter_manager, mapping
+from utils import mapping
 
 # debugging
 #logging.basicConfig(level=logging.DEBUG)
@@ -37,8 +30,8 @@ class NF_Datamodule(LightningDataModule):
 
         self.params = params.copy()
         logging.debug("datamodule.py - Setting params to {}".format(self.params))
+        self.experiment = params['experiment']
         self.arch = params['arch']
-        self.training_task = params['training_task']
         self.n_cpus = self.params['n_cpus']
         self.seed = self.params['seed']
         self.n_folds = self.params['n_folds']
@@ -72,7 +65,7 @@ class NF_Datamodule(LightningDataModule):
 
     def setup(self, stage: Optional[str] = None):
         # load the full dataset
-        if self.training_task == 1: # autoencoder pretraining
+        if self.experiment == 1: # autoencoder pretraining
             datafile = os.path.join(self.path_data, 'slices_dataset.pt')
             self.dataset = format_ae_data(datafile, self.params)
         else:
@@ -192,46 +185,56 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
     phases = []
     derivatives = []
     radii = []
+    tag = []
     
     for path in [train_path, valid_path]:
-            for current_file in os.listdir(path): # loop through pickle files
-                if current_file.endswith(".pkl"):
-                    current_file_path = os.path.join(path, current_file)
+        # keeping track of original split
+        normalized_path = os.path.normpath(path)
+        parent_dir = os.path.basename(normalized_path)
+        is_train = parent_dir == 'train'
+        current_tag = 1 if is_train else 0
+        
+        for current_file in os.listdir(path): # loop through pickle files
+            if current_file.endswith(".pkl"):
+                current_file_path = os.path.join(path, current_file)
+                tag.append(current_tag) # train or valid sample
+                
+                with open(current_file_path, "rb") as f:
+                    data = pickle.load(f)
                     
-                    with open(current_file_path, "rb") as f:
-                        data = pickle.load(f)
-                        
-                        if arch=='mlp':
-                            # extracting final slice from meta_atom_rnn data (1550 wl)
-                            near_field_sample = data['data'][:, :, :, -1].float()  # [2, 166, 166]
-                        elif arch=='lstm':
-                            # all slices
-                            near_field_sample = data['data'].float()  # [2, 166, 166, 63]
-                        else:
-                            raise ValueError("Invalid architecture")
-                        
-                        # append near field and phase data
-                        near_fields.append(near_field_sample)
-                        phases.append(data['LPA phases'])
-                        
-                        # per phases, calculate derivatives and append
-                        der = curvature.get_der_train(data['LPA phases'].view(1, 3, 3))
-                        derivatives.append(der)
-                        
-                        # per phase, compute radii and store
-                        temp_radii = torch.from_numpy(mapping.phase_to_radii(data['LPA phases']))
-                        radii.append(temp_radii)
+                    if arch=='mlp':
+                        # extracting final slice from meta_atom_rnn data (1550 wl)
+                        near_field_sample = data['data'][:, :, :, -1].float()  # [2, 166, 166]
+                    elif arch=='lstm':
+                        # all slices
+                        near_field_sample = data['data'].float()  # [2, 166, 166, 63]
+                    else:
+                        raise ValueError("Invalid architecture")
+                    
+                    # append near field and phase data
+                    near_fields.append(near_field_sample)
+                    phases.append(data['LPA phases'])
+                    
+                    # per phases, calculate derivatives and append
+                    der = curvature.get_der_train(data['LPA phases'].view(1, 3, 3))
+                    derivatives.append(der)
+                    
+                    # per phase, compute radii and store
+                    temp_radii = torch.from_numpy(mapping.phase_to_radii(data['LPA phases']))
+                    radii.append(temp_radii)
     
     # convert to tensors
     near_fields_tensor = torch.stack([torch.tensor(f) for f in near_fields], dim=0)  # [num_samples, 2, 166, 166, 63]
     phases_tensor = torch.stack([torch.tensor(p) for p in phases], dim=0)  # [num_samples, 9]
     derivatives_tensor = torch.stack([torch.tensor(d) for d in derivatives], dim=0)  # [num_samples, 3, 3]
-    radii_tensor = torch.stack([torch.tensor(r) for r in radii], dim=0)  # [num_samples, 9]    
+    radii_tensor = torch.stack([torch.tensor(r) for r in radii], dim=0)  # [num_samples, 9]  
+    tag_tensor = torch.tensor(tag) # [num_samples] 1 for train 0 for valid
     
     torch.save({'near_fields': near_fields_tensor, 
                 'phases': phases_tensor, 
                 'derivatives': derivatives_tensor,
-                'radii': radii_tensor}, save_path)
+                'radii': radii_tensor,
+                'tag': tag_tensor}, save_path)
     print(f"Data saved to {save_path}")
     
 def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
@@ -374,36 +377,3 @@ def interpolate_fields(data):
     data['all_near_fields']['near_fields_1550'] = near_fields_new_list
     
     return data
-    
-    
-#--------------------------------
-# Initialize: Testing
-#--------------------------------
-
-if __name__=="__main__":
-    logging.basicConfig(level=logging.DEBUG)
-    seed_everything(1337)
-    os.environ['SLURM_JOB_ID'] = '0'
-    #plt.style.use(['science'])
-
-    #Load config file   
-    params = yaml.load(open('config.yaml'), Loader = yaml.FullLoader).copy()
-    params['model_id'] = 0
-
-    #Parameter manager
-    pm = parameter_manager.Parameter_Manager(params=params)
-
-    # for accessing the preprocessed data
-    train_path = os.path.join(params['path_root'], params['path_data'], 'train')
-    valid_path = os.path.join(params['path_root'], params['path_data'], 'valid')
-    
-    # Load data
-    if pm.arch == 0: # MLP
-        save_path = os.path.join(params['path_root'], params['path_data'], 'dataset.pt')
-        load_pickle_data(train_path, valid_path, save_path, arch='mlp')
-    elif pm.arch == 1 or params['arch'] == 2: # LSTM
-        save_path = os.path.join(params['path_root'], params['path_data'], 'slices_dataset.pt')
-        load_pickle_data(train_path, valid_path, save_path, arch='lstm')
-    else:
-        logging.error("datamodule.py | Dataset {} not implemented!".format(params['which']))
-        exit()
