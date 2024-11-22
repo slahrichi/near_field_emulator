@@ -23,7 +23,17 @@ def run(params):
     environment = Environment(loader = FileSystemLoader(folder))
     template = environment.get_template(tag)
 
-    job_name = params['model_id'] + '-eval-job'
+    if params['experiment'] == 1:
+        model_type = 'autoencoder'
+    else:
+        if params['arch'] == 0:
+            model_type = 'mlp'
+        elif params['arch'] == 1 or params['arch'] == 2:
+            model_type = 'lstm' if params['arch'] == 1 else 'convlstm'
+        else:
+            raise ValueError("Model type not recognized")
+        
+    job_name = model_type + '-evaluation'
 
     template_info = {'job_name': job_name,
                         'num_cpus': str(params['kube']['train_job']['num_cpus']),

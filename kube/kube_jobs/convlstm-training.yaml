@@ -1,13 +1,13 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: one-to-many-dist-v1-training-job 
+  name: convlstm-training 
 spec:
   template:
     spec:
       restartPolicy: Never 
       containers:
-        - name: one-to-many-dist-v1-training-job
+        - name: convlstm-training
           image: docker.io/kovaleskilab/ml_basic:v4 
           imagePullPolicy: IfNotPresent
           ports:

@@ -208,7 +208,8 @@ class Parameter_Manager():
         
         self._params_kube = {
                                 'kube'          : self.kube,
-                                'model_id'      : self.model_id,
+                                'experiment'    : self.experiment,
+                                'arch'          : self._arch,
                                 }
 
         self._params_trainer = {

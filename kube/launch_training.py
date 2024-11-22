@@ -23,7 +23,17 @@ def run(params):
     environment = Environment(loader = FileSystemLoader(folder))
     template = environment.get_template(tag)
     
-    job_name = params['model_id'] + '-training-job'
+    if params['experiment'] == 1:
+        model_type = 'autoencoder'
+    else:
+        if params['arch'] == 0:
+            model_type = 'mlp'
+        elif params['arch'] == 1 or params['arch'] == 2:
+            model_type = 'lstm' if params['arch'] == 1 else 'convlstm'
+        else:
+            raise ValueError("Model type not recognized")
+        
+    job_name = model_type + '-training'
 
     template_info = {'job_name': job_name,
                         'num_cpus': str(params['kube']['train_job']['num_cpus']),
@@ -42,7 +52,7 @@ def run(params):
 
     if not os.path.exists(params['kube']['job_files']):
         os.makedirs(params['kube']['job_files'])
-    path_job = os.path.join(params['kube']['job_files'], params['model_id'] + ".yaml")
+    path_job = os.path.join(params['kube']['job_files'], job_name + ".yaml")
     save_file(path_job, filled_template)
 
     #subprocess.run(['kubectl', 'apply', '-f', path_job])
