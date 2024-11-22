@@ -72,7 +72,7 @@ conv_lstm:
     kernel_size: 5
     padding: 2
     spatial: 166
-    use_ae: True
+    use_ae: False
     pretrained_ae: True
     freeze_ae_weights: False
     encoder_channels: [2, 32, 64] # each step halves
@@ -197,7 +197,7 @@ kube:
             template: kube/templates/compile_job.txt
 
     train_job :
-        num_cpus : 1
+        num_cpus : 2
         num_mem_lim : 32Gi
         num_mem_req : 24Gi
         num_gpus : 1
