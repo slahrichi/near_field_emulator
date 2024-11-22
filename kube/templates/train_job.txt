@@ -38,6 +38,9 @@ spec:
               mountPath: {{results_path}}
             - name: shm 
               mountPath: /dev/shm
+            - name: ssh-key
+              mountPath: "/root/.ssh"
+              readOnly: true
 
       volumes:
         - name: {{pvc_preprocessed}}
@@ -49,6 +52,11 @@ spec:
         - name: shm
           emptyDir:
             medium: Memory
+        - name: ssh-key
+          secret:
+            secretName: github-ssh-key
+            defaultMode: 0400
+  
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
