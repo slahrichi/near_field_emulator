@@ -68,7 +68,10 @@ def train(params):
 
         # Initialize: The logger
         logger = custom_logger.Logger(
-            all_paths=pm.all_paths, name=f"{pm.model_id}_fold{fold_idx + 1}", version=0, fold_idx=fold_idx
+            all_paths=pm.all_paths,
+            name=f"{pm.model_id}_fold{fold_idx + 1}", 
+            version=0, 
+            fold_idx=fold_idx
         )
 
         # Initialize:  PytorchLighting model checkpoint

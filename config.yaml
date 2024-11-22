@@ -5,14 +5,14 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 2
+experiment: 0
 
 #--------------------------------
 #       General Params
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'convlstm_12M_full_data_v1'
+model_id: '12M-dist-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -108,7 +108,7 @@ load_checkpoint: False
 objective_function: 'mse'
 
 # early stopping settings
-patience: 30
+patience: 25
 min_delta: 0.0001
 
 mcl_params:
@@ -201,29 +201,27 @@ kube:
         num_mem_lim : 12Gi
         num_mem_req : 12Gi
         num_gpus : 1
-        kill_tags : [rnn,lstm]
-        sequence :
-        arch :
+        kill_tags : [mlp,lstm,convlstm]
     
         paths :
-        data :
-            train : /develop/data/preprocessed_data/train
-            valid : /develop/data/preprocessed_data/valid
-        results :
-            # interactive pod directories
-            model_results : /develop/results
-            model_checkpoints : /develop/results/checkpoints
-            analysis : /develop/results/analysis
-        logs : /develop/results/checkpoints/current_logs
-        # local path where template is located
-        template : templates/train_job.txt
+            data :
+                train : /develop/data/preprocessed_data/train
+                valid : /develop/data/preprocessed_data/valid
+            results :
+                # interactive pod directories
+                model_results : /develop/results
+                model_checkpoints : /develop/results/checkpoints
+                analysis : /develop/results/analysis
+            logs : /develop/results/checkpoints/current_logs
+            # local path where template is located
+            template : kube/templates/train_job.txt
 
     load_results_job :
         num_mem_req : 64Gi
         num_mem_lim : 128Gi
         paths :
         template : templates/load_results_job.txt
-        params: /develop/code/meta_atom_rnn/configs/params.yaml
+        params: /develop/code/near_field_inverse_design/configs/params.yaml
 
     evaluation_job :
         paths:

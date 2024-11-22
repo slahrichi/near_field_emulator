@@ -122,9 +122,19 @@ class Parameter_Manager():
                 self.jobid = os.environ['SLURM_JOB_ID']
             except:
                 self.jobid = 0
+                
+            if self.experiment == 1:
+                model_type = 'autoencoder'
+            else:
+                if self.arch == 0:
+                    model_type = 'mlp'
+                elif self.arch == 1 or self.arch == 2:
+                    model_type = 'lstm' if self.arch == 1 else 'convlstm'
+                else:
+                    raise ValueError("Model type not recognized")
 
-            self.path_model = f"{self.path_model}/model_{self.model_id}/"
-            self.path_results = f"{self.path_results}/model_{self.model_id}/"
+            self.path_model = f"{self.path_model}/meep_meep/{model_type}/model_{self.model_id}/"
+            self.path_results = f"{self.path_results}/meep_meep/{model_type}/model_{self.model_id}/"
             self.results_path = self.path_results
 
             self.seed_flag, self.seed_value = params['seed']
@@ -198,6 +208,7 @@ class Parameter_Manager():
         
         self._params_kube = {
                                 'kube'          : self.kube,
+                                'model_id'      : self.model_id,
                                 }
 
         self._params_trainer = {

@@ -21,7 +21,7 @@ from core import curvature
 from utils import mapping
 
 # debugging
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 class NF_Datamodule(LightningDataModule):
     def __init__(self, params, transform = None):
@@ -66,16 +66,16 @@ class NF_Datamodule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         # load the full dataset
         if self.experiment == 1: # autoencoder pretraining
-            datafile = os.path.join(self.path_data, 'slices_dataset.pt')
+            datafile = os.path.join(self.path_data, 'dataset.pt')
             self.dataset = format_ae_data(datafile, self.params)
         else:
             if self.arch == 0: # MLP
-                data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
+                data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
                 if self.params['interpolate_fields']: # interpolate fields to lower resolution
                     data = interpolate_fields(data)
                 self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
             elif self.arch == 1 or self.arch == 2: # LSTM
-                datafile = os.path.join(self.path_data, 'slices_dataset.pt')
+                datafile = os.path.join(self.path_data, 'dataset.pt')
                 self.dataset = format_temporal_data(datafile, self.params)
             
     def setup_fold(self, train_idx, val_idx):

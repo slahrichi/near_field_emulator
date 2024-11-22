@@ -102,9 +102,13 @@ class Logger(Logger):
         self._prefix = prefix
         self._experiment = None
         self._version = version
-        root = all_paths['path_root']
-        self._save_dir = os.path.join(root,all_paths['path_results'])
         self.fold_idx = fold_idx
+        root = all_paths['path_root']
+        self._save_dir = os.path.join(root, all_paths['path_results'])
+        self.fold_idx = fold_idx
+
+        # Ensure directories exist
+        os.makedirs(self._save_dir, exist_ok=True)
 
         self.display_paths(all_paths)
         

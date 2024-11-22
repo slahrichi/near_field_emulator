@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{job_name}} 
+spec:
+  template:
+    spec:
+      restartPolicy: Never 
+      containers:
+        - name: {{job_name}}
+          image: {{path_image}} 
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8880
+          env:
+            - name: NCCL_SOCKET_IFNAME
+              value: eth0
+            - name: NCCL_DEBUG
+              value: INFO
+          command: ["/bin/sh", "-c"]
+          args: ["set -x &&
+                  mkdir -p /root/.ssh &&
+                  git clone git@github.com:Kovaleski-Research-Lab/near_field_inverse_design.git &&
+                  python3 /develop/code/near_field_inverse_design/main.py --config /develop/code/near_field_inverse_design/config.yaml"]
+          resources:
+            limits:
+              memory: {{num_mem_lim}} 
+              cpu: {{num_cpus}} 
+              nvidia.com/gpu: {{num_gpus}}
+            requests:
+              memory: {{num_mem_req}}
+              cpu: {{num_cpus}}
+              nvidia.com/gpu: {{num_gpus}}
+          volumeMounts:
+            - name: {{pvc_preprocessed}}
+              mountPath: {{pp_data_path}}
+            - name: {{pvc_results}}
+              mountPath: {{results_path}}
+            - name: shm 
+              mountPath: /dev/shm
+
+      volumes:
+        - name: {{pvc_preprocessed}}
+          persistentVolumeClaim:
+            claimName: {{pvc_preprocessed}}
+        - name: {{pvc_results}}
+          persistentVolumeClaim:
+            claimName: {{pvc_results}}
+        - name: shm
+          emptyDir:
+            medium: Memory
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: nvidia.com/gpu.product
+                    operator: In
+                    values:
+                      - NVIDIA-GeForce-RTX-3090
