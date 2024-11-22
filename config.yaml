@@ -12,7 +12,7 @@ experiment: 0
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: '12M-dist-v1'
+model_id: 'one-to-many-dist-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9

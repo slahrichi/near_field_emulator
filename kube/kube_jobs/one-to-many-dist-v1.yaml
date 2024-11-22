@@ -1,13 +1,13 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: 12M-dist-v1-training-job 
+  name: one-to-many-dist-v1-training-job 
 spec:
   template:
     spec:
       restartPolicy: Never 
       containers:
-        - name: 12M-dist-v1-training-job
+        - name: one-to-many-dist-v1-training-job
           image: docker.io/kovaleskilab/ml_basic:v4 
           imagePullPolicy: IfNotPresent
           ports:
