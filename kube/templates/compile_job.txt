@@ -4,6 +4,7 @@ metadata:
   name: {{job_name}}
   namespace: gpn-mizzou-muem 
 spec:
+  ttlSecondsAfterFinished: 100
   completions: 1
   backoffLimit: 0
   template:

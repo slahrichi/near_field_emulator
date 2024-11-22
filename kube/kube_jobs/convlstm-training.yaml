@@ -3,6 +3,7 @@ kind: Job
 metadata:
   name: convlstm-training 
 spec:
+  ttlSecondsAfterFinished: 100
   template:
     spec:
       restartPolicy: Never 

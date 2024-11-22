@@ -1,15 +1,15 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{job_name}} 
+  name: convlstm-evaluation 
 spec:
   ttlSecondsAfterFinished: 100
   template:
     spec:
       restartPolicy: Never 
       containers:
-        - name: {{job_name}}
-          image: {{path_image}} 
+        - name: convlstm-evaluation
+          image: docker.io/kovaleskilab/ml_basic:v4 
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8880
@@ -25,18 +25,18 @@ spec:
                   python3 /develop/code/near_field_inverse_design/main.py --config /develop/code/near_field_inverse_design/config.yaml"]
           resources:
             limits:
-              memory: {{num_mem_lim}} 
-              cpu: {{num_cpus}} 
-              nvidia.com/gpu: {{num_gpus}}
+              memory: 32Gi 
+              cpu: 2 
+              nvidia.com/gpu: 1
             requests:
-              memory: {{num_mem_req}}
-              cpu: {{num_cpus}}
-              nvidia.com/gpu: {{num_gpus}}
+              memory: 24Gi
+              cpu: 2
+              nvidia.com/gpu: 1
           volumeMounts:
-            - name: {{pvc_preprocessed}}
-              mountPath: {{pp_data_path}}
-            - name: {{pvc_results}}
-              mountPath: {{results_path}}
+            - name: preprocessed-data
+              mountPath: /develop/data/preprocessed_data
+            - name: training-results
+              mountPath: /develop/results
             - name: shm 
               mountPath: /dev/shm
             - name: ssh-key
@@ -44,12 +44,12 @@ spec:
               readOnly: true
 
       volumes:
-        - name: {{pvc_preprocessed}}
+        - name: preprocessed-data
           persistentVolumeClaim:
-            claimName: {{pvc_preprocessed}}
-        - name: {{pvc_results}}
+            claimName: preprocessed-data
+        - name: training-results
           persistentVolumeClaim:
-            claimName: {{pvc_results}}
+            claimName: training-results
         - name: shm
           emptyDir:
             medium: Memory

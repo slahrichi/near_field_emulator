@@ -52,7 +52,7 @@ def run(params):
 
     if not os.path.exists(params['kube']['job_files']):
         os.makedirs(params['kube']['job_files'])
-    path_job = os.path.join(params['kube']['job_files'], params['model_id'] + ".yaml")
+    path_job = os.path.join(params['kube']['job_files'], job_name + ".yaml")
     save_file(path_job, filled_template)
 
     #subprocess.run(['kubectl', 'apply', '-f', path_job])
