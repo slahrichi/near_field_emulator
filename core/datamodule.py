@@ -21,7 +21,7 @@ from core import curvature
 from utils import mapping
 
 # debugging
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 class NF_Datamodule(LightningDataModule):
     def __init__(self, params, transform = None):
@@ -229,6 +229,9 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
     derivatives_tensor = torch.stack([torch.tensor(d) for d in derivatives], dim=0)  # [num_samples, 3, 3]
     radii_tensor = torch.stack([torch.tensor(r) for r in radii], dim=0)  # [num_samples, 9]  
     tag_tensor = torch.tensor(tag) # [num_samples] 1 for train 0 for valid
+    
+    logging.debug(f"Near fields tensor size: {near_fields_tensor.shape}")
+    logging.debug(f"Memory usage: {near_fields_tensor.element_size() * near_fields_tensor.nelement() / 1024**3:.2f} GB")
     
     torch.save({'near_fields': near_fields_tensor, 
                 'phases': phases_tensor, 

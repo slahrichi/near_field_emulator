@@ -20,9 +20,9 @@ def compile_data(params):
        It operates on the preprocessed pickle files separated by train/valid.  
        in the preprocessed_data directory.
     """
-    logging.basicConfig(level=logging.DEBUG)
+    #logging.basicConfig(level=logging.DEBUG)
     seed_everything(1337)
-    os.environ['SLURM_JOB_ID'] = '0'
+    logging.basicConfig(level=logging.DEBUG)
 
     params['model_id'] = 0
 
@@ -41,6 +41,9 @@ def compile_data(params):
         dm.load_pickle_data(train_path, valid_path, save_path, arch='mlp')
     elif pm.arch == 1 or params['arch'] == 2: # LSTM
         save_path = os.path.join(params['path_root'], params['path_data'], 'dataset.pt')
+        logging.debug(f"Save path: {save_path}")
+        logging.debug(f"Save directory exists: {os.path.exists(os.path.dirname(save_path))}")
+        logging.debug(f"Save directory writable: {os.access(os.path.dirname(save_path), os.W_OK)}")
         if os.path.exists(save_path):
             raise FileExistsError(f"Output file {save_path} already exists!")
         dm.load_pickle_data(train_path, valid_path, save_path, arch='lstm')
