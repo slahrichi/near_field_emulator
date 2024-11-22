@@ -44,8 +44,8 @@ def compile_data(params):
         logging.debug(f"Save path: {save_path}")
         logging.debug(f"Save directory exists: {os.path.exists(os.path.dirname(save_path))}")
         logging.debug(f"Save directory writable: {os.access(os.path.dirname(save_path), os.W_OK)}")
-        if os.path.exists(save_path):
-            raise FileExistsError(f"Output file {save_path} already exists!")
+        #if os.path.exists(save_path):
+        #    raise FileExistsError(f"Output file {save_path} already exists!")
         dm.load_pickle_data(train_path, valid_path, save_path, arch='lstm')
     else:
         logging.error("datamodule.py | Dataset {} not implemented!".format(params['which']))

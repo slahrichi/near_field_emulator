@@ -180,8 +180,8 @@ kube:
 
     compile_job:
         num_cpus : 4
-        num_mem_lim : 150Gi 
-        num_mem_req : 100Gi
+        num_mem_lim : 64Gi 
+        num_mem_req : 32Gi
         kill_tag : compile-data
 
         paths:
