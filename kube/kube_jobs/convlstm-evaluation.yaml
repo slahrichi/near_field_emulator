@@ -3,9 +3,9 @@ kind: Job
 metadata:
   name: convlstm-evaluation 
 spec:
-  ttlSecondsAfterFinished: 3600
   template:
     spec:
+      ttlSecondsAfterFinished: 3600
       restartPolicy: Never 
       containers:
         - name: convlstm-evaluation
@@ -39,9 +39,6 @@ spec:
               mountPath: /develop/results
             - name: shm 
               mountPath: /dev/shm
-            - name: ssh-key
-              mountPath: "/root/.ssh"
-              readOnly: true
 
       volumes:
         - name: preprocessed-data
@@ -53,7 +50,3 @@ spec:
         - name: shm
           emptyDir:
             medium: Memory
-        - name: ssh-key
-          secret:
-            secretName: github-ssh-key
-            defaultMode: 0400

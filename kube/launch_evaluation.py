@@ -17,9 +17,9 @@ from utils import parameter_manager
 
 def run(params):
 
-    template = load_file(params['kube']['train_job']['paths']['template'])
-    tag = params['kube']['train_job']['paths']['template'].split("/")[-1]
-    folder = params['kube']['train_job']['paths']['template'].replace("/%s" % tag, "")
+    template = load_file(params['kube']['evaluation_job']['paths']['template'])
+    tag = params['kube']['evaluation_job']['paths']['template'].split("/")[-1]
+    folder = params['kube']['evaluation_job']['paths']['template'].replace("/%s" % tag, "")
     environment = Environment(loader = FileSystemLoader(folder))
     template = environment.get_template(tag)
 

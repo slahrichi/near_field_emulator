@@ -220,9 +220,9 @@ kube:
         num_mem_req : 64Gi
         num_mem_lim : 128Gi
         paths :
-        template : templates/load_results_job.txt
-        params: /develop/code/near_field_inverse_design/configs/params.yaml
+            template : templates/load_results_job.txt
+            params: /develop/code/near_field_inverse_design/configs/params.yaml
 
     evaluation_job :
         paths:
-        template : templates/evaluation_job.txt   
+            template : kube/templates/evaluation_job.txt   
