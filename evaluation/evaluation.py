@@ -15,6 +15,7 @@ from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMe
 
 sys.path.append('../')
 import utils.mapping as mapping
+import utils.visualize as viz
 
 fontsize = 8
 font = FontProperties()
@@ -80,7 +81,6 @@ def get_all_results(folder_path, n_folds):
     return fold_results
 
 def gather_info(folder_path):
-    excess = os.path.join(path_results, "model_cai_")
     file_path = os.path.join(folder_path, "params.yaml")
     if os.path.isfile(file_path):
 
@@ -136,31 +136,31 @@ def save_eval_item(save_dir, eval_item, file_name, type):
     print(f"Evaluation item saved to {save_path}")
     
 
-def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save_dir=None):
+def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], save_fig=False, save_dir=None):
     
     losses = [fold['losses'] for fold in fold_results]
-    title = model_info['title'].split("/")[-1]
-    lr = model_info['lr']
-    optimizer = model_info['optimizer']
-    lr_scheduler = model_info['lr_scheduler']
-    batch_size = model_info['batch_size']
-    if model_info['arch'] == 0:
-        mlp_layers = model_info['mlp_real']['layers']
+    title = pm.model_id
+    lr = pm.learning_rate
+    optimizer = pm.optimizer
+    lr_scheduler = pm.lr_scheduler
+    batch_size = pm.batch_size
+    if pm.arch == 0:
+        mlp_layers = pm.mlp_real['layers']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
-        #if model_info['mlp_strategy'] != 0:
-        #    patch_size = model_info['patch_size']
+        #if params['mlp_strategy'] != 0:
+        #    patch_size = params['patch_size']
         #    model_identifier += f", patch_size: {patch_size}"
-    elif model_info['arch'] == 1:
-        lstm_num_layers = model_info['lstm_num_layers']
-        lstm_i_dims = model_info['lstm_i_dims']
-        lstm_h_dims = model_info['lstm_h_dims']
-        seq_len = model_info['seq_len']
+    elif pm.arch == 1:
+        lstm_num_layers = pm.lstm['num_layers']
+        lstm_i_dims = pm.lstm['i_dims']
+        lstm_h_dims = pm.lstm['h_dims']
+        seq_len = pm.seq_len
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
-    elif model_info['arch'] == 2:
-        in_channels = model_info['in_channels']
-        out_channels = model_info['out_channels']
-        kernel_size = model_info['kernel_size']
-        padding = model_info['padding']
+    elif pm.arch == 2:
+        in_channels = pm.conv_lstm['in_channels']
+        out_channels = pm.conv_lstm['out_channels']
+        kernel_size = pm.conv_lstm['kernel_size']
+        padding = pm.conv_lstm['padding']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, kernel_size: {kernel_size}, padding: {padding}'
     
     plt.style.use("ggplot")
@@ -202,7 +202,7 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
                        mean_train_loss.values - std_train_loss.values, 
                        mean_train_loss.values + std_train_loss.values, 
                        color='red', alpha=0.3, label='Training Std Dev')
-    ax[0].set_ylabel(f"{model_info['loss_func']} Loss", fontsize=10)
+    ax[0].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
     ax[0].set_xlabel("Epoch", fontsize=10)
     ax[0].set_title(f"Training Loss", fontsize=12)
     ax[0].set_ylim([min_list[0], max_list[0]])
@@ -214,7 +214,7 @@ def plot_loss(model_info, fold_results, min_list, max_list, save_fig=False, save
                        mean_val_loss.values - std_val_loss.values, 
                        mean_val_loss.values + std_val_loss.values, 
                        color='blue', alpha=0.3, label='Validation Std Dev')
-    ax[1].set_ylabel(f"{model_info['loss_func']} Loss", fontsize=10)
+    ax[1].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
     ax[1].set_xlabel("Epoch", fontsize=10)
     ax[1].set_title(f"Validation Loss", fontsize=12)
     ax[1].set_ylim([min_list[1], max_list[1]])
@@ -351,7 +351,7 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
             ax[1, 1].set_title(f'Predicted {component_2} Component')
             ax[1, 1].axis('off')
                 
-        elif arch == 'lstm':
+        elif arch == 'lstm' or arch == 'convlstm':
             # extract and convert to tensors
             truth_real = torch.from_numpy(results['nf_truth'][sample_idx, :, 0, :, :])
             truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, :, 1, :, :])
@@ -533,3 +533,42 @@ def plot_sequence_comparison(pred, truth, view='mag', save_fig=False, save_dir=N
         save_eval_item(save_dir, fig, file_name, 'dft')
     
     plt.show()
+    
+def animate_fields(fold_results, dataset, fold_idx=0, sample_idx=0, seq_len=5, save_dir=None): 
+    results = fold_results[fold_idx][dataset]
+    truth_real = torch.from_numpy(results['nf_truth'][sample_idx, :, 0, :, :])
+    truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, :, 1, :, :])
+    pred_real = torch.from_numpy(results['nf_pred'][sample_idx, :, 0, :, :])
+    pred_imag = torch.from_numpy(results['nf_pred'][sample_idx, :, 1, :, :])
+    truth_real = truth_real.permute(1, 2, 0)
+    truth_imag = truth_imag.permute(1, 2, 0)
+    pred_real = pred_real.permute(1, 2, 0)
+    pred_imag = pred_imag.permute(1, 2, 0)
+
+    truth_mag, truth_phase = mapping.cartesian_to_polar(truth_real, truth_imag)
+    pred_mag, pred_phase = mapping.cartesian_to_polar(pred_real, pred_imag)
+
+    flipbooks_dir = os.path.join(save_dir, "flipbooks")
+    os.makedirs(flipbooks_dir, exist_ok=True)
+
+    # intensity
+    truth_anim = viz.animate_fields(truth_mag, "True Intensity", 
+                                    save_path=os.path.join(flipbooks_dir, f"sample_{sample_idx}_mag_groundtruth_{dataset}.gif"), 
+                                    frames=seq_len,
+                                    interval=250)
+    pred_anim = viz.animate_fields(pred_mag, "Predicted Intensity", 
+                                save_path=os.path.join(flipbooks_dir, f"sample_{sample_idx}_mag_prediction_{dataset}.gif"), 
+                                frames=seq_len,
+                                interval=250)
+
+    # phase
+    truth_phase_anim = viz.animate_fields(truth_phase, "True Phase", 
+                                    save_path=os.path.join(flipbooks_dir, f"sample_{sample_idx}_phase_groundtruth_{dataset}.gif"), 
+                                    cmap='twilight_shifted',
+                                    frames=seq_len,
+                                    interval=250)
+    pred_phase_anim = viz.animate_fields(pred_phase, "Predicted Phase", 
+                                save_path=os.path.join(flipbooks_dir, f"sample_{sample_idx}_phase_prediction_{dataset}.gif"), 
+                                cmap='twilight_shifted',
+                                frames=seq_len,
+                                interval=250)

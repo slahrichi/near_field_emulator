@@ -4,6 +4,7 @@ import yaml
 
 import train
 from utils.compile_data import compile_data
+from evaluation.eval_model import eval_model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -25,6 +26,7 @@ if __name__ == '__main__':
     elif params['experiment'] == 3:
         raise NotImplementedError('Loading results not fully implemented yet.')
     elif params['experiment'] == 4:
-        raise NotImplementedError('Evaluation not fully implemented yet.')
+        print('Evaluating model...')
+        eval_model(params)
     else:
         raise NotImplementedError('Experiment not recognized.')
