@@ -91,7 +91,7 @@ spacing_mode: 'distributed'
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 10 # maximum
+num_epochs: 5 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -198,8 +198,8 @@ kube:
 
     train_job :
         num_cpus : 2
-        num_mem_lim : 32Gi
-        num_mem_req : 24Gi
+        num_mem_lim : 64Gi
+        num_mem_req : 64Gi
         num_gpus : 1
         kill_tags : [mlp,lstm,convlstm]
     

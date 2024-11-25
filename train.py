@@ -6,6 +6,7 @@ import os
 import yaml
 import torch
 import signal
+import gc
 import logging
 from sklearn.model_selection import KFold
 from pytorch_lightning.strategies import DDPStrategy
@@ -27,7 +28,11 @@ from utils import parameter_manager, model_loader
 #--------------------------------
 # Initialize: Training
 #--------------------------------
-  
+
+def clear_memory():
+    gc.collect()
+    torch.cuda.empty_cache()
+
 def train(params):
     OMP_NUM_THREADS=1
     logging.debug("train.py() | running training")
@@ -143,7 +148,9 @@ def train(params):
             logging.info(f"New best model found in fold {fold_idx + 1} with validation loss: {best_val_loss:.6f}")
         
         # Testing
-        trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
+        trainer.test(model_instance, dataloaders=[data_module.val_dataloader()])
+        clear_memory()
+        trainer.test(model_instance, dataloaders=[data_module.train_dataloader()])
         
         # Analysis/Results and saving #TODO
         fold_results.append(model_instance.test_results)
