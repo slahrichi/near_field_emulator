@@ -8,6 +8,7 @@ import torch
 import signal
 import gc
 import logging
+import shutil
 from sklearn.model_selection import KFold
 from pytorch_lightning.strategies import DDPStrategy
 from pytorch_lightning import Trainer, seed_everything
@@ -65,10 +66,11 @@ def train(params):
     for fold_idx, (train_idx, val_idx) in enumerate(kf.split(full_dataset)):
         logging.info(f"Fold {fold_idx +1}/{n_splits}")
         
-        # Initialize: The model for each fold
-        model_instance = model_loader.select_model(pm, fold_idx)
+        if fold_idx > 0:
+            clear_memory()
         
-        # Set up data module for this fold
+        # Initialize: new fold
+        model_instance = model_loader.select_model(pm, fold_idx)
         data_module.setup_fold(train_idx, val_idx)
 
         # Initialize: The logger
@@ -148,9 +150,7 @@ def train(params):
             logging.info(f"New best model found in fold {fold_idx + 1} with validation loss: {best_val_loss:.6f}")
         
         # Testing
-        trainer.test(model_instance, dataloaders=[data_module.val_dataloader()])
-        clear_memory()
-        trainer.test(model_instance, dataloaders=[data_module.train_dataloader()])
+        trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
         
         # Analysis/Results and saving #TODO
         fold_results.append(model_instance.test_results)
@@ -165,6 +165,12 @@ def train(params):
         best_model = torch.load(best_model_path)
         torch.save(best_model, checkpoint_path)
         logging.info(f"Saved best overall model to {checkpoint_path}")
+        
+        # Clean up temporary checkpoints
+        for fold in range(n_splits):
+            temp_fold_dir = os.path.join(pm.path_root, pm.path_model, f"fold{fold}")
+            if os.path.exists(temp_fold_dir):
+                shutil.rmtree(temp_fold_dir)
 
     # Dump config for future reference
     yaml.dump(params, open(os.path.join(pm.path_root, f'{pm.path_results}/params.yaml'), 'w'))
