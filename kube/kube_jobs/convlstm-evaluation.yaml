@@ -25,13 +25,13 @@ spec:
                   python3 /develop/code/near_field_inverse_design/main.py --config /develop/code/near_field_inverse_design/config.yaml"]
           resources:
             limits:
-              memory: 64Gi 
-              cpu: 2 
-              nvidia.com/gpu: 1
+              memory: 80Gi 
+              cpu: 16 
+              nvidia.com/a100: 1
             requests:
-              memory: 64Gi
-              cpu: 2
-              nvidia.com/gpu: 1
+              memory: 80Gi
+              cpu: 16
+              nvidia.com/a100: 1
           volumeMounts:
             - name: preprocessed-data
               mountPath: /develop/data/preprocessed_data
@@ -57,13 +57,3 @@ spec:
           secret:
             secretName: github-ssh-key
             defaultMode: 0400
-  
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: nvidia.com/gpu.product
-                    operator: In
-                    values:
-                      - NVIDIA-GeForce-RTX-3090

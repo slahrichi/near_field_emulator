@@ -27,11 +27,11 @@ spec:
             limits:
               memory: {{num_mem_lim}} 
               cpu: {{num_cpus}} 
-              nvidia.com/gpu: {{num_gpus}}
+              nvidia.com/a100: {{num_gpus}}
             requests:
               memory: {{num_mem_req}}
               cpu: {{num_cpus}}
-              nvidia.com/gpu: {{num_gpus}}
+              nvidia.com/a100: {{num_gpus}}
           volumeMounts:
             - name: {{pvc_preprocessed}}
               mountPath: {{pp_data_path}}
@@ -57,13 +57,3 @@ spec:
           secret:
             secretName: github-ssh-key
             defaultMode: 0400
-  
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: nvidia.com/gpu.product
-                    operator: In
-                    values:
-                      - NVIDIA-GeForce-RTX-3090

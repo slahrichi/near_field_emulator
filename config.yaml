@@ -12,7 +12,7 @@ experiment: 0
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'one-to-many-dist-test'
+model_id: 'one-to-many-dist-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -197,9 +197,9 @@ kube:
             template: kube/templates/compile_job.txt
 
     train_job :
-        num_cpus : 2
-        num_mem_lim : 64Gi
-        num_mem_req : 64Gi
+        num_cpus : 16
+        num_mem_lim : 80Gi
+        num_mem_req : 80Gi
         num_gpus : 1
         kill_tags : [mlp,lstm,convlstm]
     
