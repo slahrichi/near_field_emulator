@@ -12,7 +12,7 @@ experiment: 0
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'one-to-many-dist-v1'
+model_id: 'one-to-many-dist-test'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -91,7 +91,7 @@ spacing_mode: 'distributed'
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 30 # maximum
+num_epochs: 10 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]

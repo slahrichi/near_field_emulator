@@ -3,7 +3,7 @@ kind: Job
 metadata:
   name: convlstm-evaluation 
 spec:
-  ttlSecondsAfterFinished: 100
+  ttlSecondsAfterFinished: 3600
   template:
     spec:
       restartPolicy: Never 

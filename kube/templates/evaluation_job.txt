@@ -5,7 +5,7 @@ metadata:
 spec:
   template:
     spec:
-      ttlSecondsAfterFinished: 100
+      ttlSecondsAfterFinished: 3600
       restartPolicy: Never 
       containers:
         - name: {{job_name}}
