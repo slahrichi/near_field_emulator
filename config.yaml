@@ -91,7 +91,7 @@ spacing_mode: 'distributed'
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 2 # maximum
+num_epochs: 30 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
