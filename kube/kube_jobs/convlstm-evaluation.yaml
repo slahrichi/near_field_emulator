@@ -3,9 +3,9 @@ kind: Job
 metadata:
   name: convlstm-evaluation 
 spec:
+  ttlSecondsAfterFinished: 3600
   template:
     spec:
-      ttlSecondsAfterFinished: 3600
       restartPolicy: Never 
       containers:
         - name: convlstm-evaluation
