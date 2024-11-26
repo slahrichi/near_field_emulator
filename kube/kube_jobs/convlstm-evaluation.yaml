@@ -27,11 +27,11 @@ spec:
             limits:
               memory: 100Gi 
               cpu: 16 
-              nvidia.com/a100: 1
+              nvidia.com/gpu: 1
             requests:
               memory: 100Gi
               cpu: 16
-              nvidia.com/a100: 1
+              nvidia.com/gpu: 1
           volumeMounts:
             - name: preprocessed-data
               mountPath: /develop/data/preprocessed_data
