@@ -27,11 +27,11 @@ spec:
             limits:
               memory: {{num_mem_lim}} 
               cpu: {{num_cpus}} 
-              nvidia.com/gpu: {{num_gpus}}
+              nvidia.com/a100: {{num_gpus}}
             requests:
               memory: {{num_mem_req}}
               cpu: {{num_cpus}}
-              nvidia.com/gpu: {{num_gpus}}
+              nvidia.com/a100: {{num_gpus}}
           volumeMounts:
             - name: {{pvc_preprocessed}}
               mountPath: {{pp_data_path}}

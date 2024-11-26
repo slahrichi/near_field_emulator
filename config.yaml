@@ -213,8 +213,8 @@ kube:
 
     train_job :
         num_cpus : 16
-        num_mem_lim : 100Gi
-        num_mem_req : 100Gi
+        num_mem_lim : 128Gi
+        num_mem_req : 128Gi
         num_gpus : 1
         kill_tags : [mlp,lstm,convlstm]
     
