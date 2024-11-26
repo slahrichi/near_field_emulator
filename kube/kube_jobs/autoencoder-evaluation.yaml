@@ -22,6 +22,7 @@ spec:
           args: ["set -x &&
                   mkdir -p /root/.ssh &&
                   git clone git@github.com:Kovaleski-Research-Lab/near_field_inverse_design.git &&
+                  cat /develop/code/near_field_inverse_design/config.yaml &&
                   python3 /develop/code/near_field_inverse_design/main.py --config /develop/code/near_field_inverse_design/config.yaml"]
           resources:
             limits:
