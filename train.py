@@ -56,8 +56,12 @@ def train(params):
     full_dataset = data_module.dataset
     
     # Initialize: K-Fold Cross Validation
-    n_splits = pm.params_datamodule['n_folds']
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
+    if(pm.cross_validation):
+        n_splits = pm.params_datamodule['n_folds']
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
+    else: # 80/20 split
+        n_splits = 5
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
     
     fold_results = []
     best_val_loss = float('inf')
@@ -67,8 +71,9 @@ def train(params):
         logging.info(f"Fold {fold_idx +1}/{n_splits}")
         
         if fold_idx > 0:
-            break
-            #clear_memory()
+            clear_memory()
+            if(not pm.cross_validation): # only run first fold
+                break
         
         # Initialize: new fold
         model_instance = model_loader.select_model(pm, fold_idx)
@@ -151,10 +156,11 @@ def train(params):
             logging.info(f"New best model found in fold {fold_idx + 1} with validation loss: {best_val_loss:.6f}")
         
         # Testing
-        #trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
+        if(pm.include_testing):
+            trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
         
-        # Analysis/Results and saving #TODO
-        fold_results.append(model_instance.test_results)
+            # Analysis/Results and saving #TODO
+            fold_results.append(model_instance.test_results)
         
     # After all folds complete, save only the best model
     if best_model_path:

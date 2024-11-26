@@ -23,7 +23,7 @@ def run(params):
     environment = Environment(loader = FileSystemLoader(folder))
     template = environment.get_template(tag)
 
-    if params['experiment'] == 1:
+    if 'ae' in params['model_id']: # TODO: do this better lol
         model_type = 'autoencoder'
     else:
         if params['arch'] == 0:

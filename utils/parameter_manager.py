@@ -52,6 +52,8 @@ class Parameter_Manager():
             self.gpu_flag, self.gpu_list = params['gpu_config']
             self.patience = params['patience']
             self.min_delta = params['min_delta']
+            self.include_testing = params['include_testing']
+            self.cross_validation = params['cross_validation']
             
             # Load: Model Params
             self.weights = params['weights']
@@ -210,6 +212,7 @@ class Parameter_Manager():
                                 'kube'          : self.kube,
                                 'experiment'    : self.experiment,
                                 'arch'          : self._arch,
+                                'model_id'      : self.model_id,
                                 }
 
         self._params_trainer = {
@@ -218,7 +221,9 @@ class Parameter_Manager():
                             'accelerator'       : self.accelerator,
                             'patience'          : self.patience,
                             'min_delta'         : self.min_delta,
-                            'experiment'        : self.experiment
+                            'experiment'        : self.experiment,
+                            'include_testing'   : self.include_testing,
+                            'cross_validation'  : self.cross_validation
                             }
 
         self._params_meep = {

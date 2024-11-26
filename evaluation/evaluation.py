@@ -306,7 +306,7 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
     - format: "cartesian" or "polar"
     """
     def plot_single_set(results, title, format, save_path, sample_idx):
-        if arch == 'mlp':
+        if arch == 'mlp' or arch == 'autoencoder':
             # extract and convert to tensors
             truth_real = torch.from_numpy(results['nf_truth'][sample_idx, 0, :, :])
             truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, 1, :, :])

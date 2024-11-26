@@ -5,23 +5,37 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 1
+experiment: 4
 
 #--------------------------------
 #       General Params
 #--------------------------------
+
+# General Parameters
+# - seed: random seed
+# - train: True/False
+# - model_id: model identifier / name
+# - torch_home: path to dtemp directory for holding pretrained models
+# - exp_name: experiment name
+# - num_design_params: number of design parameters
+# - include_testing: True/False - whether to test right after training
+# - cross_validation: True/False - whether to perform cross-validation
+# ---> if False, then a 5-fold 80/20 split is used
+
 seed: [True, 1337]
 train: True
 model_id: 'ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
+include_testing: True
+cross_validation: True
 
 #--------------------------------
 #       Network Params
 #--------------------------------
 
-# General Parameters
+# General Network Parameters
 # - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM)
 
 arch: 2
@@ -165,7 +179,7 @@ adaptive: True
 #       Datamodule Params
 #--------------------------------
 n_cpus: 5
-n_folds: 4
+n_folds: 3
 
 #--------------------------------
 #       Kube Params

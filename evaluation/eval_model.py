@@ -13,7 +13,10 @@ def eval_model(params):
     
     # use current params to get results directory
     pm_temp = parameter_manager.Parameter_Manager(params=params)
-    results_dir = os.path.join(pm_temp.path_root, pm_temp.path_results)
+    if 'ae' in pm_temp.model_id:
+        results_dir = os.path.join(pm_temp.path_root, pm_temp.path_pretrained_ae)
+    else:
+        results_dir = os.path.join(pm_temp.path_root, pm_temp.path_model)
     
     # setup new parameter manager based on saved parameters
     model_params = yaml.load(open(os.path.join(results_dir, 'params.yaml')), 
@@ -37,11 +40,6 @@ def eval_model(params):
     print("Generating loss plots...")
     eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
     
-    # compute relevant metrics across folds
-    print("Computing and saving metrics...")
-    eval.print_metrics(fold_results, dataset='train', save_fig=True, save_dir=results_dir)
-    eval.print_metrics(fold_results, dataset='valid', save_fig=True, save_dir=results_dir)
-    
     # determine model type
     if pm.experiment == 1:
         model_type = 'autoencoder'
@@ -52,6 +50,12 @@ def eval_model(params):
             model_type = 'lstm' if pm.arch == 1 else 'convlstm'
         else:
             raise ValueError("Model type not recognized")
+        
+    # compute relevant metrics across folds
+    if model_type != 'autoencoder':
+        print("Computing and saving metrics...")
+        eval.print_metrics(fold_results, dataset='train', save_fig=True, save_dir=results_dir)
+        eval.print_metrics(fold_results, dataset='valid', save_fig=True, save_dir=results_dir)
     
     # visualize performance with DFT fields
     print("Generating DFT field plots...")
@@ -60,9 +64,10 @@ def eval_model(params):
                          arch=model_type, format='polar')
     
     # visualize performance with animation
-    print("Generating field animations...")
-    eval.animate_fields(fold_results, dataset='valid', 
-                        seq_len=pm.seq_len, save_dir=results_dir)
+    if model_type != 'autoencoder':
+        print("Generating field animations...")
+        eval.animate_fields(fold_results, dataset='valid', 
+                            seq_len=pm.seq_len, save_dir=results_dir)
     
     print(f"\nEvaluation complete. All results saved to: {results_dir}")
     # List all generated files

@@ -1,14 +1,14 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: convlstm-evaluation 
+  name: autoencoder-evaluation 
 spec:
   ttlSecondsAfterFinished: 3600
   template:
     spec:
       restartPolicy: Never 
       containers:
-        - name: convlstm-evaluation
+        - name: autoencoder-evaluation
           image: docker.io/kovaleskilab/ml_basic:v4 
           imagePullPolicy: IfNotPresent
           ports:
