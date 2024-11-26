@@ -91,7 +91,7 @@ spacing_mode: 'distributed'
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 5 # maximum
+num_epochs: 75 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -108,7 +108,7 @@ load_checkpoint: False
 objective_function: 'mse'
 
 # early stopping settings
-patience: 30
+patience: 25
 min_delta: 0.0001
 
 mcl_params:
@@ -198,8 +198,8 @@ kube:
 
     train_job :
         num_cpus : 16
-        num_mem_lim : 80Gi
-        num_mem_req : 80Gi
+        num_mem_lim : 100Gi
+        num_mem_req : 100Gi
         num_gpus : 1
         kill_tags : [mlp,lstm,convlstm]
     
