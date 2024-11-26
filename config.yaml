@@ -18,7 +18,7 @@ experiment: 4
 # - torch_home: path to dtemp directory for holding pretrained models
 # - exp_name: experiment name
 # - num_design_params: number of design parameters
-# - include_testing: True/False - whether to test right after training
+# - include_testing: True/Falsee - whether to test right after training
 # - cross_validation: True/False - whether to perform cross-validation
 # ---> if False, then a 5-fold 80/20 split is used
 
