@@ -13,7 +13,7 @@ def eval_model(params):
     
     # use current params to get results directory
     pm_temp = parameter_manager.Parameter_Manager(params=params)
-    if 'ae' in pm_temp.model_id:
+    if pm_temp.model_id == 'ae-v1':
         results_dir = os.path.join(pm_temp.path_root, pm_temp.path_pretrained_ae)
     else:
         results_dir = os.path.join(pm_temp.path_root, pm_temp.path_model)
