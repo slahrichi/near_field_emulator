@@ -42,7 +42,7 @@ def eval_model(params):
         
         # plot training and validation loss
         print("Generating loss plots...")
-        eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
+        #eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
     
         # determine model type
         if pm.experiment == 1:
