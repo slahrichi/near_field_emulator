@@ -5,14 +5,14 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 1
 
 #--------------------------------
 #       General Params
 #--------------------------------
 seed: [True, 1337]
 train: True
-model_id: 'one-to-many-dist-v1'
+model_id: 'ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -91,7 +91,7 @@ spacing_mode: 'distributed'
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 30 # maximum
+num_epochs: 100 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -108,7 +108,7 @@ load_checkpoint: False
 objective_function: 'mse'
 
 # early stopping settings
-patience: 15
+patience: 30
 min_delta: 0.0001
 
 mcl_params:
@@ -129,7 +129,7 @@ path_model: 'model_checkpoints/'
 path_results: 'results/'
 path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
 path_resims: 'resims/'
-path_pretrained_ae: 'results/model_autoencoder_v3/'
+path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-v1/'
 
 #--------------------------------
 #       Physical Params

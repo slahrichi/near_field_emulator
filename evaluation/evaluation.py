@@ -227,7 +227,7 @@ def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], sa
     if save_fig:
         if not save_dir:
             raise ValueError("Please specify a save directory")
-        file_name = f'{title}.pdf'
+        file_name = f'loss.pdf'
         save_eval_item(save_dir, fig, file_name, 'loss')
 
 def calculate_metrics(truth, pred):

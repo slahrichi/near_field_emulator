@@ -8,8 +8,14 @@ spec:
       image: jupyter/scipy-notebook
       ports:
         - containerPort: 8888
-      command: ["start-notebook.sh"]
-      args: ["--NotebookApp.token=''", "--NotebookApp.password=''"]
+      command: 
+        - "bash"
+        - "-c"
+        - |
+          sudo apt-get update && \
+          sudo apt-get install -y poppler-utils && \
+          pip install pdf2image && \
+          start-notebook.sh --NotebookApp.token='' --NotebookApp.password=''
       resources:
         limits:
           memory: 20G
@@ -20,6 +26,9 @@ spec:
       volumeMounts:
         - name: training-results 
           mountPath: /develop/results
+      securityContext:
+        runAsUser: 0  # Run as root
+        allowPrivilegeEscalation: true
           
   volumes:
     - name: training-results
