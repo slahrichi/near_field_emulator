@@ -32,6 +32,9 @@ class Parameter_Manager():
             logging.debug(f"Keys in params: {params.keys()}")
 
             self.experiment = params['experiment']
+            
+            self.include_testing = params.get('include_testing', True)
+            self.cross_validation = params.get('cross_validation', True)
 
             # Load: Paths 
             self.path_root = params['path_root']
@@ -52,8 +55,8 @@ class Parameter_Manager():
             self.gpu_flag, self.gpu_list = params['gpu_config']
             self.patience = params['patience']
             self.min_delta = params['min_delta']
-            self.include_testing = params['include_testing']
-            self.cross_validation = params['cross_validation']
+            #self.include_testing = params['include_testing']
+            #self.cross_validation = params['cross_validation']
             
             # Load: Model Params
             self.weights = params['weights']
