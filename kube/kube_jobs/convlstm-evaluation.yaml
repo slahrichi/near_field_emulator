@@ -25,16 +25,14 @@ spec:
                   python3 /develop/code/near_field_inverse_design/main.py --config /develop/code/near_field_inverse_design/config.yaml"]
           resources:
             limits:
-              memory: 128Gi 
+              memory: 144Gi 
               cpu: 16 
               nvidia.com/a100: 1
             requests:
-              memory: 128Gi
+              memory: 144Gi
               cpu: 16
               nvidia.com/a100: 1
           volumeMounts:
-            - name: preprocessed-data
-              mountPath: /develop/data/preprocessed_data
             - name: training-results
               mountPath: /develop/results
             - name: shm 
@@ -44,9 +42,6 @@ spec:
               readOnly: true
 
       volumes:
-        - name: preprocessed-data
-          persistentVolumeClaim:
-            claimName: preprocessed-data
         - name: training-results
           persistentVolumeClaim:
             claimName: training-results
