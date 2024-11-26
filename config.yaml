@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 0
 
 #--------------------------------
 #       General Params
@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'one-to-many-seq-v1'
+model_id: 'one-to-many-full-pre-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -95,7 +95,7 @@ conv_lstm:
 # - io_mode: 'one_to_many' or 'many_to_many'
 # - spacing_mode: 'sequential' or 'distributed'
 
-seq_len: 10
+seq_len: 60
 io_mode: 'one_to_many'
 spacing_mode: 'sequential'
 
@@ -213,8 +213,8 @@ kube:
 
     train_job :
         num_cpus : 16
-        num_mem_lim : 144Gi
-        num_mem_req : 144Gi
+        num_mem_lim : 100Gi
+        num_mem_req : 100Gi
         num_gpus : 1
         kill_tags : [mlp,lstm,convlstm]
     
