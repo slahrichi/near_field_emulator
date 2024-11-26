@@ -28,8 +28,6 @@ model_id: 'ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
-include_testing: True
-cross_validation: True
 
 #--------------------------------
 #       Network Params
@@ -120,6 +118,9 @@ lr_scheduler: 'CosineAnnealingLR'
 transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
+
+include_testing: True
+cross_validation: True
 
 # early stopping settings
 patience: 25

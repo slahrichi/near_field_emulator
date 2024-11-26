@@ -14,6 +14,12 @@ if __name__ == '__main__':
     # Load parameters from the specified config YAML
     params = yaml.load(open(args.config), Loader = yaml.FullLoader).copy()
     
+    # temporary fix for older model configs
+    if 'include_testing' not in params:
+        print("Warning: include_testing not found in config, defaulting to True")
+        params['include_testing'] = True
+        params['cross_validation'] = True
+    
     if params['experiment'] == 0:
         print("Training model...")
         train.train(params)
