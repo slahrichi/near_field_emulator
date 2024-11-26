@@ -67,7 +67,8 @@ def train(params):
         logging.info(f"Fold {fold_idx +1}/{n_splits}")
         
         if fold_idx > 0:
-            clear_memory()
+            break
+            #clear_memory()
         
         # Initialize: new fold
         model_instance = model_loader.select_model(pm, fold_idx)
@@ -150,7 +151,7 @@ def train(params):
             logging.info(f"New best model found in fold {fold_idx + 1} with validation loss: {best_val_loss:.6f}")
         
         # Testing
-        trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
+        #trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
         
         # Analysis/Results and saving #TODO
         fold_results.append(model_instance.test_results)
