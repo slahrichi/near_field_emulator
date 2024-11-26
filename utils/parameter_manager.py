@@ -135,8 +135,8 @@ class Parameter_Manager():
                 else:
                     raise ValueError("Model type not recognized")
 
-            self.path_model = f"{self.path_model}/meep_meep/{model_type}/model_{self.model_id}/"
-            self.path_results = f"{self.path_results}/meep_meep/{model_type}/model_{self.model_id}/"
+            self.path_model = f"{self.path_model}meep_meep/{model_type}/model_{self.model_id}/"
+            self.path_results = f"{self.path_results}meep_meep/{model_type}/model_{self.model_id}/"
             self.results_path = self.path_results
 
             self.seed_flag, self.seed_value = params['seed']

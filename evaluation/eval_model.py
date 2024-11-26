@@ -16,7 +16,7 @@ def eval_model(params):
     if pm_temp.model_id == 'ae-v1':
         results_dir = os.path.join(pm_temp.path_root, pm_temp.path_pretrained_ae)
     else:
-        results_dir = pm_temp.path_results
+        results_dir = os.path.join(pm_temp.path_root, pm_temp.path_results)
     
     # setup new parameter manager based on saved parameters
     model_params = yaml.load(open(os.path.join(results_dir, 'params.yaml')), 
