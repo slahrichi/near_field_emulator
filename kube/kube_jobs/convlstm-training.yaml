@@ -25,11 +25,11 @@ spec:
                   python3 /develop/code/near_field_inverse_design/main.py --config /develop/code/near_field_inverse_design/config.yaml"]
           resources:
             limits:
-              memory: 80Gi 
+              memory: 100Gi 
               cpu: 16 
               nvidia.com/a100: 1
             requests:
-              memory: 80Gi
+              memory: 100Gi
               cpu: 16
               nvidia.com/a100: 1
           volumeMounts:
