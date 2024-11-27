@@ -24,7 +24,7 @@ experiment: 0
 
 seed: [True, 1337]
 train: True
-model_id: 'one-to-many-full-pre-v1'
+model_id: 'one-to-many-seq30-pre-ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -95,9 +95,9 @@ conv_lstm:
 # - io_mode: 'one_to_many' or 'many_to_many'
 # - spacing_mode: 'sequential' or 'distributed'
 
-seq_len: 60
+seq_len: 30
 io_mode: 'one_to_many'
-spacing_mode: 'sequential'
+spacing_mode: 'distributed'
 
 #--------------------------------
 #       Training Params
@@ -140,7 +140,6 @@ path_root: '/develop/'
 path_data: 'data/preprocessed_data'
 path_train: 'train/'
 path_valid: 'valid/'
-path_model: 'model_checkpoints/'
 path_results: 'results/'
 path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
 path_resims: 'resims/'

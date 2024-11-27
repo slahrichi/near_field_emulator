@@ -36,7 +36,6 @@ class Parameter_Manager():
             # Load: Paths 
             self.path_root = params['path_root']
             self.path_data = params['path_data']
-            self.path_model = params['path_model']
             self.path_train = params['path_train']
             self.path_valid = params['path_valid']
             self.path_results = params['path_results']
@@ -135,7 +134,6 @@ class Parameter_Manager():
                 else:
                     raise ValueError("Model type not recognized")
 
-            self.path_model = f"{self.path_model}meep_meep/{model_type}/model_{self.model_id}/"
             self.path_results = f"{self.path_results}meep_meep/{model_type}/model_{self.model_id}/"
             self.results_path = self.path_results
 

@@ -88,9 +88,10 @@ def train(params):
         )
 
         # Initialize:  PytorchLighting model checkpoint
-        checkpoint_path = os.path.join(pm.path_root, pm.path_model, f"fold{fold_idx}")
+        checkpoint_path = os.path.join(pm.path_root, pm.path_results)
         checkpoint_callback = ModelCheckpoint(
             dirpath = checkpoint_path,
+            filename='model',
             save_top_k=1,
             monitor='val_loss',
             mode='min',
@@ -162,7 +163,8 @@ def train(params):
             # Analysis/Results and saving #TODO
             fold_results.append(model_instance.test_results)
         
-    # After all folds complete, save only the best model
+    # After all folds complete, grab the best one, save it, and delete others
+    # to save space
     if best_model_path:
         results_dir = os.path.join(pm.path_root, pm.path_results)
         os.makedirs(results_dir, exist_ok=True)
@@ -175,7 +177,7 @@ def train(params):
         
         # Clean up temporary checkpoints
         for fold in range(n_splits):
-            temp_fold_dir = os.path.join(pm.path_root, pm.path_model, f"fold{fold}")
+            temp_fold_dir = os.path.join(pm.path_root, pm.path_results, f"fold{fold}")
             if os.path.exists(temp_fold_dir):
                 shutil.rmtree(temp_fold_dir)
 
