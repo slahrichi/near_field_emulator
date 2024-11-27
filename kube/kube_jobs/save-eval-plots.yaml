@@ -27,7 +27,9 @@ spec:
                   pip install pdf2image &&
                   cd &&
                   cd /develop/code/near_field_inverse_design &&
-                  python3 -m kube.save_eval_plots"]
+                  python3 -m kube.save_eval_plots &&
+                  echo 'Script completed, sleeping for 5 minutes to allow file copy' &&
+                  sleep 300"]
           resources:
             limits:
               memory: 10Gi 

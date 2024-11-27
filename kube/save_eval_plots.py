@@ -103,4 +103,4 @@ if __name__ == "__main__":
     process_model_type('/develop/code/near_field_inverse_design/config.yaml')
     
     # then,
-    # kubectl cp save-eval-plots:/develop/saved_results /path/to/local/directory
+    # kubectl cp save-eval-plots:/develop/saved_results /develop/results
