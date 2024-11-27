@@ -21,7 +21,7 @@ def save_file(filepath, save_directory):
             print(f"Could not save PDF: {filepath}")
             print(f"Error: {e}")
 
-    elif filepath.endswith(('.png', '.jpg', '.jpeg', '.gif')):
+    elif filepath.endswith(('.png', '.jpg', '.jpeg', '.gif', '.txt')):
         shutil.copy(filepath, save_directory)
 
 def save_plot_directories(model_dir, save_base_dir):
@@ -54,7 +54,7 @@ def save_all_in_directory(directory, save_directory):
 
     print(f"Found {len(files)} files in {directory}")
     for filename in sorted(files):
-        if filename.endswith(('.pdf', '.png', '.jpg', '.jpeg', '.gif')):
+        if filename.endswith(('.pdf', '.png', '.jpg', '.jpeg', '.gif', '.txt')):
             print(f"Saving {filename}")
             filepath = os.path.join(directory, filename)
             save_file(filepath, save_directory)
