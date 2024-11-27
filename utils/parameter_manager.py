@@ -246,7 +246,6 @@ class Parameter_Manager():
         self._all_paths = {
                         'path_root'                     : self.path_root, 
                         'path_data'                     : self.path_data, 
-                        'path_model'                    : self.path_model,
                         'path_train'                    : self.path_train, 
                         'path_valid'                    : self.path_valid,
                         'path_results'                  : self.path_results, 
@@ -345,4 +344,3 @@ if __name__ == "__main__":
     import yaml
     params = yaml.load(open('../config.yaml'), Loader=yaml.FullLoader)
     pm = Parameter_Manager(params = params)
-    print(pm.path_model)
