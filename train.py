@@ -89,9 +89,13 @@ def train(params):
 
         # Initialize:  PytorchLighting model checkpoint
         checkpoint_path = os.path.join(pm.path_root, pm.path_results)
+        if pm.cross_validation:
+            filename = f'model_fold{fold_idx + 1}'
+        else:
+            filename = 'model'
         checkpoint_callback = ModelCheckpoint(
             dirpath = checkpoint_path,
-            filename='model',
+            filename=filename,
             save_top_k=1,
             monitor='val_loss',
             mode='min',
@@ -177,9 +181,9 @@ def train(params):
         
         # Clean up temporary checkpoints
         for fold in range(n_splits):
-            temp_fold_dir = os.path.join(pm.path_root, pm.path_results, f"fold{fold}")
-            if os.path.exists(temp_fold_dir):
-                shutil.rmtree(temp_fold_dir)
+            temp_fold_ckpt = os.path.join(pm.path_root, pm.path_results, f"model_fold{fold + 1}.ckpt")
+            if os.path.exists(temp_fold_ckpt): # remove extraneous checkpoints
+                os.remove(temp_fold_ckpt)
 
     # Dump config for future reference
     yaml.dump(params, open(os.path.join(pm.path_root, f'{pm.path_results}/params.yaml'), 'w'))
