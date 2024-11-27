@@ -22,8 +22,8 @@ spec:
           args: ["set -x &&
                   mkdir -p /root/.ssh &&
                   git clone git@github.com:Kovaleski-Research-Lab/near_field_inverse_design.git &&
-                  sudo apt-get update &&
-                  sudo apt-get install -y poppler-utils &&
+                  apt-get update &&
+                  apt-get install -y poppler-utils &&
                   pip install pdf2image &&
                   python3 /develop/code/near_field_inverse_design/kube/save_eval_plots.py"]
           resources:
