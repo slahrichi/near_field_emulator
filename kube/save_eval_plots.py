@@ -1,7 +1,11 @@
 import os
 import shutil
-import argparse
+import yaml
+import sys
 from pdf2image import convert_from_path
+
+sys.path.append("../")
+from utils import parameter_manager
 
 def save_file(filepath, save_directory):
     """Save different file types to a specified directory"""
@@ -22,18 +26,12 @@ def save_file(filepath, save_directory):
 
 def save_plot_directories(model_dir, save_base_dir):
     """Save plot directories for a specific model directory"""
-    # Directories we want to save
     plot_dirs = ['loss_plots', 'dft_plots', 'flipbooks']
-    
-    # Get the model name from the path
     model_name = os.path.basename(model_dir)
-    
-    # Create base save directory for this model
     model_save_dir = os.path.join(save_base_dir, model_name)
     
     print(f"\nProcessing model: {model_name}")
     
-    # For each plot directory type
     for plot_dir in plot_dirs:
         source_dir = os.path.join(model_dir, plot_dir)
         if os.path.exists(source_dir):
@@ -61,8 +59,25 @@ def save_all_in_directory(directory, save_directory):
             filepath = os.path.join(directory, filename)
             save_file(filepath, save_directory)
 
-def process_model_type(model_type):
-    """Process all model directories for a given model type"""
+def process_model_type(config_path):
+    """Process all model directories for model type specified in config"""
+    # Load config
+    params = yaml.load(open(config_path), Loader = yaml.FullLoader).copy()
+    
+    pm = parameter_manager.Parameter_Manager(params = params)
+        
+    if pm.experiment == 1:
+        model_type = 'autoencoder'
+    else:
+        if pm.arch == 0:
+            model_type = 'mlp'
+        elif pm.arch == 1 or pm.arch == 2:
+            model_type = 'lstm' if pm.arch == 1 else 'convlstm'
+        elif pm.arch == 3:
+            model_type = 'autoencoder'
+        else:
+            raise ValueError("Model type not recognized")
+    
     base_path = '/develop/results/meep_meep'
     model_type_path = os.path.join(base_path, model_type)
     save_base_path = f'/develop/saved_results/{model_type}'
@@ -71,7 +86,6 @@ def process_model_type(model_type):
         print(f"Model type directory not found: {model_type_path}")
         return
     
-    # Get all model directories
     model_dirs = [d for d in os.listdir(model_type_path) 
                  if os.path.isdir(os.path.join(model_type_path, d))]
     
@@ -81,14 +95,9 @@ def process_model_type(model_type):
     
     print(f"\nFound {len(model_dirs)} model directories for {model_type}")
     
-    # Process each model directory
     for model_dir in model_dirs:
         full_model_path = os.path.join(model_type_path, model_dir)
         save_plot_directories(full_model_path, save_base_path)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Save plot directories for a specific model type')
-    parser.add_argument('model_type', type=str, help='Type of model (e.g., convlstm, autoencoder)')
-    args = parser.parse_args()
-    
-    process_model_type(args.model_type)
+    process_model_type('/develop/code/near_field_inverse_design/config.yaml')

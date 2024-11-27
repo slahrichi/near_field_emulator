@@ -131,6 +131,8 @@ class Parameter_Manager():
                     model_type = 'mlp'
                 elif self.arch == 1 or self.arch == 2:
                     model_type = 'lstm' if self.arch == 1 else 'convlstm'
+                elif self.arch == 3:
+                    model_type = 'autoencoder'
                 else:
                     raise ValueError("Model type not recognized")
 
