@@ -287,35 +287,37 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
             all_samples.append(sample)
             all_labels.append(label)
             
-        # note: this raise the total number of sample/label pairs
+        # 
         elif config['spacing_mode'] == 'sequential':
             if config['io_mode'] == 'one_to_many':
-                for t in range(0, total, config['seq_len']+1):
-                    # check if there are enough timesteps left for a full block
-                    if t + config['seq_len'] < total:
-                        block = full_sequence[:, :, :, t:t+config['seq_len'] + 1]
-                        # ex: sample -> t=0 , label -> t=1, t=2, t=3 (if seq_len were 3)
-                        sample = block[:, :, :, :1]
-                        label = block[:, :, :, 1:]
-                        sample = sample.permute(order)
-                        label = label.permute(order)
-                        all_samples.append(sample)
-                        all_labels.append(label)
+                #for t in range(0, total, config['seq_len']+1): note: this raise the total number of sample/label pairs
+                t = 0
+                # check if there are enough timesteps for a full block
+                if t + config['seq_len'] < total:
+                    block = full_sequence[:, :, :, t:t+config['seq_len'] + 1]
+                    # ex: sample -> t=0 , label -> t=1, t=2, t=3 (if seq_len were 3)
+                    sample = block[:, :, :, :1]
+                    label = block[:, :, :, 1:]
+                    sample = sample.permute(order)
+                    label = label.permute(order)
+                    all_samples.append(sample)
+                    all_labels.append(label)
                         
             elif config['io_mode'] == 'many_to_many':
                 step_size = 2 * config['seq_len']
                 
-                for t in range(0, total, step_size):
-                    # check if there's enough
-                    if t + step_size <= total:
-                        # input is first seq_len steps in the block
-                        sample = full_sequence[:, :, :, t:t+config['seq_len']]
-                        # output is next seq_len steps
-                        label = full_sequence[:, :, :, t+config['seq_len']:t+step_size]
-                        sample = sample.permute(order)
-                        label = label.permute(order)
-                        all_samples.append(sample)
-                        all_labels.append(label)
+                #for t in range(0, total, step_size):
+                t = 0
+                # check if there's enough
+                if t + step_size <= total:
+                    # input is first seq_len steps in the block
+                    sample = full_sequence[:, :, :, t:t+config['seq_len']]
+                    # output is next seq_len steps
+                    label = full_sequence[:, :, :, t+config['seq_len']:t+step_size]
+                    sample = sample.permute(order)
+                    label = label.permute(order)
+                    all_samples.append(sample)
+                    all_labels.append(label)
                         
             else:
                 raise NotImplementedError(f'Specified recurrent input-output mode is not implemented.')

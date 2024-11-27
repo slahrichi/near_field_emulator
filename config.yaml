@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 0
 
 #--------------------------------
 #       General Params
@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'one-to-many-dist-v1'
+model_id: 'one-to-many-seq15-pre-ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -34,9 +34,9 @@ num_design_params: 9
 #--------------------------------
 
 # General Network Parameters
-# - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM)
+# - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM, 3: Autoencoder)
 
-arch: 1
+arch: 2
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts***
@@ -84,7 +84,7 @@ conv_lstm:
     kernel_size: 5
     padding: 2
     spatial: 166
-    use_ae: False
+    use_ae: True
     pretrained_ae: True
     freeze_ae_weights: False
     encoder_channels: [2, 32, 64] # each step halves
@@ -95,9 +95,9 @@ conv_lstm:
 # - io_mode: 'one_to_many' or 'many_to_many'
 # - spacing_mode: 'sequential' or 'distributed'
 
-seq_len: 10
+seq_len: 15
 io_mode: 'one_to_many'
-spacing_mode: 'distributed'
+spacing_mode: 'sequential'
 
 #--------------------------------
 #       Training Params
