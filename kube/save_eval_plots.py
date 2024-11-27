@@ -26,7 +26,7 @@ def save_file(filepath, save_directory):
 
 def save_plot_directories(model_dir, save_base_dir):
     """Save plot directories for a specific model directory"""
-    plot_dirs = ['loss_plots', 'dft_plots', 'flipbooks']
+    plot_dirs = ['loss_plots', 'dft_plots', 'flipbooks', 'performance_metrics']
     model_name = os.path.basename(model_dir)
     model_save_dir = os.path.join(save_base_dir, model_name)
     
