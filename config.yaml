@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'one-to-many-seq30-pre-ae-v1'
+model_id: 'one-to-many-seq15-pre-ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -95,9 +95,9 @@ conv_lstm:
 # - io_mode: 'one_to_many' or 'many_to_many'
 # - spacing_mode: 'sequential' or 'distributed'
 
-seq_len: 30
+seq_len: 15
 io_mode: 'one_to_many'
-spacing_mode: 'distributed'
+spacing_mode: 'sequential'
 
 #--------------------------------
 #       Training Params
@@ -123,7 +123,7 @@ include_testing: True
 cross_validation: False
 
 # early stopping settings
-patience: 30
+patience: 40
 min_delta: 0.0001
 
 mcl_params:
