@@ -1,42 +1,55 @@
-apiVersion: v1
-kind: Pod
+apiVersion: batch/v1
+kind: Job
 metadata:
   name: save-eval-plots
 spec:
-  containers:
-    - name: save-eval-plots
-      image: jupyter/scipy-notebook
-      ports:
-        - containerPort: 8888
-      command: 
-        - "bash"
-        - "-c"
-        - |
-          sudo apt-get update && \
-          sudo apt-get install -y poppler-utils && \
-          pip install pdf2image pyyaml && \
-          python3 /develop/code/near_field_inverse_design/kube/save_eval_plots.py
-      resources:
-        limits:
-          memory: 20G
-          cpu: 2
-        requests:
-          memory: 10G
-          cpu: 2
-      volumeMounts:
-        - name: training-results 
-          mountPath: /develop/results
-        - name: saved-results
-          mountPath: /develop/saved_results
-      securityContext:
-        runAsUser: 0  # Run as root
-        allowPrivilegeEscalation: true
-          
-  volumes:
-    - name: training-results
-      persistentVolumeClaim:
-        claimName: training-results
-    - name: saved-results
-      emptyDir: {}
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never 
+      containers:
+        - name: save-eval-plots
+          image: docker.io/kovaleskilab/ml_basic:v4 
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8880
+          env:
+            - name: NCCL_SOCKET_IFNAME
+              value: eth0
+            - name: NCCL_DEBUG
+              value: INFO
+          command: ["/bin/sh", "-c"]
+          args: ["set -x &&
+                  mkdir -p /root/.ssh &&
+                  git clone git@github.com:Kovaleski-Research-Lab/near_field_inverse_design.git &&
+                  sudo apt-get update &&
+                  sudo apt-get install -y poppler-utils &&
+                  pip install pdf2image &&
+                  python3 /develop/code/near_field_inverse_design/kube/save_eval_plots.py"]
+          resources:
+            limits:
+              memory: 10Gi 
+              cpu: 2
+            requests:
+              memory: 10Gi
+              cpu: 2
+          volumeMounts:
+            - name: training-results
+              mountPath: /develop/results
+            - name: shm 
+              mountPath: /dev/shm
+            - name: ssh-key
+              mountPath: "/root/.ssh"
+              readOnly: true
 
-  restartPolicy: Never
+      volumes:
+        - name: training-results
+          persistentVolumeClaim:
+            claimName: training-results
+        - name: shm
+          emptyDir:
+            medium: Memory
+        - name: ssh-key
+          secret:
+            secretName: github-ssh-key
+            defaultMode: 0400
