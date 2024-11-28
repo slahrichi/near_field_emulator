@@ -95,7 +95,7 @@ conv_lstm:
 # - io_mode: 'one_to_many' or 'many_to_many'
 # - spacing_mode: 'sequential' or 'distributed'
 
-seq_len: 15
+seq_len: 60
 io_mode: 'one_to_many'
 spacing_mode: 'sequential'
 
