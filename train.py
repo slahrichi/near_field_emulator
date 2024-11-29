@@ -67,6 +67,9 @@ def train(params):
     best_val_loss = float('inf')
     best_model_path = None
     
+    # Dump config for future reference
+    yaml.dump(params, open(os.path.join(pm.path_root, f'{pm.path_results}/params.yaml'), 'w'))
+    
     for fold_idx, (train_idx, val_idx) in enumerate(kf.split(full_dataset)):
         logging.info(f"Fold {fold_idx +1}/{n_splits}")
         
@@ -184,9 +187,6 @@ def train(params):
             temp_fold_ckpt = os.path.join(pm.path_root, pm.path_results, f"model_fold{fold + 1}.ckpt")
             if os.path.exists(temp_fold_ckpt): # remove extraneous checkpoints
                 os.remove(temp_fold_ckpt)
-
-    # Dump config for future reference
-    yaml.dump(params, open(os.path.join(pm.path_root, f'{pm.path_results}/params.yaml'), 'w'))
     
 class CustomProgressBar(TQDMProgressBar):
     """Custom progress bar that adds fold information"""
