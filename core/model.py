@@ -554,16 +554,20 @@ class WaveLSTM(LightningModule):
         
         return {"loss": loss}
     
+    def init_hidden(self, batch_size):
+        h = torch.zeros(self.arch_params['num_layers'], 
+                        batch_size, self.arch_params['h_dims']).to(self.device)
+        c = torch.zeros(self.arch_params['num_layers'], 
+                        batch_size, self.arch_params['h_dims']).to(self.device)
+        return (h, c)
+    
     def forward(self, x, meta=None):
         
         # Forward Pass: LSTM
         if self.name == 'lstm':
             batch, seq_len, input = x.size()
             if meta is None: # Init hidden and cell states if not provided
-                h = torch.zeros(self.arch_params['num_layers'], 
-                                batch, self.arch_params['h_dims']).to(x.device)
-                c = torch.zeros(self.arch_params['num_layers'], 
-                                batch, self.arch_params['h_dims']).to(x.device)
+                h, c = self.init_hidden(batch)
                 meta = (h, c)
             
             predictions = [] # to store each successive pred as we pass through
@@ -582,14 +586,10 @@ class WaveLSTM(LightningModule):
                     predictions.append(pred)
                 
             elif self.io_mode == 'many_to_many':
-                # Encoder phase: process all input t's
-                for t in range(x.size(1)):
-                    lstm_out, meta = self.arch(x[:, t:t+1, :])
-                    
-                # Decoder phase: generate preds with dummy inputs
-                for _ in range(self.params['seq_len']):
-                    dummy_input = torch.zeros_like(x[:, 0:1, :]) # the shape of a single t
-                    lstm_out, meta = self.arch(dummy_input, meta)
+                # each step produces a prediction that is the next step
+                for t in range(self.params['seq_len']):
+                    current_input = x[:, t] # ground truth at t - teacher forcing
+                    lstm_out, meta = self.arch(current_input, meta)
                     pred = self.linear(lstm_out)
                     predictions.append(pred)
                     
@@ -704,7 +704,36 @@ class WaveLSTM(LightningModule):
         return {'loss': loss, 'output': preds, 'target': batch}
     
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        loss, preds = self.shared_step(batch, batch_idx)
+        if self.io_mode == 'one_to_many':
+            loss, preds = self.shared_step(batch, batch_idx)
+        elif self.io_mode == 'many_to_many':
+            samples, labels = batch
+            batch_size, seq_len, r_i, xdim, ydim = samples.size()
+            
+            # only use first timestep ground truth
+            current_input = samples[:, 0:1, :, :, :]
+            preds = []
+            
+            # autoregressive testing
+            for t in range(seq_len-1):
+                if self.name == 'lstm':
+                    # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
+                    current_input = current_input.view(batch_size, 1, -1)
+                    
+                pred, _ = self.forward(current_input)
+                
+                # reshape prediction
+                pred = pred.view(batch_size, 1, r_i, xdim, ydim)
+                preds.append(pred)
+                
+                # use prediction as next timestep input
+                current_input = pred
+                
+            # combine all predictions
+            preds = torch.cat(preds, dim=1)           
+        else:
+            raise NotImplementedError(f"Test mode '{self.io_mode}' is not implemented.")
+        
         self.organize_testing(preds, batch, batch_idx, dataloader_idx)
         
     def organize_testing(self, preds, batch, batch_idx, dataloader_idx=0):

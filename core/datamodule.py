@@ -304,7 +304,16 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
                     all_labels.append(label)
                         
             elif config['io_mode'] == 'many_to_many':
-                step_size = 2 * config['seq_len']
+                # true many to many
+                sample = full_sequence[:, :, :, :config['seq_len']]
+                label = full_sequence[:, :, :, 1:config['seq_len']+1]
+                sample = sample.permute(order)
+                label = label.permute(order)
+                all_samples.append(sample)
+                all_labels.append(label)
+                
+                # this is our 'encoder-decoder' mode - not really realistic here
+                '''step_size = 2 * config['seq_len']
                 
                 #for t in range(0, total, step_size):
                 t = 0
@@ -317,7 +326,7 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
                     sample = sample.permute(order)
                     label = label.permute(order)
                     all_samples.append(sample)
-                    all_labels.append(label)
+                    all_labels.append(label)'''
                         
             else:
                 raise NotImplementedError(f'Specified recurrent input-output mode is not implemented.')

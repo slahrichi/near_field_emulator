@@ -116,15 +116,10 @@ class ConvLSTM(nn.Module):
                 output[:, t] = h
                 
         elif mode == "many_to_many":
-            # Encoder phase: process all input t's
+            # each step produces a prediction that is the next step
             for t in range(seq_len):
                 current_input = x[:, t]
                 h, c = self.convLSTMcell(current_input, h, c)
-            
-            # Decoder phase: generate preds
-            dummy_input = torch.zeros_like(x[:, 0])
-            for t in range(self.target_len):
-                h, c = self.convLSTMcell(dummy_input, h, c)
                 output[:, t] = h
 
         return output, (h, c)
