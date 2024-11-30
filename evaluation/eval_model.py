@@ -123,7 +123,4 @@ def eval_model(params):
         for file in files:
             if file.endswith(('.pdf', '.png', '.gif')):
                 print(f"- {os.path.join(root, file)}")
-else:
-    print(f"\nTesting was not performed during training, no results saved.")
-    
     
