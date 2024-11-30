@@ -33,6 +33,8 @@ spec:
               cpu: {{num_cpus}}
               nvidia.com/a100: {{num_gpus}}
           volumeMounts:
+            - name: {{pvc_preprocessed}}
+              mountPath: {{pp_data_path}}
             - name: {{pvc_results}}
               mountPath: {{results_path}}
             - name: shm 
@@ -42,6 +44,9 @@ spec:
               readOnly: true
 
       volumes:
+        - name: {{pvc_preprocessed}}
+          persistentVolumeClaim:
+            claimName: {{pvc_preprocessed}}
         - name: {{pvc_results}}
           persistentVolumeClaim:
             claimName: {{pvc_results}}

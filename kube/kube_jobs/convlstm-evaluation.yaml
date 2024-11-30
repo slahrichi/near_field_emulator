@@ -33,6 +33,8 @@ spec:
               cpu: 16
               nvidia.com/a100: 1
           volumeMounts:
+            - name: preprocessed-data
+              mountPath: /develop/data/preprocessed_data
             - name: training-results
               mountPath: /develop/results
             - name: shm 
@@ -42,6 +44,9 @@ spec:
               readOnly: true
 
       volumes:
+        - name: preprocessed-data
+          persistentVolumeClaim:
+            claimName: preprocessed-data
         - name: training-results
           persistentVolumeClaim:
             claimName: training-results
