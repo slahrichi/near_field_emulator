@@ -119,7 +119,7 @@ transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
 
-include_testing: True
+include_testing: False
 cross_validation: False
 
 # early stopping settings

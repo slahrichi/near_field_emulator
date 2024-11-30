@@ -130,3 +130,13 @@ def eval_model(params):
             if file.endswith(('.pdf', '.png', '.gif')):
                 print(f"- {os.path.join(root, file)}")
     
+    # After all plots and metrics are generated, clean up the large results files
+    print("\nCleaning up large results files...")
+    for mode in ['train', 'valid']:
+        for fold in range(pm.n_folds if pm.cross_validation else 1):
+            fold_suffix = f"_fold{fold+1}"
+            results_file = os.path.join(results_dir, f'{mode}_info', f'results{fold_suffix}.pkl')
+            if os.path.exists(results_file):
+                os.remove(results_file)
+                print(f"Removed: {results_file}")
+    
