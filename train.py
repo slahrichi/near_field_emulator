@@ -68,6 +68,7 @@ def train(params):
     best_model_path = None
     
     # Dump config for future reference
+    os.makedirs(os.path.join(pm.path_root, pm.path_results), exist_ok=True)
     yaml.dump(params, open(os.path.join(pm.path_root, f'{pm.path_results}/params.yaml'), 'w'))
     
     for fold_idx, (train_idx, val_idx) in enumerate(kf.split(full_dataset)):
