@@ -84,9 +84,9 @@ def eval_model(params):
     
     # get results from all folds
     if pm.cross_validation:
-        fold_results = eval.get_all_results(results_dir, pm.n_folds)
+        fold_results = eval.get_all_results(results_dir, pm.n_folds, resub=False)
     else:
-        fold_results = eval.get_all_results(results_dir, 1)
+        fold_results = eval.get_all_results(results_dir, 1, resub=False)
     
     # plot training and validation loss
     print("Generating loss plots...")

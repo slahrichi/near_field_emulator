@@ -56,17 +56,20 @@ def get_results(folder_path, n_folds, fold_num=1):
     
     return losses, train_results, valid_results
 
-def get_all_results(folder_path, n_folds):
+def get_all_results(folder_path, n_folds, resub=False):
     fold_results = []
 
     # Loop over all folds
     for fold_num in range(n_folds):
         # Define paths for the current fold
-        train_path = os.path.join(folder_path, "train_info", f"fold{fold_num+1}", f"results_fold{fold_num+1}.pkl")
-        valid_path = os.path.join(folder_path, "valid_info", f"fold{fold_num+1}", f"results_fold{fold_num+1}.pkl")
+        if resub:
+            train_path = os.path.join(folder_path, "train_info", f"fold{fold_num+1}", f"results.pkl")
+            train_results = pickle.load(open(train_path, "rb"))
+        else:
+            train_results = None
+        valid_path = os.path.join(folder_path, "valid_info", f"fold{fold_num+1}", f"results.pkl")
         
-        # Load the train and valid results for this fold
-        train_results = pickle.load(open(train_path, "rb"))
+        # Load the results for this fold
         valid_results = pickle.load(open(valid_path, "rb"))
 
         # Load the losses for this fold (assuming your losses are saved in a similar way)
