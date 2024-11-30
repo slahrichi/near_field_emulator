@@ -723,7 +723,7 @@ class WaveLSTM(LightningModule):
                 pred, _ = self.forward(current_input)
                 
                 # reshape prediction
-                pred = pred.view(batch_size, 1, r_i, xdim, ydim)
+                #pred = pred.view(batch_size, 1, r_i, xdim, ydim)
                 preds.append(pred)
                 
                 # use prediction as next timestep input
