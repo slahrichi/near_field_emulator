@@ -290,7 +290,7 @@ def print_metrics(fold_results, fold_idx=None, dataset='valid', save_fig=False, 
             file_name = f'{dataset}_metrics.txt'
             save_eval_item(save_dir, all_metrics, file_name, 'all_metrics')
 
-def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", 
+def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", resub=False,
                     sample_idx=0, save_fig=False, save_dir=None,
                     arch='mlp', format='polar'):
     """
@@ -465,7 +465,8 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best",
         raise ValueError("Invalid plot_type or fold_idx provided")
 
     # Plot both training and validation results for the selected fold
-    plot_single_set(selected_results['train'], f"{title} - Random Training Sample - {format}", format, save_dir, sample_idx)
+    if resub:
+        plot_single_set(selected_results['train'], f"{title} - Random Training Sample - {format}", format, save_dir, sample_idx)
     plot_single_set(selected_results['valid'], f"{title} - Random Validation Sample - {format}", format, save_dir, sample_idx)
     
 def plot_sequence_comparison(pred, truth, view='mag', save_fig=False, save_dir=None, title=None):

@@ -60,17 +60,16 @@ def eval_model(params):
         
         # Setup trainer for testing only
         trainer = Trainer(
-            accelerator="cuda" if pm.gpu_flag and torch.cuda.is_available() else "cpu",
-            devices=pm.gpu_list if pm.gpu_flag and torch.cuda.is_available() else None,
+            accelerator="cuda",
+            devices=pm.gpu_list,
             enable_progress_bar=True,
             enable_model_summary=False,
             logger=logger
         )
         
-        # Run test on validation and training sets
+        # Run test on validation set
         trainer.test(model_instance, dataloaders=[
-            data_module.val_dataloader(),
-            data_module.train_dataloader()
+            data_module.val_dataloader()
         ])
           
     # Create subdirectories for different types of results
@@ -107,12 +106,12 @@ def eval_model(params):
     # compute relevant metrics across folds
     if model_type != 'autoencoder':
         print("Computing and saving metrics...")
-        eval.print_metrics(fold_results, dataset='train', save_fig=True, save_dir=results_dir)
+        #eval.print_metrics(fold_results, dataset='train', save_fig=True, save_dir=results_dir)
         eval.print_metrics(fold_results, dataset='valid', save_fig=True, save_dir=results_dir)
     
     # visualize performance with DFT fields
     print("Generating DFT field plots...")
-    eval.plot_dft_fields(fold_results, plot_type='best', 
+    eval.plot_dft_fields(fold_results, plot_type='best', resub=False, 
                         save_fig=True, save_dir=results_dir,
                         arch=model_type, format='polar')
     

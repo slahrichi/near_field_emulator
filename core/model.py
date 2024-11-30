@@ -754,21 +754,21 @@ class WaveLSTM(LightningModule):
         self.test_results[mode]['nf_truth'].append(labels_np)
 
     def on_test_end(self):
-        for mode in ['train', 'valid']:
-            if self.test_results[mode]['nf_pred']:
-                self.test_results[mode]['nf_pred'] = np.concatenate(self.test_results[mode]['nf_pred'], axis=0)
-                self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
-                
-                # Handle fold index
-                fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
-                
-                # Log or save results
-                name = f"results{fold_suffix}"
-                self.logger.experiment.log_results(
-                    results=self.test_results[mode],
-                    epoch=None,
-                    mode=mode,
-                    name=name
-                )
-            else:
-                print(f"No test results for mode: {mode}")
+        # Only process validation results
+        if self.test_results['valid']['nf_pred']:
+            self.test_results['valid']['nf_pred'] = np.concatenate(self.test_results['valid']['nf_pred'], axis=0)
+            self.test_results['valid']['nf_truth'] = np.concatenate(self.test_results['valid']['nf_truth'], axis=0)
+            
+            # Handle fold index
+            fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
+            
+            # Log or save results
+            name = f"results{fold_suffix}"
+            self.logger.experiment.log_results(
+                results=self.test_results['valid'],
+                epoch=None,
+                mode='valid',
+                name=name
+            )
+        else:
+            print(f"No test results.")
