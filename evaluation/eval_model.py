@@ -26,7 +26,7 @@ def eval_model(params):
                              Loader=yaml.FullLoader).copy()
     pm = parameter_manager.Parameter_Manager(params=model_params)
     
-    if not pm.include_testing:
+    if not pm_temp.include_testing:
         # need to perform testing
             # Load model and data
         model_path = os.path.join(results_dir, 'model.ckpt')
