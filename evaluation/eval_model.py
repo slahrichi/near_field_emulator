@@ -7,12 +7,14 @@ import yaml
 import numpy as np
 from sklearn.model_selection import KFold
 from pytorch_lightning import Trainer
+
 sys.path.append('../')
 import evaluation.evaluation as eval
 import evaluation.inference as inference
 import utils.parameter_manager as parameter_manager
 import utils.model_loader as model_loader
-from core import datamodule
+from core import datamodule, custom_logger
+
 def eval_model(params):
     
     # use current params to get results directory
@@ -49,13 +51,21 @@ def eval_model(params):
         train_idx, val_idx = next(kf.split(range(len(data_module.dataset))))
         data_module.setup_fold(train_idx, val_idx)
         
+        # Initialize: The logger
+        logger = custom_logger.Logger(
+            all_paths=pm.all_paths,
+            name=f"{pm.model_id}_fold{1 + 1}", 
+            version=0, 
+            fold_idx=1
+        )
+        
         # Setup trainer for testing only
         trainer = Trainer(
             accelerator="cuda" if pm.gpu_flag and torch.cuda.is_available() else "cpu",
             devices=pm.gpu_list if pm.gpu_flag and torch.cuda.is_available() else None,
             enable_progress_bar=True,
             enable_model_summary=False,
-            logger=None  # No logging needed for testing
+            logger=logger
         )
         
         # Run test on validation and training sets
