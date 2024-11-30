@@ -73,26 +73,7 @@ def eval_model(params):
             data_module.val_dataloader(),
             data_module.train_dataloader()
         ])
-        
-        # Save results
-        fold_suffix = "_fold1" if pm.cross_validation else ""
-        name = f"results{fold_suffix}"
-        
-        # Save test results for both validation and training sets
-        for mode in ['train', 'valid']:
-            if isinstance(model_instance.test_results[mode]['nf_pred'], (list, np.ndarray)) and len(model_instance.test_results[mode]['nf_pred']) > 0:
-                # Save results (they're already concatenated from on_test_end)
-                fold_suffix = "_fold1" if pm.cross_validation else ""
-                name = f"results{fold_suffix}"
-                results_file = os.path.join(results_dir, f'{mode}_{name}.npz')
-                np.savez(
-                    results_file,
-                    predictions=model_instance.test_results[mode]['nf_pred'],
-                    ground_truth=model_instance.test_results[mode]['nf_truth']
-                )
-            else:
-                print(f"No test results for mode: {mode}")
-
+          
     # Create subdirectories for different types of results
     loss_dir = os.path.join(results_dir, "loss_plots")
     metrics_dir = os.path.join(results_dir, "performance_metrics")
