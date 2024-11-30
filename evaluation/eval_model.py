@@ -89,8 +89,8 @@ def eval_model(params):
         fold_results = eval.get_all_results(results_dir, 1, resub=False)
     
     # plot training and validation loss
-    print("Generating loss plots...")
-    eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
+    #print("Generating loss plots...")
+    #eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
 
     # determine model type
     if pm.experiment == 1:
