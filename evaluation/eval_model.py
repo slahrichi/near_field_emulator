@@ -46,17 +46,16 @@ def eval_model(params):
             n_splits = pm.params_datamodule['n_folds']
             kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
         else: # 80/20 split
-            n_splits = 5
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
+            kf = KFold(n_splits=5, shuffle=True, random_state=pm.seed_value)
         train_idx, val_idx = next(kf.split(range(len(data_module.dataset))))
         data_module.setup_fold(train_idx, val_idx)
         
         # Initialize: The logger
         logger = custom_logger.Logger(
             all_paths=pm.all_paths,
-            name=f"{pm.model_id}_fold{1 + 1}", 
+            name=f"{pm.model_id}_fold{0 + 1}", 
             version=0, 
-            fold_idx=1
+            fold_idx=0
         )
         
         # Setup trainer for testing only
