@@ -5,6 +5,7 @@ import sys
 import os
 import yaml
 import numpy as np
+from sklearn.model_selection import KFold
 from pytorch_lightning import Trainer
 sys.path.append('../')
 import evaluation.evaluation as eval
@@ -36,7 +37,17 @@ def eval_model(params):
         # init datamodule
         data_module = datamodule.select_data(pm.params_datamodule)
         data_module.prepare_data()
-        data_module.setup(stage='test')
+        data_module.setup(stage='fit')
+        
+        # Initialize: K-Fold Cross Validation
+        if(pm.cross_validation):
+            n_splits = pm.params_datamodule['n_folds']
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
+        else: # 80/20 split
+            n_splits = 5
+            kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
+        train_idx, val_idx = next(kf.split(range(len(data_module.dataset))))
+        data_module.setup_fold(train_idx, val_idx)
         
         # Setup trainer for testing only
         trainer = Trainer(
