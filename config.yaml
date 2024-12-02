@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 0
 
 #--------------------------------
 #       General Params
