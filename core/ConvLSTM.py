@@ -85,8 +85,15 @@ class ConvLSTM(nn.Module):
 
         self.convLSTMcell = ConvLSTMCell(in_channels, out_channels,
                                          kernel_size, padding, frame_size)
+        
+        # for converting hidden states to next step inputs
+        self.output_proj = nn.Conv2d(
+            in_channels=out_channels,  # 64
+            out_channels=in_channels,  # 2
+            kernel_size=1  # 1x1 conv
+        )
 
-    def forward(self, x, meta=None, mode="one_to_many"):
+    def forward(self, x, meta=None, mode="one_to_many", autoregressive=False):
         batch_size, seq_len, channel, height, width = x.size()
 
         if meta is None:
@@ -104,8 +111,9 @@ class ConvLSTM(nn.Module):
                              self.out_channels, height, width, device=x.device)
 
         if mode == "one_to_many":
-            # process the single input t
-            x = x.squeeze(dim=1) # removing seq dim --> [batch, 2, 166, 166]
+            # squeeze x to remove seq dim
+            x = x.squeeze(dim=1) # [batch, 2, 166, 166]
+            # process the single input time step
             h, c = self.convLSTMcell(x, h, c)
             output[:, 0] = h
             
@@ -116,10 +124,17 @@ class ConvLSTM(nn.Module):
                 output[:, t] = h
                 
         elif mode == "many_to_many":
-            # each step produces a prediction that is the next step
-            for t in range(seq_len):
-                current_input = x[:, t]
-                h, c = self.convLSTMcell(current_input, h, c)
-                output[:, t] = h
-
+            # each step has input and output
+            if autoregressive: # input is last one's output
+                current_input = x[:, 0]
+                for t in range(seq_len):
+                    h, c = self.convLSTMcell(current_input, h, c)
+                    output[:, t] = h
+                    # escape hidden representation
+                    current_input = self.output_proj(h)
+            else: # input is current timestep - teacher forcing
+                for t in range(seq_len):
+                    current_input = x[:, t] # [batch, 2, 166, 166]
+                    h, c = self.convLSTMcell(current_input, h, c)
+                    output[:, t] = h       
         return output, (h, c)

@@ -15,10 +15,10 @@ if __name__ == '__main__':
     params = yaml.load(open(args.config), Loader = yaml.FullLoader).copy()
     
     if params['experiment'] == 0:
-        print("Training model...")
+        print("Training model...\n")
         train.train(params)
     elif params['experiment'] == 1:
-        print("Pretraining autoencoder...")
+        print("Pretraining autoencoder...\n")
         train.train(params)
     elif params['experiment'] == 2:
         print('Compiling preprocessed pickle files...')
@@ -26,7 +26,7 @@ if __name__ == '__main__':
     elif params['experiment'] == 3:
         raise NotImplementedError('Loading results not fully implemented yet.')
     elif params['experiment'] == 4:
-        print('Evaluating model...')
+        print('Evaluating model...\n')
         eval_model(params)
     else:
         raise NotImplementedError('Experiment not recognized.')

@@ -270,12 +270,14 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
                 label = distributed_block[:, :, :, 1:]  # [2, xdim, ydim, seq_len]
                 
             elif config['io_mode'] == 'many_to_many':
-                # input is the first seq_len evenly spaced indices
-                input_indices = np.linspace(1, total//2, config['seq_len'])
-                sample = full_sequence[:, :, :, input_indices]
-                # output is the next seq_len evenly spaced indices
-                output_indices = np.linspace(total//2 + 1, total-1, config['seq_len'])
-                label = full_sequence[:, :, :, output_indices]
+                # Calculate seq_len+1 evenly spaced indices for input and shifted output
+                indices = np.linspace(0, total-1, config['seq_len']+1).astype(int)
+                distributed_block = full_sequence[:, :, :, indices]
+                
+                # Input sequence: all but last timestep
+                sample = distributed_block[:, :, :, :-1]  # [2, xdim, ydim, seq_len]
+                # Output sequence: all but first timestep
+                label = distributed_block[:, :, :, 1:]   # [2, xdim, ydim, seq_len]
                 
             else:
                 # many to one, one to one not implemented
@@ -298,23 +300,14 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
                     # ex: sample -> t=0 , label -> t=1, t=2, t=3 (if seq_len were 3)
                     sample = block[:, :, :, :1]
                     label = block[:, :, :, 1:]
-                    sample = sample.permute(order)
-                    label = label.permute(order)
-                    all_samples.append(sample)
-                    all_labels.append(label)
                         
             elif config['io_mode'] == 'many_to_many':
                 # true many to many
                 sample = full_sequence[:, :, :, :config['seq_len']]
                 label = full_sequence[:, :, :, 1:config['seq_len']+1]
-                sample = sample.permute(order)
-                label = label.permute(order)
-                all_samples.append(sample)
-                all_labels.append(label)
                 
                 # this is our 'encoder-decoder' mode - not really realistic here
                 '''step_size = 2 * config['seq_len']
-                
                 #for t in range(0, total, step_size):
                 t = 0
                 # check if there's enough
@@ -322,18 +315,19 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
                     # input is first seq_len steps in the block
                     sample = full_sequence[:, :, :, t:t+config['seq_len']]
                     # output is next seq_len steps
-                    label = full_sequence[:, :, :, t+config['seq_len']:t+step_size]
-                    sample = sample.permute(order)
-                    label = label.permute(order)
-                    all_samples.append(sample)
-                    all_labels.append(label)'''
-                        
+                    label = full_sequence[:, :, :, t+config['seq_len']:t+step_size]'''
+                
             else:
                 raise NotImplementedError(f'Specified recurrent input-output mode is not implemented.')
+                
+            sample = sample.permute(order)
+            label = label.permute(order)
+            all_samples.append(sample)
+            all_labels.append(label)
         
         else:
             # no other spacing modes are implemented
-            raise NotImplementedError(f'Specified recurrent dataloading configugration is not implemented.')
+            raise NotImplementedError(f'Specified recurrent dataloading configuration is not implemented.')
         
     return WaveLSTM_Dataset(all_samples, all_labels)
 

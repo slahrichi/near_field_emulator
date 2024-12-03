@@ -562,6 +562,9 @@ class WaveLSTM(LightningModule):
         return (h, c)
     
     def forward(self, x, meta=None):
+        # autoregressive if we're testing
+        #autoreg = not self.training
+        autoreg = True # nvm terrible idea to have it on only for testing
         
         # Forward Pass: LSTM
         if self.name == 'lstm':
@@ -586,12 +589,25 @@ class WaveLSTM(LightningModule):
                     predictions.append(pred)
                 
             elif self.io_mode == 'many_to_many':
-                # each step produces a prediction that is the next step
-                for t in range(self.params['seq_len']):
-                    current_input = x[:, t] # ground truth at t - teacher forcing
+                if autoreg: # testing (probably)
+                    # Use first timestep
+                    current_input = x[:, 0]  # Keep seq_len dim with size 1
                     lstm_out, meta = self.arch(current_input, meta)
                     pred = self.linear(lstm_out)
                     predictions.append(pred)
+                    
+                    # Generate remaining predictions using previous outputs
+                    for t in range(1, self.params['seq_len']):
+                        # Use previous prediction as input
+                        lstm_out, meta = self.arch(pred, meta)
+                        pred = self.linear(lstm_out)
+                        predictions.append(pred)
+                else: # teacher forcing
+                    for t in range(self.params['seq_len']):
+                        current_input = x[:, t] # ground truth at t
+                        lstm_out, meta = self.arch(current_input, meta)
+                        pred = self.linear(lstm_out)
+                        predictions.append(pred)
                     
             else:
                 # other io modes not currently implemented
@@ -625,7 +641,8 @@ class WaveLSTM(LightningModule):
                 encoded_sequence = torch.stack(encoded_sequence, dim=1)
                 
                 # process through LSTM in latent space
-                lstm_out, meta = self.arch(encoded_sequence, meta, mode=self.io_mode)
+                lstm_out, meta = self.arch(encoded_sequence, meta, mode=self.io_mode,
+                                           autoregressive=autoreg)
                 
                 # decode outputted sequence
                 decoded_sequence = []
@@ -646,7 +663,8 @@ class WaveLSTM(LightningModule):
                     
             else: # no AE
                 # invoke for specified mode (i.e. many_to_many)
-                lstm_out, meta = self.arch(x, meta, mode=self.io_mode)
+                lstm_out, meta = self.arch(x, meta, mode=self.io_mode, 
+                                           autoregressive=autoreg)
                 # reshape for conv
                 b, s, ch, he, w = lstm_out.size()
                 lstm_out = lstm_out.view(b * s, ch, he, w)
@@ -686,7 +704,7 @@ class WaveLSTM(LightningModule):
         else:
             # other modes not implemented
             raise NotImplementedError
-        
+
         return loss, preds
     
     def training_step(self, batch, batch_idx):
@@ -704,36 +722,7 @@ class WaveLSTM(LightningModule):
         return {'loss': loss, 'output': preds, 'target': batch}
     
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        if self.io_mode == 'one_to_many':
-            loss, preds = self.shared_step(batch, batch_idx)
-        elif self.io_mode == 'many_to_many':
-            samples, labels = batch
-            batch_size, seq_len, r_i, xdim, ydim = samples.size()
-            
-            # only use first timestep ground truth
-            current_input = samples[:, 0:1, :, :, :]
-            preds = []
-            
-            # autoregressive testing
-            for t in range(seq_len-1):
-                if self.name == 'lstm':
-                    # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
-                    current_input = current_input.view(batch_size, 1, -1)
-                    
-                pred, _ = self.forward(current_input)
-                
-                # reshape prediction
-                #pred = pred.view(batch_size, 1, r_i, xdim, ydim)
-                preds.append(pred)
-                
-                # use prediction as next timestep input
-                current_input = pred
-                
-            # combine all predictions
-            preds = torch.cat(preds, dim=1)           
-        else:
-            raise NotImplementedError(f"Test mode '{self.io_mode}' is not implemented.")
-        
+        loss, preds = self.shared_step(batch, batch_idx)
         self.organize_testing(preds, batch, batch_idx, dataloader_idx)
         
     def organize_testing(self, preds, batch, batch_idx, dataloader_idx=0):
@@ -754,21 +743,41 @@ class WaveLSTM(LightningModule):
         self.test_results[mode]['nf_truth'].append(labels_np)
 
     def on_test_end(self):
-        # Only process validation results
+        '''# Only process validation results
         if self.test_results['valid']['nf_pred']:
+            # get train results too
+            
             self.test_results['valid']['nf_pred'] = np.concatenate(self.test_results['valid']['nf_pred'], axis=0)
             self.test_results['valid']['nf_truth'] = np.concatenate(self.test_results['valid']['nf_truth'], axis=0)
             
             # Handle fold index
-            fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
+            #fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
+            #name = f"results{fold_suffix}"
             
             # Log or save results
-            name = f"results{fold_suffix}"
             self.logger.experiment.log_results(
                 results=self.test_results['valid'],
                 epoch=None,
                 mode='valid',
-                name=name
+                name="results"
             )
         else:
-            print(f"No test results.")
+            print(f"No test results.")'''
+        for mode in ['train', 'valid']:
+            if self.test_results[mode]['nf_pred']:
+                self.test_results[mode]['nf_pred'] = np.concatenate(self.test_results[mode]['nf_pred'], axis=0)
+                self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
+                
+                # Handle fold index
+                #fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
+                #name = f"results{fold_suffix}"
+                                
+                # Log or save results
+                self.logger.experiment.log_results(
+                    results=self.test_results[mode],
+                    epoch=None,
+                    mode=mode,
+                    name="results"
+                )
+            else:
+                print(f"No test results for mode: {mode}")

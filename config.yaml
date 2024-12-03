@@ -24,7 +24,7 @@ experiment: 0
 
 seed: [True, 1337]
 train: True
-model_id: 'many-to-many-dist-15-v1'
+model_id: 'many-to-many-autoreg-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -97,13 +97,13 @@ conv_lstm:
 
 seq_len: 15
 io_mode: 'many_to_many'
-spacing_mode: 'distributed'
+spacing_mode: 'sequential'
 
 #--------------------------------
 #       Training Params
 #--------------------------------
-batch_size: 8
-num_epochs: 30 # maximum
+batch_size: 4
+num_epochs: 25 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -119,7 +119,7 @@ transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
 
-include_testing: False
+include_testing: True
 cross_validation: False
 
 # early stopping settings

@@ -86,11 +86,11 @@ def eval_model(params):
     if pm.cross_validation:
         fold_results = eval.get_all_results(results_dir, pm.n_folds, resub=False)
     else:
-        fold_results = eval.get_all_results(results_dir, 1, resub=False)
+        fold_results = eval.get_all_results(results_dir, 1, resub=True)
     
     # plot training and validation loss
-    #print("Generating loss plots...")
-    #eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
+    print("\nGenerating loss plots...")
+    eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
 
     # determine model type
     if pm.experiment == 1:
@@ -105,37 +105,32 @@ def eval_model(params):
         
     # compute relevant metrics across folds
     if model_type != 'autoencoder':
-        print("Computing and saving metrics...")
-        #eval.print_metrics(fold_results, dataset='train', save_fig=True, save_dir=results_dir)
+        print("\nComputing and saving metrics...")
+        eval.print_metrics(fold_results, dataset='train', save_fig=True, save_dir=results_dir)
         eval.print_metrics(fold_results, dataset='valid', save_fig=True, save_dir=results_dir)
     
     # visualize performance with DFT fields
-    print("Generating DFT field plots...")
-    eval.plot_dft_fields(fold_results, plot_type='best', resub=False, 
+    print("\nGenerating DFT field plots...")
+    eval.plot_dft_fields(fold_results, plot_type='best', resub=True, 
                         save_fig=True, save_dir=results_dir,
                         arch=model_type, format='polar')
+    eval.plot_absolute_difference(fold_results, plot_type='best', resub=True,
+                                  save_fig=True, save_dir=results_dir)
     
     # visualize performance with animation
     if model_type != 'autoencoder':
-        print("Generating field animations...")
+        print("\nGenerating field animations...")
         eval.animate_fields(fold_results, dataset='valid', 
                             seq_len=pm.seq_len, save_dir=results_dir)
     
     print(f"\nEvaluation complete. All results saved to: {results_dir}")
-    # List all generated files
-    print("\nGenerated files:")
-    for root, dirs, files in os.walk(results_dir):
-        for file in files:
-            if file.endswith(('.pdf', '.png', '.gif')):
-                print(f"- {os.path.join(root, file)}")
     
     # After all plots and metrics are generated, clean up the large results files
     print("\nCleaning up large results files...")
-    for mode in ['train', 'valid']:
+    '''for mode in ['train', 'valid']:
         for fold in range(pm.n_folds if pm.cross_validation else 1):
-            fold_suffix = f"_fold{fold+1}"
-            results_file = os.path.join(results_dir, f'{mode}_info', f'results{fold_suffix}.pkl')
+            results_file = os.path.join(results_dir, f'{mode}_info', f'fold{fold+1}', f'results.pkl')
             if os.path.exists(results_file):
                 os.remove(results_file)
-                print(f"Removed: {results_file}")
+                print(f"Removed: {results_file}")'''
     
