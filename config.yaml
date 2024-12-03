@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 0
+experiment: 4
 
 #--------------------------------
 #       General Params
@@ -24,7 +24,7 @@ experiment: 0
 
 seed: [True, 1337]
 train: True
-model_id: 'many-to-many-autoreg-v1'
+model_id: 'one-to-many-seq15-pre-ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -96,8 +96,8 @@ conv_lstm:
 # - spacing_mode: 'sequential' or 'distributed'
 
 seq_len: 15
-io_mode: 'many_to_many'
-spacing_mode: 'sequential'
+io_mode: 'one_to_many'
+spacing_mode: 'distributed'
 
 #--------------------------------
 #       Training Params
