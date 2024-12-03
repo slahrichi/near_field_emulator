@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 0
 
 #--------------------------------
 #       General Params
@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'many-to-many-autoreg-v1'
+model_id: 'demo-sample-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -84,7 +84,7 @@ conv_lstm:
     kernel_size: 5
     padding: 2
     spatial: 166
-    use_ae: True
+    use_ae: False
     pretrained_ae: True
     freeze_ae_weights: False
     encoder_channels: [2, 32, 64] # each step halves
@@ -96,14 +96,14 @@ conv_lstm:
 # - spacing_mode: 'sequential' or 'distributed'
 
 seq_len: 15
-io_mode: 'many_to_many'
-spacing_mode: 'sequential'
+io_mode: 'one_to_many'
+spacing_mode: 'distributed'
 
 #--------------------------------
 #       Training Params
 #--------------------------------
-batch_size: 4
-num_epochs: 10 # maximum
+batch_size: 8
+num_epochs: 25 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
