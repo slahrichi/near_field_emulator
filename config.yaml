@@ -36,7 +36,7 @@ num_design_params: 9
 # General Network Parameters
 # - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM, 3: Autoencoder)
 
-arch: 2
+arch: 1
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts***
@@ -103,7 +103,7 @@ spacing_mode: 'sequential'
 #       Training Params
 #--------------------------------
 batch_size: 4
-num_epochs: 25 # maximum
+num_epochs: 10 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
