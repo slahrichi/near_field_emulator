@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 0
 
 #--------------------------------
 #       General Params
@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'many-to-many-autoreg-v1'
+model_id: 'many-to-many-autoreg-pre-ae-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -84,7 +84,7 @@ conv_lstm:
     kernel_size: 5
     padding: 2
     spatial: 166
-    use_ae: False
+    use_ae: True
     pretrained_ae: True
     freeze_ae_weights: False
     encoder_channels: [2, 32, 64] # each step halves
