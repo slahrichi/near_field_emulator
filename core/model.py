@@ -592,6 +592,7 @@ class WaveLSTM(LightningModule):
                 if autoreg: # testing (probably)
                     # Use first timestep
                     current_input = x[:, 0]  # Keep seq_len dim with size 1
+                    current_input = current_input.unsqueeze(1)
                     lstm_out, meta = self.arch(current_input, meta)
                     pred = self.linear(lstm_out)
                     predictions.append(pred)
