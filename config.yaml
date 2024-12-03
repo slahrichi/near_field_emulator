@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 0
 
 #--------------------------------
 #       General Params
@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'many-to-many-autoreg-pre-ae-v1'
+model_id: 'many-to-many-autoreg-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -36,7 +36,7 @@ num_design_params: 9
 # General Network Parameters
 # - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM, 3: Autoencoder)
 
-arch: 2
+arch: 1
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts***
