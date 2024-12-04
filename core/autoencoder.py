@@ -9,11 +9,41 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 
 class Encoder(nn.Module):
     """Encodes E to a representation space for input to RNN"""
-    def __init__(self, channels, spatial_size):
+    def __init__(self, channels, params):
         super().__init__()
         
+        self.mode = params['modes']
         self.layers = nn.ModuleList()
-        current_size = spatial_size
+        current_size = params['spatial']
+        current_channels = channels[0]
+        
+        if self.mode == 'svd':
+            # Use SVDEmbedding
+            self.svd_embedding = SVDEmbedding(
+                in_channels=channels[0],
+                out_channels=channels[1],
+                spatial_size=params['spatial']
+            )
+            current_channels = channels[1]  # Update current_channels after SVDEmbedding
+            # Start building layers from index 1 since channels[0] and channels[1] are used in SVDEmbedding
+            for i in range(1, len(channels) - 1):
+                self.layers.extend([
+                    nn.Conv2d(channels[i], channels[i+1],
+                              kernel_size=3, stride=2, padding=1),
+                    nn.BatchNorm2d(channels[i+1]),
+                    nn.LeakyReLU(0.2)
+                ])
+                current_size = current_size // 2
+        else:
+            # Standard downsampling approach
+            for i in range(len(channels) - 1):
+                self.layers.extend([
+                    nn.Conv2d(channels[i], channels[i+1], 
+                              kernel_size=3, stride=2, padding=1),
+                    nn.BatchNorm2d(channels[i+1]),
+                    nn.LeakyReLU(0.2)
+                ])
+                current_size = current_size // 2
         
         # downsampling layers
         for i in range(len(channels) - 1):
@@ -30,6 +60,8 @@ class Encoder(nn.Module):
         
     def forward(self, x):
         # x shape [batch, channels, xdim, ydim]
+        if self.mode == 'svd':
+            x = self.svd_embedding(x)
         for layer in self.layers:
             x = layer(x)
         # Output: [batch, final_channels, reduced_spatial, reduced_spatial]
@@ -37,11 +69,11 @@ class Encoder(nn.Module):
     
 class Decoder(nn.Module):
     """Decodes latent representation back to E"""
-    def __init__(self, channels, spatial_size):
+    def __init__(self, channels, params):
         super().__init__()
         
         self.channels = channels
-        self.initial_size = spatial_size // (2 ** (len(channels) - 1))
+        self.initial_size = params['spatial'] // (2 ** (len(channels) - 1))
         self.layers = nn.ModuleList()
         
         # transposed convolution upsampling
@@ -62,16 +94,43 @@ class Decoder(nn.Module):
             x = x[:, :, :166, :166]  # Crop to exact size
         return x # [batch, 2, 166, 166]
     
+class SVDEmbedding(nn.Module):
+    """For use with the encoder, dim reductions of E with SVD"""    
+    def __init__(self, in_channels, out_channels, spatial_size):
+        super(SVDEmbedding, self).__init__()
+        self.input_channels = in_channels
+        self.spatial_size = spatial_size
+        self.out_channels = out_channels
+        self.flattened_size = in_channels * spatial_size * spatial_size
+
+        # Define the SVD components
+        self.U = nn.Linear(self.flattened_size, self.out_channels, bias=False)
+        self.S = nn.Parameter(torch.ones(self.out_channels))
+        self.VT = nn.Linear(self.out_channels, self.flattened_size, bias=False)
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        
+        x_flat = x.view(batch_size, -1)  # flatten input: [batch_size, flattened_size]
+        u = self.U(x_flat)  # [batch_size, out_channels]
+        s = torch.diag(self.S)  # apply singular vals: [out_channels, out_channels]
+        vt = self.VT.weight  # [flattened_size, out_channels]
+        x_svd = u @ s @ vt.T  # reconstruct: [batch_size, flattened_size]
+        
+        # Reshape back to original spatial dimensions
+        x_svd = x_svd.view(batch_size, self.input_channels, self.spatial_size, self.spatial_size)
+        return x_svd
+    
 class Autoencoder(LightningModule):
     def __init__(self, params_model, fold_idx=None):
         super().__init__()
         
         self.params = params_model
-        self.encoder_channels = self.params['conv_lstm']['encoder_channels']
-        self.decoder_channels = self.params['conv_lstm']['decoder_channels']
-        self.spatial_size = self.params['conv_lstm']['spatial']
-        self.encoder = Encoder(self.encoder_channels, self.spatial_size)
-        self.decoder = Decoder(self.decoder_channels, self.spatial_size)
+        self.encoder_channels = self.params['autoencoder']['encoder_channels']
+        self.decoder_channels = self.params['autoencoder']['decoder_channels']
+        self.spatial_size = self.params['autoencoder']['spatial']
+        self.encoder = Encoder(self.encoder_channels, params=self.params['autoencoder'])
+        self.decoder = Decoder(self.decoder_channels, params=self.params['autoencoder'])
         self.learning_rate = self.params['learning_rate']
         self.lr_scheduler = self.params['lr_scheduler']
         self.fold_idx = fold_idx

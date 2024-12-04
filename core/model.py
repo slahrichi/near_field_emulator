@@ -9,9 +9,11 @@ import numpy as np
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 #from torchvision.models import resnet50, resnet18, resnet34
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 import math
+from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
 
 #--------------------------------
 # Import: Custom Python Libraries
@@ -19,6 +21,9 @@ import math
 #from utils import parameter_manager
 from core.ConvLSTM import ConvLSTM
 from core.autoencoder import Encoder, Decoder
+#from core.complexNN import ComplexLinear, ModReLU
+from core.complexNN import ComplexReLU, ModReLU
+
 sys.path.append("../")
 
 
@@ -35,34 +40,61 @@ class WaveMLP(LightningModule):
         self.lr_scheduler = self.params['lr_scheduler']
         self.loss_func = self.params['objective_function']
         self.fold_idx = fold_idx
-        self.approach = self.params['mlp_strategy']
         self.patch_size = self.params['patch_size'] # for non-default approaches
+        self.arch, self.strat = None, None
         
-        if self.approach == 1: 
-            # patch approach
+        if self.params['arch'] == 1:
+            self.arch = 'split_mlp'
+        elif self.params['arch'] == 2:
+            self.arch = 'cvnn'
+        else:
+            raise ValueError("Architecture not recognized.")
+        
+        if self.params['mlp_strategy'] == 0:
+            self.strat = 'standard'
+        elif self.params['mlp_strategy'] == 1:
+            self.strat = 'patch'
+        elif self.params['mlp_strategy'] == 2:
+            self.strat = 'distributed'
+        else:
+            raise ValueError("Approach not recognized.")
+        
+        if self.strat == 'patch': # patch-wise
             self.output_size = (self.patch_size)**2
             self.num_patches_height = math.ceil(166 / self.patch_size)
             self.num_patches_width = math.ceil(166 / self.patch_size)
             self.num_patches = self.num_patches_height * self.num_patches_width
-            # Build MLPs for each patch
-            self.mlp_real = nn.ModuleList([
+            # determine whether or not to use complex-valued NN
+            # if not, we have separate MLPs, if so, we have one MLP
+            if self.arch == 'cvnn':
+                self.cvnn = nn.ModuleList([
+                    self.build_mlp(self.num_design_params, self.params['cvnn']) for _ in range(self.num_patches)
+                ])
+            else:
+                # Build MLPs for each patch
+                self.mlp_real = nn.ModuleList([
                 self.build_mlp(self.num_design_params, self.params['mlp_real']) for _ in range(self.num_patches)
-            ])
-            self.mlp_imag = nn.ModuleList([
-                self.build_mlp(self.num_design_params, self.params['mlp_imag']) for _ in range(self.num_patches)
-        ])
-        elif self.approach == 2: 
-            # distributed subset approach
+                ])
+                self.mlp_imag = nn.ModuleList([
+                    self.build_mlp(self.num_design_params, self.params['mlp_imag']) for _ in range(self.num_patches)
+                ])
+        elif self.strat == 'distributed': # distributed subset
             self.output_size = (self.patch_size)**2
-            # build MLPs
-            self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
-            self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
+            if self.arch == 'cvnn':
+                self.cvnn = self.build_mlp(self.num_design_params, self.params['cvnn'])
+            else:
+                # build MLPs
+                self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
+                self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
             
         else:
             # Build full MLPs
             self.output_size = 166 * 166
-            self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
-            self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
+            if self.arch == 'cvnn':
+                self.cvnn = self.build_mlp(self.num_design_params, self.params['cvnn'])
+            else:
+                self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
+                self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
         
         self.save_hyperparameters()
         
@@ -76,14 +108,17 @@ class WaveMLP(LightningModule):
         self.val_psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.val_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
          
-    def build_mlp(self, input_size, mlp_params, patches=False):
+    def build_mlp(self, input_size, mlp_params):
         layers = []
         in_features = input_size
         for layer_size in mlp_params['layers']:
-            layers.append(nn.Linear(in_features, layer_size))
+            if self.arch == 'cvnn': # complex-valued NN
+                layers.append(ComplexLinear(in_features, layer_size))
+            else: # real-valued NN
+                layers.append(nn.Linear(in_features, layer_size))
             layers.append(self.get_activation_function(mlp_params['activation']))
             in_features = layer_size
-        layers.append(nn.Linear(in_features, self.output_size))  
+        layers.append(nn.Linear(in_features, self.output_size))
         return nn.Sequential(*layers)
         
     def get_activation_function(self, activation_name):
@@ -95,48 +130,81 @@ class WaveMLP(LightningModule):
             return nn.Tanh()
         elif activation_name == 'leaky_relu':
             return nn.LeakyReLU()
+        elif activation_name == 'modrelu':
+            return ModReLU()
+        elif activation_name == 'complex_relu':
+            return ComplexReLU()
         else:
             raise ValueError(f"Unsupported activation function: {activation_name}")
         
     def forward(self, radii):
-        # multiple sets of MLPs for our patches
-        if self.approach == 1:
-            batch_size = radii.size(0)
-            real_patches = []
-            imag_patches = []
-
-            for i in range(self.num_patches):
-                # Real part
-                real_patch = self.mlp_real[i](radii)
-                real_patch = real_patch.view(batch_size, self.patch_size, self.patch_size)
-                real_patches.append(real_patch)
-
-                # Imaginary part
-                imag_patch = self.mlp_imag[i](radii)
-                imag_patch = imag_patch.view(batch_size, self.patch_size, self.patch_size)
-                imag_patches.append(imag_patch)
-
-            # Assemble patches
-            real_output = self.assemble_patches(real_patches, batch_size)
-            imag_output = self.assemble_patches(imag_patches, batch_size)
-
-            # Crop to original size if necessary
-            real_output = real_output[:, :166, :166]
-            imag_output = imag_output[:, :166, :166]
-        elif self.approach == 2:
-            # grab output directly
-            real_output = self.mlp_real(radii)
-            imag_output = self.mlp_imag(radii)
-            # reshape to patch_size x patch_size    
-            real_output = real_output.view(-1, self.patch_size, self.patch_size)
-            imag_output = imag_output.view(-1, self.patch_size, self.patch_size)
+        if self.arch == 'cvnn':
+            # Convert radii to complex numbers
+            radii_complex = torch.complex(radii, torch.zeros_like(radii))
+            if self.strat == 'patch':
+                # Patch approach with complex MLPs
+                batch_size = radii.size(0)
+                patches = []
+                for i in range(self.num_patches):
+                    patch = self.cvnn[i](radii_complex)
+                    patch = patch.view(batch_size, self.patch_size, self.patch_size)
+                    patches.append(patch)
+                # Assemble patches
+                output = self.assemble_patches(patches, batch_size)
+                # Crop to original size if necessary
+                output = output[:, :166, :166]
+            elif self.strat == 'distributed':
+                # Distributed subset approach
+                output = self.cvnn(radii_complex)
+                output = output.view(-1, self.patch_size, self.patch_size)
+            else:
+                # Full approach
+                output = self.cvnn(radii_complex)
+                output = output.view(-1, 166, 166)
+            # Split output into real and imaginary parts
+            real_output = output.real
+            imag_output = output.imag
         else:
-            real_output = self.mlp_real(radii)
-            imag_output = self.mlp_imag(radii)
-            # Reshape to image size
-            real_output = real_output.view(-1, 166, 166)
-            imag_output = imag_output.view(-1, 166, 166)
-        
+            # Original real-valued MLPs
+            if self.strat == 'patch':
+                # Patch approach
+                batch_size = radii.size(0)
+                real_patches = []
+                imag_patches = []
+
+                for i in range(self.num_patches):
+                    # Real part
+                    real_patch = self.mlp_real[i](radii)
+                    real_patch = real_patch.view(batch_size, self.patch_size, self.patch_size)
+                    real_patches.append(real_patch)
+
+                    # Imaginary part
+                    imag_patch = self.mlp_imag[i](radii)
+                    imag_patch = imag_patch.view(batch_size, self.patch_size, self.patch_size)
+                    imag_patches.append(imag_patch)
+
+                # Assemble patches
+                real_output = self.assemble_patches(real_patches, batch_size)
+                imag_output = self.assemble_patches(imag_patches, batch_size)
+
+                # Crop to original size if necessary
+                real_output = real_output[:, :166, :166]
+                imag_output = imag_output[:, :166, :166]
+            elif self.strat == 'distributed':
+                # Distributed subset approach
+                real_output = self.mlp_real(radii)
+                imag_output = self.mlp_imag(radii)
+                # Reshape to patch_size x patch_size
+                real_output = real_output.view(-1, self.patch_size, self.patch_size)
+                imag_output = imag_output.view(-1, self.patch_size, self.patch_size)
+            else:
+                # Full approach
+                real_output = self.mlp_real(radii)
+                imag_output = self.mlp_imag(radii)
+                # Reshape to image size
+                real_output = real_output.view(-1, 166, 166)
+                imag_output = imag_output.view(-1, 166, 166)
+
         return real_output, imag_output
         
     def assemble_patches(self, patches, batch_size):
@@ -333,15 +401,9 @@ class WaveMLP(LightningModule):
         for mode in ['train', 'valid']:
             self.test_results[mode]['nf_pred'] = np.concatenate(self.test_results[mode]['nf_pred'], axis=0)
             self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
-       
-            # Ensure fold index is valid
-            if self.fold_idx is not None:
-                fold_suffix = f"_fold{self.fold_idx+1}"
-            else:
-                raise ValueError("fold_idx is not set!")
 
             # Log results for the current fold
-            name = f"results{fold_suffix}"
+            name = "results"
             self.logger.experiment.log_results(
                 results=self.test_results[mode],
                 epoch=None,
@@ -365,14 +427,22 @@ class WaveLSTM(LightningModule):
         self.fold_idx = fold_idx
         self.arch, self.linear = None, None
         
-        # regular LSTM or ConvLSTM
-        if self.params['arch'] == 1:
+        # which architecture?
+        if self.params['arch'] == 2:
             self.name = 'lstm'
             self.arch_params = self.params['lstm']
             self.create_architecture()
-        elif self.params['arch'] == 2:
+        elif self.params['arch'] == 3:
             self.name = 'conv_lstm'
             self.arch_params = self.params['conv_lstm']
+            self.create_architecture()
+        elif self.params['arch'] == 4:
+            self.name = 'ae_lstm'
+            self.arch_params = {**self.params['autoencoder'], **self.params['lstm']}
+            self.create_architecture()
+        elif self.params['arch'] == 5:
+            self.name = 'ae_conv_lstm'
+            self.arch_params = {**self.params['autoencoder'], **self.params['conv_lstm']}
             self.create_architecture()
         else:
             raise ValueError("Model architecture not recognized")
@@ -393,8 +463,17 @@ class WaveLSTM(LightningModule):
     def create_architecture(self):
         seq_len = self.params['seq_len']
         
-        if self.name == 'lstm':
-            self.arch = torch.nn.LSTM(input_size=self.arch_params['i_dims'],
+        # Vanilla LSTM
+        if self.name == 'lstm' or self.name == 'ae_lstm':
+            if self.name == 'ae_lstm':
+                # configure autoencoder to get reduced image
+                in_channels, spatial = self.configure_ae()
+                # flatten representation
+                i_dims = in_channels * spatial * spatial
+            else:
+                i_dims = self.arch_params['i_dims']
+            
+            self.arch = torch.nn.LSTM(input_size=i_dims,
                                       hidden_size=self.arch_params['h_dims'],
                                       num_layers=self.arch_params['num_layers'],
                                       batch_first=True)
@@ -403,62 +482,15 @@ class WaveLSTM(LightningModule):
                 torch.nn.Linear(self.arch_params['h_dims'], self.arch_params['i_dims']),
                 torch.nn.Tanh())
             
-        else: # ConvLSTM
+        # Convolutional LSTM
+        else:
             kernel_size = self.arch_params['kernel_size']
             padding = self.arch_params['padding']
             out_channels = self.arch_params['out_channels']
             num_layers = self.arch_params['num_layers']
             
-            if self.arch_params['use_ae'] == True: # setup autoencoder
-                # Calculate size after each conv layer
-                temp_spatial = self.arch_params['spatial']
-                for _ in range(len(self.arch_params['encoder_channels']) - 1):
-                    # mimicking the downsampling to determine the reduced spatial size
-                    # (spatial + 2*padding - kernel_size) // stride + 1
-                    temp_spatial = ((temp_spatial + 2*1 - 3) // 2) + 1
-                reduced_spatial = temp_spatial
-                
-                # Encoder: downsampling
-                self.encoder = Encoder(
-                    channels=self.arch_params['encoder_channels'],
-                    spatial_size=self.arch_params['spatial']
-                )
-                
-                # Decoder: upsampling
-                self.decoder = Decoder(
-                    channels=self.arch_params['decoder_channels'],
-                    spatial_size=self.arch_params['spatial']
-                )
-            
-                if self.arch_params['pretrained_ae'] == True:
-                    # load pretrained autoencoder
-                    dirpath = '/develop/' + self.params['path_pretrained_ae']
-                    checkpoint = torch.load(dirpath + "model.ckpt")
-                    
-                    # extract respective layers for encoder and decoder
-                    encoder_state_dict = {}
-                    decoder_state_dict = {}
-                    for key, value in checkpoint['state_dict'].items():
-                        if key.startswith('encoder'):
-                            encoder_state_dict[key.replace('encoder.', '')] = value
-                        elif key.startswith('decoder'):
-                            decoder_state_dict[key.replace('decoder.', '')] = value
-                    
-                    # load respective state dicts
-                    self.encoder.load_state_dict(encoder_state_dict)
-                    self.decoder.load_state_dict(decoder_state_dict)
-                    
-                    # freeze ae weights
-                    if self.arch_params['freeze_ae_weights'] == True:
-                        for param in self.encoder.parameters():
-                            param.requires_grad = False
-                        for param in self.decoder.parameters():
-                            param.requires_grad = False
-            
-                # different since representation space
-                in_channels = self.arch_params['encoder_channels'][-1]
-                spatial = reduced_spatial
-                
+            if self.name == 'ae_conv_lstm':
+                in_channels, spatial = self.configure_ae()
             else: # in stays vanilla, full spatial
                 in_channels = self.arch_params['in_channels']
                 spatial = self.arch_params['spatial'] # 166
@@ -478,6 +510,58 @@ class WaveLSTM(LightningModule):
                 nn.Conv2d(out_channels, 2, kernel_size=1),
                 nn.Tanh(),
             )
+            
+    def configure_ae(self):
+        # Calculate size after each conv layer
+        temp_spatial = self.arch_params['spatial']
+        for _ in range(len(self.arch_params['encoder_channels']) - 1):
+            # mimicking the downsampling to determine the reduced spatial size
+            # (spatial + 2*padding - kernel_size) // stride + 1
+            temp_spatial = ((temp_spatial + 2*1 - 3) // 2) + 1
+        reduced_spatial = temp_spatial
+        
+        # Encoder: downsampling
+        self.encoder = Encoder(
+            channels=self.arch_params['encoder_channels'],
+            params=self.params['autoencoder']
+        )
+        
+        # Decoder: upsampling
+        self.decoder = Decoder(
+            channels=self.arch_params['decoder_channels'],
+            params=self.params['autoencoder']
+        )
+    
+        if self.arch_params['pretrained'] == True:
+            # load pretrained autoencoder
+            dirpath = '/develop/' + self.params['path_pretrained_ae']
+            checkpoint = torch.load(dirpath + "model.ckpt")
+            
+            # extract respective layers for encoder and decoder
+            encoder_state_dict = {}
+            decoder_state_dict = {}
+            for key, value in checkpoint['state_dict'].items():
+                if key.startswith('encoder'):
+                    encoder_state_dict[key.replace('encoder.', '')] = value
+                elif key.startswith('decoder'):
+                    decoder_state_dict[key.replace('decoder.', '')] = value
+            
+            # load respective state dicts
+            self.encoder.load_state_dict(encoder_state_dict)
+            self.decoder.load_state_dict(decoder_state_dict)
+            
+            # freeze ae weights
+            if self.arch_params['freeze_weights'] == True:
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
+                for param in self.decoder.parameters():
+                    param.requires_grad = False
+    
+        # different since representation space
+        in_channels = self.arch_params['encoder_channels'][-1]
+        spatial = reduced_spatial
+        
+        return in_channels, spatial
                 
     def configure_optimizers(self):
         # Optimization routine

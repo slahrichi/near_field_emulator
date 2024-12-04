@@ -114,11 +114,16 @@ def eval_model(params):
     eval.plot_dft_fields(fold_results, plot_type='best', resub=True, 
                         save_fig=True, save_dir=results_dir,
                         arch=model_type, format='polar')
-    eval.plot_absolute_difference(fold_results, plot_type='best', resub=True,
-                                  save_fig=True, save_dir=results_dir)
+    if model_type == 'mlp':
+        eval.plot_dft_fields(fold_results, plot_type='best', resub=True, 
+                            save_fig=True, save_dir=results_dir,
+                            arch=model_type, format='cartesian')
+    if model_type == 'lstm' or model_type == 'convlstm':
+        eval.plot_absolute_difference(fold_results, plot_type='best', resub=True,
+                                      save_fig=True, save_dir=results_dir)
     
     # visualize performance with animation
-    if model_type != 'autoencoder':
+    if model_type != 'autoencoder' and model_type != 'mlp':
         print("\nGenerating field animations...")
         eval.animate_fields(fold_results, dataset='valid', 
                             seq_len=pm.seq_len, save_dir=results_dir)
@@ -127,10 +132,10 @@ def eval_model(params):
     
     # After all plots and metrics are generated, clean up the large results files
     print("\nCleaning up large results files...")
-    for mode in ['train', 'valid']:
+    '''for mode in ['train', 'valid']:
         for fold in range(pm.n_folds if pm.cross_validation else 1):
             results_file = os.path.join(results_dir, f'{mode}_info', f'fold{fold+1}', f'results.pkl')
             if os.path.exists(results_file):
                 os.remove(results_file)
-                print(f"Removed: {results_file}")
+                print(f"Removed: {results_file}")'''
     

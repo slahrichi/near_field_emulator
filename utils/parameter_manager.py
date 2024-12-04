@@ -75,6 +75,8 @@ class Parameter_Manager():
             self.seq_len = params['seq_len']
             self.io_mode = params['io_mode']
             self.spacing_mode = params['spacing_mode']
+            self.cvnn = params['cvnn']
+            self.autoencoder = params['autoencoder']
             
             # Load: Datamodule Params
             self.n_cpus = params['n_cpus']
@@ -175,6 +177,8 @@ class Parameter_Manager():
                                 'io_mode'             : self.io_mode,
                                 'spacing_mode'          : self.spacing_mode,
                                 'path_pretrained_ae'    : self.path_pretrained_ae,
+                                'cvnn'                  : self.cvnn,
+                                'autoencoder'           : self.autoencoder,
                                 }
 
              

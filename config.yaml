@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'demo-sample-v1'
+model_id: 'DIP-CVNN-v2'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -34,12 +34,13 @@ num_design_params: 9
 #--------------------------------
 
 # General Network Parameters
-# - arch: Network architecture (0: MLP, 1: LSTM, 2: ConvLSTM, 3: Autoencoder)
+# - arch: Network architecture (0: MLP, 1: CVNN, 2: LSTM, 3: ConvLSTM, 
+#                               4: AE-LSTM, 5: AE-ConvLSTM)
 
-arch: 2
+arch: 5
 
 # MLP Parameters
-# - ***separate MLPs for real and imaginary parts***
+# - ***separate MLPs for real and imaginary parts, or a single CVNN***
 # - layers: Hidden layer neuron counts, len(layers) = number of hidden layers
 # - activation: Activation function for hidden layers
 # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset
@@ -52,6 +53,10 @@ mlp_real:
 mlp_imag:
     layers: [64, 256, 1024]
     activation: 'relu'
+
+cvnn:
+    layers: [64, 256, 1024]
+    activation: 'modrelu'
 
 mlp_strategy: 0
 patch_size: 3
@@ -90,6 +95,23 @@ conv_lstm:
     encoder_channels: [2, 32, 64] # each step halves
     decoder_channels: [64, 32, 2] # each step doubles
 
+# Autoencoder Parameters
+# - encoder_channels: encoder channel progression
+# - decoder_channels: decoder channel progression
+# - pretrained: use pretrained autoencoder
+# - freeze_weights: whether to freeze weights
+# - spatial: spatial size of the input
+# - modes: modes to encode ('svd' or 'standard')
+
+autoencoder:
+    encoder_channels: [2, 32, 64] # each step halves
+    decoder_channels: [64, 32, 2] # each step doubles
+    pretrained: True
+    freeze_weights: False
+    spatial: 166
+    modes: 'standard'
+
+
 # General Time Series Parameters
 # - seq_len: number of time steps
 # - io_mode: 'one_to_many' or 'many_to_many'
@@ -99,11 +121,12 @@ seq_len: 15
 io_mode: 'one_to_many'
 spacing_mode: 'distributed'
 
+
 #--------------------------------
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 25 # maximum
+num_epochs: 100 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
