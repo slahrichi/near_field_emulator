@@ -96,7 +96,7 @@ def eval_model(params):
     if pm.experiment == 1:
         model_type = 'autoencoder'
     else:
-        if pm.arch == 0:
+        if pm.arch == 0 or pm.arch == 1:
             model_type = 'mlp'
         elif pm.arch == 1 or pm.arch == 2:
             model_type = 'lstm' if pm.arch == 1 else 'convlstm'
@@ -112,15 +112,16 @@ def eval_model(params):
     # visualize performance with DFT fields
     print("\nGenerating DFT field plots...")
     eval.plot_dft_fields(fold_results, plot_type='best', resub=True, 
-                        save_fig=True, save_dir=results_dir,
+                        sample_idx=10, save_fig=True, save_dir=results_dir,
                         arch=model_type, format='polar')
     if model_type == 'mlp':
         eval.plot_dft_fields(fold_results, plot_type='best', resub=True, 
-                            save_fig=True, save_dir=results_dir,
+                            sample_idx=10, save_fig=True, save_dir=results_dir,
                             arch=model_type, format='cartesian')
-    if model_type == 'lstm' or model_type == 'convlstm':
-        eval.plot_absolute_difference(fold_results, plot_type='best', resub=True,
-                                      save_fig=True, save_dir=results_dir)
+    #if model_type == 'lstm' or model_type == 'convlstm':
+    eval.plot_absolute_difference(fold_results, plot_type='best', resub=True,
+                                    sample_idx=10, save_fig=True, save_dir=results_dir,
+                                    arch=model_type)
     
     # visualize performance with animation
     if model_type != 'autoencoder' and model_type != 'mlp':

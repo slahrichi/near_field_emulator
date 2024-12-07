@@ -5,6 +5,8 @@ import traceback
 import sys
 import os
 
+from utils.mapping import get_model_type
+
 # debugging
 #logging.basicConfig(level=logging.DEBUG)
 
@@ -71,7 +73,7 @@ class Parameter_Manager():
             self.mlp_strategy = params['mlp_strategy']
             self.patch_size = params['patch_size']
             self.lstm = params['lstm']
-            self.conv_lstm = params['conv_lstm']
+            self.convlstm = params['convlstm']
             self.seq_len = params['seq_len']
             self.io_mode = params['io_mode']
             self.spacing_mode = params['spacing_mode']
@@ -126,19 +128,9 @@ class Parameter_Manager():
             except:
                 self.jobid = 0
                 
-            if self.experiment == 1:
-                model_type = 'autoencoder'
-            else:
-                if self.arch == 0:
-                    model_type = 'mlp'
-                elif self.arch == 1 or self.arch == 2:
-                    model_type = 'lstm' if self.arch == 1 else 'convlstm'
-                elif self.arch == 3:
-                    model_type = 'autoencoder'
-                else:
-                    raise ValueError("Model type not recognized")
+            self.model_type = get_model_type(self._arch, self.experiment)
 
-            self.path_results = f"{self.path_results}meep_meep/{model_type}/model_{self.model_id}/"
+            self.path_results = f"{self.path_results}meep_meep/{self.model_type}/model_{self.model_id}/"
             self.results_path = self.path_results
 
             self.seed_flag, self.seed_value = params['seed']
@@ -172,7 +164,7 @@ class Parameter_Manager():
                                 'mlp_strategy'          : self.mlp_strategy,
                                 'patch_size'            : self.patch_size,
                                 'lstm'                  : self.lstm,
-                                'conv_lstm'             : self.conv_lstm,
+                                'convlstm'              : self.convlstm,
                                 'seq_len'               : self.seq_len,
                                 'io_mode'             : self.io_mode,
                                 'spacing_mode'          : self.spacing_mode,

@@ -168,10 +168,10 @@ def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], sa
 
     # Plot training loss with std deviation
     ax[0].plot(mean_train_loss.index, mean_train_loss.values, color='red', label=f'Training Mean')
-    ax[0].fill_between(mean_train_loss.index, 
+    '''ax[0].fill_between(mean_train_loss.index, 
                        mean_train_loss.values - std_train_loss.values, 
                        mean_train_loss.values + std_train_loss.values, 
-                       color='red', alpha=0.3, label='Training Std Dev')
+                       color='red', alpha=0.3, label='Training Std Dev')'''
     ax[0].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
     ax[0].set_xlabel("Epoch", fontsize=10)
     ax[0].set_title(f"Training Loss", fontsize=12)
@@ -180,10 +180,10 @@ def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], sa
     
     # Plot validation loss with std deviation
     ax[1].plot(mean_val_loss.index, mean_val_loss.values, color='blue', label=f'Validation Mean')
-    ax[1].fill_between(mean_val_loss.index, 
+    '''ax[1].fill_between(mean_val_loss.index, 
                        mean_val_loss.values - std_val_loss.values, 
                        mean_val_loss.values + std_val_loss.values, 
-                       color='blue', alpha=0.3, label='Validation Std Dev')
+                       color='blue', alpha=0.3, label='Validation Std Dev')'''
     ax[1].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
     ax[1].set_xlabel("Epoch", fontsize=10)
     ax[1].set_title(f"Validation Loss", fontsize=12)
@@ -447,7 +447,7 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", resub=False,
     
 def plot_absolute_difference(fold_results, resub=False, plot_type='best', 
                              sample_idx=0, fold_idx=None, save_fig=False, 
-                             save_dir=None):
+                             save_dir=None, arch='mlp'):
     """
     Plot a sequence of absolute difference between predicted and ground truth fields
     
@@ -459,75 +459,82 @@ def plot_absolute_difference(fold_results, resub=False, plot_type='best',
         fold_idx (int): Index of fold to plot if plot_type is 'specific'
         save_fig (bool): Whether to save the figure
         save_dir (str): Directory to save figure if save_fig is True
+        arch (str): Architecture type ('mlp' or 'lstm')
     """
-    plotting = 1 # while loop control
-    
-    # calculate absolute difference (valid)
-    selected_results, _ = determine_fold_to_plot(fold_results, plot_type, fold_idx)
-    abs_diff = calculate_absolute_difference(selected_results['valid'], sample_idx)
-    
-    while plotting != 3:
-        # fetch real and imaginary
-        real_diff, imag_diff = abs_diff[:, 0, :, :], abs_diff[:, 1, :, :]
-        # max 5 timesteps to display
-        seq_len = min(5, real_diff.shape[0])
+    def plot_single_set(results, title, sample_idx):
+        abs_diff = calculate_absolute_difference(results, sample_idx)
         
-        mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff[:seq_len], imag_diff[:seq_len])
-        
-        # Create figure with extra vertical space for colorbar
-        fig = plt.figure(figsize=(4*seq_len, 9))
-        
-        # Create gridspec with space for images and colorbar
-        gs = fig.add_gridspec(3, seq_len, height_ratios=[1, 1, 0.1])
-        
-        # Create two rows of axes for the images
-        axs_top = [fig.add_subplot(gs[0, i]) for i in range(seq_len)]
-        axs_bottom = [fig.add_subplot(gs[1, i]) for i in range(seq_len)]
-        
-        # Create a single axis for the colorbar that spans all columns
-        cax = fig.add_subplot(gs[2, :])
-    
-        # Add row labels
-        fig.text(0.05, 0.75, 'Magnitude', rotation=90, fontsize=16, va='center')
-        fig.text(0.05, 0.25, 'Phase', rotation=90, fontsize=16, va='center')
-        
-        # plot each timestep
-        for t in range(seq_len):
-            # magnitude
-            im_mag = axs_top[t].imshow(mag_diff[t], cmap='magma')
-            axs_top[t].axis('off')
-            axs_top[t].set_title(f't={t+1}', pad=10)
+        if arch == 'mlp':
+            # Extract real and imaginary differences
+            real_diff = abs_diff[0, :, :]
+            imag_diff = abs_diff[1, :, :]
             
-            # phase
-            im_phase = axs_bottom[t].imshow(phase_diff[t], cmap='magma')
-            axs_bottom[t].axis('off')
+            # Convert to magnitude and phase differences
+            #mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
+            
+            # Create a single column plot
+            fig, ax = plt.subplots(2, 1, figsize=(6, 12))
+            fig.suptitle(title, fontsize=16)
+            
+            # Plot magnitude difference
+            im_mag = ax[0].imshow(real_diff, cmap='magma')
+            ax[0].set_title('Real Difference')
+            ax[0].axis('off')
+            
+            # Plot phase difference
+            im_phase = ax[1].imshow(imag_diff, cmap='magma')
+            ax[1].set_title('Imaginary Difference')
+            ax[1].axis('off')
+            
+            # Add colorbars
+            fig.colorbar(im_mag, ax=ax[0], orientation='vertical', fraction=0.046, pad=0.04)
+            fig.colorbar(im_phase, ax=ax[1], orientation='vertical', fraction=0.046, pad=0.04)
         
-        # Add single colorbar at the bottom
-        cbar = plt.colorbar(im_mag, cax=cax, orientation='horizontal')
-        data = 'Validation' if plotting == 1 else 'Training'
-        cbar.set_label(f'Absolute Difference - {data} Dataset', fontsize=20)
-        cbar.ax.tick_params(labelsize=16)
+        elif arch == 'lstm':
+            # Extract real and imaginary differences
+            real_diff = abs_diff[:, 0, :, :]
+            imag_diff = abs_diff[:, 1, :, :]
+            
+            # Convert to magnitude and phase differences
+            mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
+            
+            seq_len = mag_diff.shape[0]
+            
+            # Create figure with space for colorbar
+            fig = plt.figure(figsize=(4*seq_len, 9))
+            gs = fig.add_gridspec(3, seq_len, height_ratios=[1, 1, 0.1])
+            
+            axs_top = [fig.add_subplot(gs[0, i]) for i in range(seq_len)]
+            axs_bottom = [fig.add_subplot(gs[1, i]) for i in range(seq_len)]
+            cax = fig.add_subplot(gs[2, :])
+            
+            fig.suptitle(title, fontsize=16)
+            
+            for t in range(seq_len):
+                im_mag = axs_top[t].imshow(mag_diff[t], cmap='magma')
+                axs_top[t].axis('off')
+                axs_top[t].set_title(f't={t+1}')
+                
+                im_phase = axs_bottom[t].imshow(phase_diff[t], cmap='magma')
+                axs_bottom[t].axis('off')
+            
+            # Add single colorbar at the bottom
+            cbar = plt.colorbar(im_mag, cax=cax, orientation='horizontal')
+            cbar.set_label('Absolute Difference')
         
-        plt.tight_layout()
-        # Adjust layout to make room for row labels
-        plt.subplots_adjust(left=0.07)
-    
-        # save if requested
         if save_fig:
             if not save_dir:
                 raise ValueError("Please specify a save directory")
-            file_name = f'abs_diff_{data}.pdf'
+            file_name = f'abs_diff_{title}.pdf'
             save_eval_item(save_dir, fig, file_name, 'dft')
         else:
             plt.show()
-            
-        if resub and plotting == 1:
-            # calculate absolute difference (resubstitution)
-            abs_diff = calculate_absolute_difference(selected_results['train'], sample_idx)
-            plotting += 1 # we go through again to generate plot for resub
-        else:
-            plotting = 3 # exit loop
-    
+
+    selected_results, title = determine_fold_to_plot(fold_results, plot_type, fold_idx)
+    plot_single_set(selected_results['valid'], f"{title} - Validation", sample_idx)
+    if resub:
+        plot_single_set(selected_results['train'], f"{title} - Training", sample_idx)
+
 def calculate_absolute_difference(results, sample_idx=0):
     """Generate absolute difference data for a given sample"""
     truth = torch.from_numpy(results['nf_truth'][sample_idx, :])
@@ -572,3 +579,74 @@ def animate_fields(fold_results, dataset, fold_idx=0, sample_idx=0, seq_len=5, s
                                 cmap='twilight_shifted',
                                 frames=seq_len,
                                 interval=250)
+
+def construct_results_table(model_names, model_types):
+    # Define the metrics to extract
+    metrics_to_extract = ["RMSE", "Correlation", "PSNR", "SSIM"]
+    
+    # Initialize a dictionary to store results
+    results = {model_type: {model_name: {"resub": {}, "testing": {}} for model_name in model_names} for model_type in model_types}
+    
+    # Base path for metrics files
+    base_path = "/develop/results/meep_meep"
+    
+    # Iterate over each model type and model name
+    for model_type in model_types:
+        for model_name in model_names:
+            # Construct paths for train and valid metrics files
+            train_metrics_path = os.path.join(base_path, model_type, f"model_{model_name}", "performance_metrics", "train_metrics.txt")
+            valid_metrics_path = os.path.join(base_path, model_type, f"model_{model_name}", "performance_metrics", "valid_metrics.txt")
+            
+            # Read and parse the train metrics file
+            with open(train_metrics_path, 'r') as file:
+                for line in file:
+                    for metric in metrics_to_extract:
+                        if line.startswith(metric):
+                            value = line.split(":")[1].strip().split("±")[0].strip()
+                            results[model_type][model_name]["resub"][metric] = value
+            
+            # Read and parse the valid metrics file
+            with open(valid_metrics_path, 'r') as file:
+                for line in file:
+                    for metric in metrics_to_extract:
+                        if line.startswith(metric):
+                            value = line.split(":")[1].strip().split("±")[0].strip()
+                            results[model_type][model_name]["testing"][metric] = value
+    
+    # Print the results table to the command line
+    print("Results Table:")
+    for model_type in model_types:
+        print(f"\nModel Type: {model_type}")
+        print(f"{'Model Name':<20} {'Metric':<15} {'Resub':<10} {'Testing':<10}")
+        print("-" * 60)
+        for model_name in model_names:
+            for metric in metrics_to_extract:
+                resub_value = results[model_type][model_name]["resub"].get(metric, "N/A")
+                testing_value = results[model_type][model_name]["testing"].get(metric, "N/A")
+                print(f"{model_name:<20} {metric:<15} {resub_value:<10} {testing_value:<10}")
+    
+    # Generate LaTeX-friendly table
+    latex_table = "\\begin{table}[h!]\n\\centering\n\\caption{Model Performance Metrics}\n\\begin{tabular}{|l|l|l|l|l|}\n\\hline\n"
+    latex_table += "Model Type & Model Name & Metric & Resub & Testing \\\\\n\\hline\n"
+    for model_type in model_types:
+        for model_name in model_names:
+            # Escape underscores in model names for LaTeX compatibility
+            latex_model_name = model_name.replace("_", "\\_")
+            for metric in metrics_to_extract:
+                resub_value = results[model_type][model_name]["resub"].get(metric, "N/A")
+                testing_value = results[model_type][model_name]["testing"].get(metric, "N/A")
+                latex_table += f"{model_type} & {latex_model_name} & {metric} & {resub_value} & {testing_value} \\\\\n"
+    latex_table += "\\hline\n\\end{tabular}\n\\end{table}"
+    
+    print("\nLaTeX Table:")
+    print(latex_table)
+    
+if __name__ == "__main__":
+    # fetch the model names from command line args
+    import argparse
+    parser = argparse.ArgumentParser(description="Construct a results table for a given set of models")
+    parser.add_argument("--model_names", nargs="+", required=True, help="List of model names to include in the table")
+    parser.add_argument("--model_types", nargs="+", required=True, help="List of model types to include in the table")
+    args = parser.parse_args()
+    
+    construct_results_table(args.model_names, args.model_types)

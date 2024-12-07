@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'DIP-CVNN-v2'
+model_id: 'MSE_LRG'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -34,10 +34,10 @@ num_design_params: 9
 #--------------------------------
 
 # General Network Parameters
-# - arch: Network architecture (0: MLP, 1: CVNN, 2: LSTM, 3: ConvLSTM, 
+# - arch: Network architecture (0: MLPs, 1: CVNN, 2: LSTM, 3: ConvLSTM, 
 #                               4: AE-LSTM, 5: AE-ConvLSTM)
 
-arch: 5
+arch: 1
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts, or a single CVNN***
@@ -47,16 +47,16 @@ arch: 5
 # - patch_size: patch height/width for patch wise or distributed subset
 
 mlp_real:
-    layers: [64, 256, 1024]
+    layers: [64, 512]
     activation: 'relu'
 
 mlp_imag:
-    layers: [64, 256, 1024]
+    layers: [64, 512]
     activation: 'relu'
 
 cvnn:
-    layers: [64, 256, 1024]
-    activation: 'modrelu'
+    layers: [64, 512]
+    activation: 'complexrelu'
 
 mlp_strategy: 0
 patch_size: 3
@@ -82,7 +82,7 @@ lstm:
 # - encoder_channels: encoder channel progression
 # - decoder_channels: decoder channel progression
 
-conv_lstm:
+convlstm:
     num_layers: 1
     in_channels: 2
     out_channels: 64
@@ -126,7 +126,7 @@ spacing_mode: 'distributed'
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 100 # maximum
+num_epochs: 50 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]

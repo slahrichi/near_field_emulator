@@ -14,20 +14,23 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 # Import: Custom Python Libraries
 #--------------------------------
 
-from core import datamodule, model, autoencoder
-
+from utils.mapping import get_model_type
+from core import datamodule
+from core.autoencoder import Autoencoder
+from core.WaveMLP import WaveMLP
+from core.WaveLSTM import WaveLSTM
 
 def select_model(pm, fold_idx=None):
     logging.debug("select_model.py - Selecting model") 
-    if pm.experiment == 1: # autoencoder pretraining
-        network = autoencoder.Autoencoder(pm.params_model, fold_idx)
-    else: # full training
-        if pm.arch == 0:
-            network = model.WaveMLP(pm.params_model, fold_idx)
-        elif pm.arch == 1 or pm.arch == 2: # parameters will distinguish
-            network = model.WaveLSTM(pm.params_model, fold_idx)
-        else:
-            raise ValueError("Model not recognized")
+    model_type = get_model_type(pm.arch, pm.experiment)
+    if model_type == 'autoencoder': # autoencoder pretraining
+        network = Autoencoder(pm.params_model, fold_idx)
+    elif model_type == 'mlp' or model_type == 'cvnn':
+        pm.params_model['name'] = model_type
+        network = WaveMLP(pm.params_model, fold_idx)
+    else: # lstm or convlstm (or the ae equipped variants)
+        pm.params_model['name'] = model_type
+        network = WaveLSTM(pm.params_model, fold_idx)
 
     if pm.load_checkpoint:
          

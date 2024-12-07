@@ -69,12 +69,12 @@ class NF_Datamodule(LightningDataModule):
             datafile = os.path.join(self.path_data, 'dataset.pt')
             self.dataset = format_ae_data(datafile, self.params)
         else:
-            if self.arch == 0: # MLP
+            if self.arch == 0 or self.arch == 1: # MLP
                 data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
                 if self.params['interpolate_fields']: # interpolate fields to lower resolution
                     data = interpolate_fields(data)
                 self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
-            elif self.arch == 1 or self.arch == 2: # LSTM
+            else: # LSTM
                 datafile = os.path.join(self.path_data, 'dataset.pt')
                 self.dataset = format_temporal_data(datafile, self.params)
             

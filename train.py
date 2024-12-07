@@ -20,7 +20,7 @@ from pytorch_lightning.plugins.environments import SLURMEnvironment
 # Import: Custom Python Libraries
 #--------------------------------
 
-from core import datamodule, model, custom_logger, curvature
+from core import datamodule, custom_logger
 from utils import parameter_manager, model_loader
 
 # debugging
@@ -64,7 +64,7 @@ def train(params):
         kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
     
     fold_results = []
-    best_val_loss = float('inf')
+    best_val_loss = float('-inf') if pm.params['objective_function'] == 'psnr' else float('inf')
     best_model_path = None
     
     # Dump config for future reference
@@ -102,7 +102,7 @@ def train(params):
             filename=filename,
             save_top_k=1,
             monitor='val_loss',
-            mode='min',
+            mode='min' if pm.params['objective_function'] == 'mse' else 'max',
             verbose=True
         )
         
@@ -110,7 +110,7 @@ def train(params):
             monitor='val_loss',
             patience=pm.patience,
             min_delta=pm.min_delta,
-            mode='min',
+            mode='min' if pm.params['objective_function'] == 'mse' else 'max',
             verbose=True
         )
     
@@ -159,10 +159,16 @@ def train(params):
         # note validation loss of most recent fold
         current_val_loss = checkpoint_callback.best_model_score.item()
         
-        if current_val_loss < best_val_loss:
-            best_val_loss = current_val_loss
-            best_model_path = checkpoint_callback.best_model_path
-            logging.info(f"New best model found in fold {fold_idx + 1} with validation loss: {best_val_loss:.6f}")
+        if pm.params['objective_function'] == 'psnr':
+            if current_val_loss > best_val_loss:
+                best_val_loss = current_val_loss
+                best_model_path = checkpoint_callback.best_model_path
+                logging.info(f"New best model found in fold {fold_idx + 1} with validation PSNR: {best_val_loss:.6f}")
+        else:
+            if current_val_loss < best_val_loss:
+                best_val_loss = current_val_loss
+                best_model_path = checkpoint_callback.best_model_path
+                logging.info(f"New best model found in fold {fold_idx + 1} with validation loss: {best_val_loss:.6f}")
         
         # Testing
         if(pm.include_testing):
@@ -214,22 +220,17 @@ class CustomEarlyStopping(EarlyStopping):
         self.last_epoch_processed = -1
         
     def on_validation_epoch_end(self, trainer, pl_module):
-        # only once per epoch
         if trainer.current_epoch == self.last_epoch_processed:
             return
         self.last_epoch_processed = trainer.current_epoch
         
-        # Get the current score
         current_score = trainer.callback_metrics[self.monitor]
         if current_score is None:
-            # Metric not available; do nothing
             return
         
-        # Ensure current_score is a float
         if isinstance(current_score, torch.Tensor):
             current_score = current_score.item()
         
-        # set the initial score
         if self.initial_score is None:
             self.initial_score = current_score
             self.wait_count = 0
@@ -242,7 +243,6 @@ class CustomEarlyStopping(EarlyStopping):
         else:  # mode == 'max'
             total_improvement = current_score - self.initial_score
             
-        # Ensure total_improvement is a float
         if isinstance(total_improvement, torch.Tensor):
             total_improvement = total_improvement.item()
             

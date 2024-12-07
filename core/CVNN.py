@@ -4,10 +4,10 @@ import torch.nn.functional as F
 import math
 from complexPyTorch.complexFunctions import complex_relu
 
-class ComplexLinear(nn.Module):
+class ComplexLinearFinal(nn.Module):
     """Complex-valued Linear Layer."""
     def __init__(self, in_features, out_features, bias=True):
-        super(ComplexLinear, self).__init__()
+        super(ComplexLinearFinal, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         # Real and imaginary parts of the weights
@@ -48,13 +48,13 @@ class ModReLU(nn.Module):
         super(ModReLU, self).__init__()
         # Bias is a learnable parameter
         self.bias = None
-
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     def forward(self, input):
         # initbias if it hasn't been created yet
         if self.bias is None:
             # Get the feature size from input
             out_features = input.size(-1)
-            self.bias = nn.Parameter(torch.Tensor(out_features))
+            self.bias = nn.Parameter(torch.Tensor(out_features)).to(self.device)
             # Initialize the bias
             self.bias.data.uniform_(-0.01, 0.01)
         
