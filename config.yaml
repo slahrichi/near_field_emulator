@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'MSE_LRG'
+model_id: '12M'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -37,7 +37,7 @@ num_design_params: 9
 # - arch: Network architecture (0: MLPs, 1: CVNN, 2: LSTM, 3: ConvLSTM, 
 #                               4: AE-LSTM, 5: AE-ConvLSTM)
 
-arch: 1
+arch: 5
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts, or a single CVNN***
@@ -89,7 +89,7 @@ convlstm:
     kernel_size: 5
     padding: 2
     spatial: 166
-    use_ae: False
+    use_ae: True
     pretrained_ae: True
     freeze_ae_weights: False
     encoder_channels: [2, 32, 64] # each step halves
@@ -117,16 +117,16 @@ autoencoder:
 # - io_mode: 'one_to_many' or 'many_to_many'
 # - spacing_mode: 'sequential' or 'distributed'
 
-seq_len: 15
+seq_len: 10
 io_mode: 'one_to_many'
-spacing_mode: 'distributed'
+spacing_mode: 'sequential'
 
 
 #--------------------------------
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 50 # maximum
+num_epochs: 25 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]

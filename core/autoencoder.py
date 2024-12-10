@@ -44,16 +44,6 @@ class Encoder(nn.Module):
                     nn.LeakyReLU(0.2)
                 ])
                 current_size = current_size // 2
-        
-        # downsampling layers
-        for i in range(len(channels) - 1):
-            self.layers.extend([
-                nn.Conv2d(channels[i], channels[i+1], 
-                          kernel_size=3, stride=2, padding=1),
-                nn.BatchNorm2d(channels[i+1]),
-                nn.LeakyReLU(0.2)
-            ])
-            current_size = current_size // 2
             
         self.final_size = current_size
         self.final_channels = channels[-1]

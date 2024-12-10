@@ -13,6 +13,7 @@ import evaluation.evaluation as eval
 import evaluation.inference as inference
 import utils.parameter_manager as parameter_manager
 import utils.model_loader as model_loader
+from utils.mapping import get_model_type
 from core import datamodule, custom_logger
 
 def eval_model(params):
@@ -93,15 +94,7 @@ def eval_model(params):
     eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
 
     # determine model type
-    if pm.experiment == 1:
-        model_type = 'autoencoder'
-    else:
-        if pm.arch == 0 or pm.arch == 1:
-            model_type = 'mlp'
-        elif pm.arch == 1 or pm.arch == 2:
-            model_type = 'lstm' if pm.arch == 1 else 'convlstm'
-        else:
-            raise ValueError("Model type not recognized")
+    model_type = get_model_type(pm.arch, pm.experiment)
         
     # compute relevant metrics across folds
     if model_type != 'autoencoder':

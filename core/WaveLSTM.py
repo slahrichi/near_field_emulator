@@ -36,6 +36,7 @@ class WaveLSTM(LightningModule):
         self.loss_func = self.params['objective_function']
         self.io_mode = self.params['io_mode']
         self.fold_idx = fold_idx
+        self.encoding_done = False # state variable to guide AE processes
         self.linear = None
         self.name = self.params['name'] # which architecture?
         if self.name == 'ae-lstm' or self.name == 'ae-convlstm':
@@ -56,17 +57,25 @@ class WaveLSTM(LightningModule):
         self.val_psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.val_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
         
+        # setup architecture
+        self.create_architecture()
+        
     # setup
     def create_architecture(self):
         seq_len = self.params['seq_len']
         
         # Vanilla LSTM
-        if self.name == 'lstm' or self.name == '-':
-            if self.name == '-':
+        if self.name == 'lstm' or self.name == 'ae-lstm':
+            if self.name == 'ae-lstm':
                 # configure autoencoder to get reduced image
                 in_channels, spatial = self.configure_ae()
                 # flatten representation
                 i_dims = in_channels * spatial * spatial
+                
+                self.linear = nn.Sequential(
+                    nn.Linear(self.arch_params['h_dims'], i_dims),
+                    nn.Tanh()
+                )
             else:
                 i_dims = self.arch_params['i_dims']
             
@@ -242,17 +251,77 @@ class WaveLSTM(LightningModule):
                         batch_size, self.arch_params['h_dims']).to(self.device)
         return (h, c)
     
+    def process_ae(self, x, lstm_out=None):
+        if self.encoding_done == False: # encode the input
+            #print(f"process_ae: x size: {x.size()}")
+            if self.name == 'ae-lstm':
+                batch, seq_len, input = x.size()
+                if input != 55112:
+                    raise Warning(f"Input flattened size must be 55112, got {input}.")
+            else:
+                batch, seq_len, r_i, xdim, ydim = x.size()
+                if xdim != 166:
+                    raise Warning(f"Input spatial size must be 166, got {xdim}.")
+            x = x.view(batch, seq_len, 2, 
+                self.arch_params['spatial'], self.arch_params['spatial'])
+            if lstm_out is None: # encoder
+                self.ae_monitor = True
+                # process sequence through encoder
+                encoded_sequence = []
+                if self.arch_params['freeze_weights'] == True:
+                    with torch.no_grad(): # no grad for pretrained ae
+                        for t in range(seq_len):
+                            # encode each t
+                            encoded = self.encoder(x[:, t]) # [batch, latent_dim]
+                            encoded_sequence.append(encoded)
+                else: # trainable ae
+                    for t in range(seq_len):
+                        # encode each t
+                        encoded = self.encoder(x[:, t]) # [batch, latent_dim]
+                        encoded_sequence.append(encoded)
+                # stack to get [batch, seq_len, latent_dim]
+                encoded_sequence = torch.stack(encoded_sequence, dim=1)
+                self.encoding_done = True
+                return encoded_sequence
+            
+        elif lstm_out is not None: # decoder
+            self.ae_monitor = False
+            # decode outputted sequence
+            decoded_sequence = []
+            if self.arch_params['freeze_weights'] == True:
+                with torch.no_grad(): # no grad for pretrained ae
+                    for t in range(lstm_out.size(1)):
+                        # decode each t
+                        decoded = self.decoder(lstm_out[:, t])
+                        decoded_sequence.append(decoded)
+            else: # trainable decoder
+                for t in range(lstm_out.size(1)):
+                    # decode each t
+                    decoded = self.decoder(lstm_out[:, t])
+                    decoded_sequence.append(decoded)
+            preds = torch.stack(decoded_sequence, dim=1)
+            
+            return preds
+        
+        else: # already encoded
+            return x
+    
     def forward(self, x, meta=None):
         # autoregressive if we're testing
         #autoreg = not self.training
         autoreg = True # nvm terrible idea to have it on only for testing
-        
+        self.encoding_done = False
         # Forward Pass: LSTM
-        if self.name == 'lstm':
+        if self.name == 'lstm' or self.name == 'ae-lstm':
             batch, seq_len, input = x.size()
+            if self.name == 'ae-lstm':
+                x = self.process_ae(x)
             if meta is None: # Init hidden and cell states if not provided
                 h, c = self.init_hidden(batch)
                 meta = (h, c)
+                
+            # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
+            x = x.view(batch, seq_len, -1)
             
             predictions = [] # to store each successive pred as we pass through
             
@@ -294,59 +363,40 @@ class WaveLSTM(LightningModule):
             else:
                 # other io modes not currently implemented
                 return NotImplementedError(f'Recurrent input-output mode "{self.io_mode}" is not implemented.')
-                
+            
+            if self.name == 'ae-lstm':
+                output = torch.zeros(batch, self.params['seq_len'],
+                             64, 
+                             self.arch_params['spatial'], 
+                             self.arch_params['spatial'], device=x.device)
+                # format predictions like output
+                for t in range(self.params['seq_len']):
+                    output[:, t] = predictions[t]
+                predictions = self.process_ae(x, output)
+            
             # Stack predictions along sequence dimension
             predictions = torch.cat(predictions, dim=1)
             return predictions, meta
         
         # Forward Pass: ConvLSTM
-        elif self.name == 'convlstm':
-            batch, seq_len, r_i, xdim, ydim = x.size()
-            x = x.view(batch, seq_len, self.arch_params['in_channels'], 
-                       self.arch_params['spatial'], self.arch_params['spatial'])
-
-            if self.arch_params['use_ae'] == True:
-                # process sequence through encoder
-                encoded_sequence = []
-                if self.arch_params['freeze_ae_weights'] == True:
-                    with torch.no_grad(): # no grad for pretrained ae
-                        for t in range(seq_len):
-                            # encode each t
-                            encoded = self.encoder(x[:, t]) # [batch, latent_dim]
-                            encoded_sequence.append(encoded)
-                else: # trainable ae
-                    for t in range(seq_len):
-                        # encode each t
-                        encoded = self.encoder(x[:, t]) # [batch, latent_dim]
-                        encoded_sequence.append(encoded)
-                # stack to get [batch, seq_len, latent_dim]
-                encoded_sequence = torch.stack(encoded_sequence, dim=1)
-                
-                # process through LSTM in latent space
-                lstm_out, meta = self.arch(encoded_sequence, meta, mode=self.io_mode,
-                                           autoregressive=autoreg)
-                
-                # decode outputted sequence
-                decoded_sequence = []
-                if self.arch_params['freeze_ae_weights'] == True:
-                    with torch.no_grad(): # no grad for pretrained ae
-                        for t in range(lstm_out.size(1)):
-                            # decode each t
-                            decoded = self.decoder(lstm_out[:, t])
-                            decoded_sequence.append(decoded)
-                else: # trainable decoder
-                    for t in range(lstm_out.size(1)):
-                        # decode each t
-                        decoded = self.decoder(lstm_out[:, t])
-                        decoded_sequence.append(decoded)
-                preds = torch.stack(decoded_sequence, dim=1)
-                # ensure predictions can recieve gradients
-                #preds = preds.detach().requires_grad_()
-                    
-            else: # no AE
-                # invoke for specified mode (i.e. many_to_many)
-                lstm_out, meta = self.arch(x, meta, mode=self.io_mode, 
-                                           autoregressive=autoreg)
+        elif self.name == 'convlstm' or self.name == 'ae-convlstm':
+            if self.name == 'ae-convlstm':
+                try:
+                    x = self.process_ae(x)
+                except Warning:
+                    pass
+            else:
+                batch, seq_len, r_i, xdim, ydim = x.size()
+                x = x.view(batch, seq_len, self.arch_params['in_channels'], 
+                           self.arch_params['spatial'], self.arch_params['spatial'])
+            
+            # invoke for specified mode (i.e. many_to_many)
+            lstm_out, meta = self.arch(x, meta, mode=self.io_mode, 
+                                        autoregressive=autoreg)
+            
+            if self.name == 'ae-convlstm':
+                preds = self.process_ae(x, lstm_out)
+            else:
                 # reshape for conv
                 b, s, ch, he, w = lstm_out.size()
                 lstm_out = lstm_out.view(b * s, ch, he, w)
@@ -366,7 +416,7 @@ class WaveLSTM(LightningModule):
         # extract sizes - input sequence could be len=1 if 12M
         batch_size, input_seq_len, r_i, xdim, ydim = samples.size()
         
-        if self.name == 'lstm':
+        if self.name == 'lstm' or self.name == 'ae-lstm':
             # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
             samples = samples.view(batch_size, input_seq_len, -1)
             labels = labels.view(batch_size, self.params['seq_len'], -1)

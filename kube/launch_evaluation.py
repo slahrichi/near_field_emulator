@@ -13,7 +13,7 @@ from jinja2 import Environment, FileSystemLoader
 sys.path.append("../")
 
 from kube.support import exit_handler, load_file, save_file, parse_args, load_config
-from utils import parameter_manager
+from utils import parameter_manager, mapping
 
 def run(params):
 
@@ -23,15 +23,7 @@ def run(params):
     environment = Environment(loader = FileSystemLoader(folder))
     template = environment.get_template(tag)
 
-    if params['model_id'] == 'ae-v1': # TODO: do this better lol
-        model_type = 'autoencoder'
-    else:
-        if params['arch'] == 0:
-            model_type = 'mlp'
-        elif params['arch'] == 1 or params['arch'] == 2:
-            model_type = 'lstm' if params['arch'] == 1 else 'convlstm'
-        else:
-            raise ValueError("Model type not recognized")
+    model_type = mapping.get_model_type(params['arch'], params['experiment'])
         
     job_name = model_type + '-evaluation'
 

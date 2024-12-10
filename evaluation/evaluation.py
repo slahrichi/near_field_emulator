@@ -17,7 +17,7 @@ from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMe
 sys.path.append('../')
 import utils.mapping as mapping
 import utils.visualize as viz
-
+import utils.parameter_manager as parameter_manager
 fontsize = 8
 font = FontProperties()
 colors = ['darkgreen','purple','#4e88d9'] 
@@ -114,23 +114,23 @@ def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], sa
     optimizer = pm.optimizer
     lr_scheduler = pm.lr_scheduler
     batch_size = pm.batch_size
-    if pm.arch == 0:
+    if pm.arch == 0 or pm.arch == 1:
         mlp_layers = pm.mlp_real['layers']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
         #if params['mlp_strategy'] != 0:
         #    patch_size = params['patch_size']
         #    model_identifier += f", patch_size: {patch_size}"
-    elif pm.arch == 1:
+    elif pm.arch == 2 or pm.arch == 4:
         lstm_num_layers = pm.lstm['num_layers']
         lstm_i_dims = pm.lstm['i_dims']
         lstm_h_dims = pm.lstm['h_dims']
         seq_len = pm.seq_len
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
-    elif pm.arch == 2:
-        in_channels = pm.conv_lstm['in_channels']
-        out_channels = pm.conv_lstm['out_channels']
-        kernel_size = pm.conv_lstm['kernel_size']
-        padding = pm.conv_lstm['padding']
+    elif pm.arch == 3 or pm.arch == 5:
+        in_channels = pm.convlstm['in_channels']
+        out_channels = pm.convlstm['out_channels']
+        kernel_size = pm.convlstm['kernel_size']
+        padding = pm.convlstm['padding']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, kernel_size: {kernel_size}, padding: {padding}'
     
     plt.style.use("ggplot")
@@ -297,7 +297,7 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", resub=False,
     - format: "cartesian" or "polar"
     """
     def plot_single_set(results, title, format, save_path, sample_idx):
-        if arch == 'mlp' or arch == 'autoencoder':
+        if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
             # extract and convert to tensors
             truth_real = torch.from_numpy(results['nf_truth'][sample_idx, 0, :, :])
             truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, 1, :, :])
@@ -342,7 +342,7 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", resub=False,
             ax[1, 1].set_title(f'Predicted {component_2} Component')
             ax[1, 1].axis('off')
                 
-        elif arch == 'lstm' or arch == 'convlstm':
+        else:
             # extract and convert to tensors
             truth_real = torch.from_numpy(results['nf_truth'][sample_idx, :, 0, :, :])
             truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, :, 1, :, :])
@@ -464,7 +464,7 @@ def plot_absolute_difference(fold_results, resub=False, plot_type='best',
     def plot_single_set(results, title, sample_idx):
         abs_diff = calculate_absolute_difference(results, sample_idx)
         
-        if arch == 'mlp':
+        if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
             # Extract real and imaginary differences
             real_diff = abs_diff[0, :, :]
             imag_diff = abs_diff[1, :, :]
@@ -490,7 +490,7 @@ def plot_absolute_difference(fold_results, resub=False, plot_type='best',
             fig.colorbar(im_mag, ax=ax[0], orientation='vertical', fraction=0.046, pad=0.04)
             fig.colorbar(im_phase, ax=ax[1], orientation='vertical', fraction=0.046, pad=0.04)
         
-        elif arch == 'lstm':
+        else:
             # Extract real and imaginary differences
             real_diff = abs_diff[:, 0, :, :]
             imag_diff = abs_diff[:, 1, :, :]
@@ -582,7 +582,7 @@ def animate_fields(fold_results, dataset, fold_idx=0, sample_idx=0, seq_len=5, s
 
 def construct_results_table(model_names, model_types):
     # Define the metrics to extract
-    metrics_to_extract = ["RMSE", "Correlation", "PSNR", "SSIM"]
+    metrics_to_extract = ["RMSE", "Correlation", "PSNR"]
     
     # Initialize a dictionary to store results
     results = {model_type: {model_name: {"resub": {}, "testing": {}} for model_name in model_names} for model_type in model_types}
@@ -596,6 +596,11 @@ def construct_results_table(model_names, model_types):
             # Construct paths for train and valid metrics files
             train_metrics_path = os.path.join(base_path, model_type, f"model_{model_name}", "performance_metrics", "train_metrics.txt")
             valid_metrics_path = os.path.join(base_path, model_type, f"model_{model_name}", "performance_metrics", "valid_metrics.txt")
+            params_path = os.path.join(base_path, model_type, f"model_{model_name}", "params.yaml")
+            
+            # setup parameter mgr
+            params = yaml.load(open(params_path), Loader = yaml.FullLoader).copy()
+            pm = parameter_manager.Parameter_Manager(params=params)
             
             # Read and parse the train metrics file
             with open(train_metrics_path, 'r') as file:
