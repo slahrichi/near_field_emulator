@@ -37,7 +37,7 @@ num_design_params: 9
 # - arch: Network architecture (0: MLPs, 1: CVNN, 2: LSTM, 3: ConvLSTM, 
 #                               4: AE-LSTM, 5: AE-ConvLSTM)
 
-arch: 5
+arch: 2
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts, or a single CVNN***
@@ -158,7 +158,6 @@ mcl_params:
 #--------------------------------
 #       All paths
 #--------------------------------
-#path_root: '/home/marshall/research/cai_2023'
 path_root: '/develop/'
 path_data: 'data/preprocessed_data'
 path_train: 'train/'
@@ -210,7 +209,7 @@ n_folds: 3
 kube:
     namespace : gpn-mizzou-muem
     image : docker.io/kovaleskilab/ml_basic:v4
-    job_files : /develop/code/near_field_inverse_design/kube/kube_jobs  # this is a local directory
+    job_files : /develop/code/near_field_emulator/kube/kube_jobs  # this is a local directory
     pvc_volumes : dft-volumes # use `kubectl get pvc` to see list of pvcs
     pvc_preprocessed : preprocessed-data 
     pvc_results : training-results
@@ -258,7 +257,7 @@ kube:
         num_mem_lim : 128Gi
         paths :
             template : templates/load_results_job.txt
-            params: /develop/code/near_field_inverse_design/configs/params.yaml
+            params: /develop/code/near_field_emulator/configs/params.yaml
 
     evaluation_job :
         paths:
