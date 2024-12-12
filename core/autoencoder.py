@@ -14,7 +14,6 @@ class Encoder(nn.Module):
         
         self.mode = params['modes']
         self.layers = nn.ModuleList()
-        current_size = params['spatial']
         current_channels = channels[0]
         
         if self.mode == 'svd':
@@ -34,7 +33,25 @@ class Encoder(nn.Module):
                     nn.LeakyReLU(0.2)
                 ])
                 current_size = current_size // 2
-        else:
+                
+        elif self.mode == 'linear': # lstm
+            # flatten and map up linearly
+            flattened_size = params['spatial'] * params['spatial'] * 2
+            latent_size = 256
+            self.layers = nn.Sequential(
+                nn.Flatten(),
+                nn.Linear(flattened_size, 2048),
+                nn.ReLU(),
+                nn.Linear(2048, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 512),
+                nn.ReLU(),
+                nn.Linear(512, latent_size)
+            )
+            current_size = latent_size
+                
+        elif self.mode == 'conv': #convlstm
+            current_size = params['spatial']
             # Standard downsampling approach
             for i in range(len(channels) - 1):
                 self.layers.extend([
@@ -44,6 +61,8 @@ class Encoder(nn.Module):
                     nn.LeakyReLU(0.2)
                 ])
                 current_size = current_size // 2
+        else:
+            raise ValueError(f"Unsupported mode: {self.mode}")
             
         self.final_size = current_size
         self.final_channels = channels[-1]
@@ -63,21 +82,42 @@ class Decoder(nn.Module):
         super().__init__()
         
         self.channels = channels
+        self.mode = params['modes']
         self.initial_size = params['spatial'] // (2 ** (len(channels) - 1))
         self.layers = nn.ModuleList()
         
-        # transposed convolution upsampling
-        for i in range(len(channels) - 1):
-            self.layers.extend([
-                nn.ConvTranspose2d(channels[i], channels[i+1],
-                                   kernel_size=4, stride=2, padding=1),
-                nn.BatchNorm2d(channels[i+1]),
-                nn.LeakyReLU(0.2)
-            ])
+        if self.mode == 'linear':
+            # flatten and map up linearly
+            flattened_size = params['spatial'] * params['spatial'] * 2
+            latent_size = 256
+            self.layers = nn.Sequential(
+                nn.Linear(latent_size, 512),
+                nn.ReLU(),
+                nn.Linear(512, 1024),
+                nn.ReLU(),
+                nn.Linear(1024, 2048),
+                nn.ReLU(),
+                nn.Linear(2048, flattened_size),
+                nn.Unflatten(1, (2, params['spatial'], params['spatial']))
+            )
+            
+        elif self.mode == 'conv':
+            # transposed convolution upsampling
+            for i in range(len(channels) - 1):
+                self.layers.extend([
+                    nn.ConvTranspose2d(channels[i], channels[i+1],
+                                    kernel_size=4, stride=2, padding=1),
+                    nn.BatchNorm2d(channels[i+1]),
+                    nn.LeakyReLU(0.2)
+                ])
+                
+        else:
+            raise ValueError(f"Unsupported mode: {self.mode}")
             
     def forward(self, x):
         # x shape: [batch, input_channels, reduced_spatial, reduced_spatial]        
         for layer in self.layers[:-1]: # all but the last
+            #print(x.shape)
             x = layer(x)
         x = self.layers[-1](x) # last layer w/o activation
         if x.shape[-1] != 166:
@@ -271,10 +311,10 @@ class Autoencoder(LightningModule):
                 self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
                 
                 # Handle fold index
-                fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
+                #fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
                 
                 # Log or save results
-                name = f"results{fold_suffix}"
+                name = "results"
                 self.logger.experiment.log_results(
                     results=self.test_results[mode],
                     epoch=None,

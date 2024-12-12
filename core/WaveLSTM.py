@@ -68,9 +68,9 @@ class WaveLSTM(LightningModule):
         if self.name == 'lstm' or self.name == 'ae-lstm':
             if self.name == 'ae-lstm':
                 # configure autoencoder to get reduced image
-                in_channels, spatial = self.configure_ae()
+                _, _ = self.configure_ae()
                 # flatten representation
-                i_dims = in_channels * spatial * spatial
+                i_dims = 256
                 
                 self.linear = nn.Sequential(
                     nn.Linear(self.arch_params['h_dims'], i_dims),
@@ -85,7 +85,7 @@ class WaveLSTM(LightningModule):
                                       batch_first=True)
             
             self.linear = torch.nn.Sequential(
-                torch.nn.Linear(self.arch_params['h_dims'], self.arch_params['i_dims']),
+                torch.nn.Linear(self.arch_params['h_dims'], i_dims),
                 torch.nn.Tanh())
             
         # Convolutional LSTM
@@ -118,13 +118,14 @@ class WaveLSTM(LightningModule):
             )
             
     def configure_ae(self):
-        # Calculate size after each conv layer
-        temp_spatial = self.arch_params['spatial']
-        for _ in range(len(self.arch_params['encoder_channels']) - 1):
-            # mimicking the downsampling to determine the reduced spatial size
-            # (spatial + 2*padding - kernel_size) // stride + 1
-            temp_spatial = ((temp_spatial + 2*1 - 3) // 2) + 1
-        reduced_spatial = temp_spatial
+        if self.name == 'ae-convlstm':
+            # Calculate size after each conv layer
+            temp_spatial = self.arch_params['spatial']
+            for _ in range(len(self.arch_params['encoder_channels']) - 1):
+                # mimicking the downsampling to determine the reduced spatial size
+                # (spatial + 2*padding - kernel_size) // stride + 1
+                temp_spatial = ((temp_spatial + 2*1 - 3) // 2) + 1
+            reduced_spatial = temp_spatial
         
         # Encoder: downsampling
         self.encoder = Encoder(
@@ -165,7 +166,7 @@ class WaveLSTM(LightningModule):
     
         # different since representation space
         in_channels = self.arch_params['encoder_channels'][-1]
-        spatial = reduced_spatial
+        spatial = reduced_spatial if self.name == 'ae-convlstm' else self.arch_params['spatial']
         
         return in_channels, spatial
                 
@@ -258,12 +259,12 @@ class WaveLSTM(LightningModule):
                 batch, seq_len, input = x.size()
                 if input != 55112:
                     raise Warning(f"Input flattened size must be 55112, got {input}.")
-            else:
+            else: # ae-convlstm
                 batch, seq_len, r_i, xdim, ydim = x.size()
                 if xdim != 166:
                     raise Warning(f"Input spatial size must be 166, got {xdim}.")
-            x = x.view(batch, seq_len, 2, 
-                self.arch_params['spatial'], self.arch_params['spatial'])
+                x = x.view(batch, seq_len, 2, 
+                    self.arch_params['spatial'], self.arch_params['spatial'])
             if lstm_out is None: # encoder
                 self.ae_monitor = True
                 # process sequence through encoder
@@ -318,24 +319,29 @@ class WaveLSTM(LightningModule):
                 x = self.process_ae(x)
             if meta is None: # Init hidden and cell states if not provided
                 h, c = self.init_hidden(batch)
-                meta = (h, c)
+                meta = (h, c)          
                 
             # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
             x = x.view(batch, seq_len, -1)
             
             predictions = [] # to store each successive pred as we pass through
+            # prepare output tensor
+            output = torch.zeros(batch, self.params['seq_len'],
+                                x.shape[2], device=x.device)
             
             if self.io_mode == 'one_to_many':
                 # first timestep: use our single slice input
                 lstm_out, meta = self.arch(x, meta)
                 pred = self.linear(lstm_out)
+                output[:, 0] = pred.squeeze(dim=1)
                 predictions.append(pred) # t+1 (or + delta split)
                 
                 # remaining t: no input, we pass 0's as dummy vals
-                for _ in range(self.params['seq_len'] - 1):
+                for t in range(1, self.params['seq_len']):
                     dummy_input = torch.zeros_like(x)
                     lstm_out, meta = self.arch(dummy_input, meta)
                     pred = self.linear(lstm_out)
+                    output[:, t] = pred.squeeze(dim=1)
                     predictions.append(pred)
                 
             elif self.io_mode == 'many_to_many':
@@ -345,6 +351,7 @@ class WaveLSTM(LightningModule):
                     current_input = current_input.unsqueeze(1)
                     lstm_out, meta = self.arch(current_input, meta)
                     pred = self.linear(lstm_out)
+                    output[:, 0] = pred.squeeze(dim=1)
                     predictions.append(pred)
                     
                     # Generate remaining predictions using previous outputs
@@ -352,30 +359,28 @@ class WaveLSTM(LightningModule):
                         # Use previous prediction as input
                         lstm_out, meta = self.arch(pred, meta)
                         pred = self.linear(lstm_out)
+                        output[:, t] = pred.squeeze(dim=1)
                         predictions.append(pred)
                 else: # teacher forcing
                     for t in range(self.params['seq_len']):
                         current_input = x[:, t] # ground truth at t
                         lstm_out, meta = self.arch(current_input, meta)
                         pred = self.linear(lstm_out)
+                        output[:, t] = pred.squeeze(dim=1)
                         predictions.append(pred)
                     
             else:
                 # other io modes not currently implemented
                 return NotImplementedError(f'Recurrent input-output mode "{self.io_mode}" is not implemented.')
             
-            if self.name == 'ae-lstm':
-                output = torch.zeros(batch, self.params['seq_len'],
-                             64, 
-                             self.arch_params['spatial'], 
-                             self.arch_params['spatial'], device=x.device)
-                # format predictions like output
-                for t in range(self.params['seq_len']):
-                    output[:, t] = predictions[t]
+            if self.name == 'ae-lstm': # decode
                 predictions = self.process_ae(x, output)
+                # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
+                predictions = predictions.view(batch, self.params['seq_len'], -1)
+            else:
+                # Stack predictions along sequence dimension
+                predictions = torch.cat(predictions, dim=1)
             
-            # Stack predictions along sequence dimension
-            predictions = torch.cat(predictions, dim=1)
             return predictions, meta
         
         # Forward Pass: ConvLSTM

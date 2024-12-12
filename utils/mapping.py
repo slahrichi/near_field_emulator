@@ -87,5 +87,7 @@ def get_model_type(arch, experiment):
             return 'ae-lstm'
         elif arch == 5:
             return 'ae-convlstm'
+        elif arch == 6:
+            return 'autoencoder'
         else:
             raise ValueError("Model type not recognized")

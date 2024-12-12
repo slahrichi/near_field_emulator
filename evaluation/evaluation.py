@@ -132,6 +132,8 @@ def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], sa
         kernel_size = pm.convlstm['kernel_size']
         padding = pm.convlstm['padding']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, kernel_size: {kernel_size}, padding: {padding}'
+    elif pm.arch == 6:
+        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}'
     
     plt.style.use("ggplot")
     

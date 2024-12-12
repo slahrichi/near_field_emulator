@@ -5,7 +5,7 @@
 # - 3: load results
 # - 4: run evaluation
 
-experiment: 4
+experiment: 0
 
 #--------------------------------
 #       General Params
@@ -24,7 +24,7 @@ experiment: 4
 
 seed: [True, 1337]
 train: True
-model_id: '12M'
+model_id: 'ae-linear-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -35,9 +35,9 @@ num_design_params: 9
 
 # General Network Parameters
 # - arch: Network architecture (0: MLPs, 1: CVNN, 2: LSTM, 3: ConvLSTM, 
-#                               4: AE-LSTM, 5: AE-ConvLSTM)
+#                               4: AE-LSTM, 5: AE-ConvLSTM, 6: Autoencoder)
 
-arch: 2
+arch: 4
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts, or a single CVNN***
@@ -101,7 +101,7 @@ convlstm:
 # - pretrained: use pretrained autoencoder
 # - freeze_weights: whether to freeze weights
 # - spatial: spatial size of the input
-# - modes: modes to encode ('svd' or 'standard')
+# - modes: modes to encode ('svd' or 'linear' or 'conv')
 
 autoencoder:
     encoder_channels: [2, 32, 64] # each step halves
@@ -109,7 +109,7 @@ autoencoder:
     pretrained: True
     freeze_weights: False
     spatial: 166
-    modes: 'standard'
+    modes: 'linear'
 
 
 # General Time Series Parameters
@@ -165,7 +165,7 @@ path_valid: 'valid/'
 path_results: 'results/'
 path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
 path_resims: 'resims/'
-path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-v1/'
+path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-linear-v1/'
 
 #--------------------------------
 #       Physical Params
