@@ -1,8 +1,9 @@
 # Experiment Type
 # - 0: train network
 # - 1: run evaluation
-# - 2: data compilation (preprocessed train/valid -> .pt file)
-# - 3: load results
+# - 2: load results/copy to local for viewing
+# - 3: MEEP simulations
+# - 4: data preprocessing and formatting for model
 
 experiment: 0
 

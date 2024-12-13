@@ -19,11 +19,13 @@ Exploration of deep learning models for emulating wavefront propagation and resp
   - **WaveMLP.py** : MLP implementation
   - **WaveModel.py** : Various model implementations utilizing LSTM in some capacity
   - **datamodule.py** : Master file handling dataloading for both problems
+  - **modes.py** : Defines different mode encoding approaches (SVD, Random Projection, etc.)
   - **autoencoder.py** : autoencoder implementation
   - **ConvLSTM.py** : Convolutional LSTM implementation
   - **CVNN.py** : implementation of Complex-Valued NN, activations
 - `sim/` : contains files required for dataset generation/meep simulations
   - (incomplete)
+  - **simulation.py** : Configures a MEEP simulation
 - `evaluation/` : contains files used for eval pipeline
   - **eval_model.py** : Primary file for evaluation process
   - **evaluation.py** : File containing all plotting, measuring, etc. methods
@@ -70,6 +72,13 @@ The `config.yaml` file controls all aspects of training and evaluation. Key para
 
 ## Running the Code
 
+### Prerequisites
+
+1. Install Kubernetes: [Kube Setup Process](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/kubernetes.md)
+2. Setup Docker: [Docker Setup](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/docker.md)
+3. Pull down this repo to (ideally) `develop/code/` on your local machine
+4. Configure SSH **deploy key** authentication with this repo: {ssh_deploy_key guide here}
+
 ### Docker
 
 A docker container must be created to do any kind of running with this code. To build, execute the following when starting from the root directory:
@@ -79,6 +88,11 @@ cd build
 docker build -t kovaleskilab/ml_basic:v4 .
 ```
 
+(Note): Based on the current contents of the `Dockerfile` this assumes you have already followed instructions in Prerequisites Step 2 and pulled the associated docker image from dockerhub:
+```
+sudo docker pull kovaleskilab/ml_basic:v4
+```
+
 From there, we want to run the container but its critical that we mount it utilizing the following scheme to ensure the code exists within the container:
 
 ```
@@ -86,9 +100,9 @@ sudo docker run \
 -v /path/to/data:/develop/data \
 -v /path/to/results:/develop/results \
 -v {parent directory containing near_field_emulator}:/develop/code \
+-v ~/.kube:/root/.kube
   kovaleskilab/ml_basic:v4'
 ```
-
 
 ### Basic Usage
 
@@ -101,35 +115,42 @@ python3 main.py --config config.yaml
 
 ### Training
 
-1. Set `experiment: 0` in config.yaml
+1. Set `experiment: 0` in `config.yaml`
 2. Choose architecture with `arch` parameter
 3. Set desired `model_id` and hyperparameters
 4. Run `python3 main.py --config config.yaml`
 
 ### Evaluation
 
-1. Set `experiment: 4` in config.yaml
+1. Set `experiment: 1` in `config.yaml`
 2. Set other desired parameters
 3. Run `python3 main.py --config config.yaml`
 
-Evaluation outputs (saved to results directory):
+Evaluation outputs (saved to `develop/results`, copied to `training_results` PVC):
 - Predicted vs actual field distributions - magnitude and phase
-- Error metrics - resub and validation
-- Flipbooks of wave propagation
+- Error metrics (MSE, PSNR, SSIM) - resub and validation
+- Flipbooks of wave propagation (for time-series models)
 
-## Data Generation
+### Loading Results
+
+(Note: Process not fully integrated yet)
+
+1. Set `experiment: 2` in `config.yaml`
+2. Set `arch` to `convlstm` (for example) to get all eval results for that model
+3. Run `python3 main.py --config config.yaml`
 
 ### Running Meep Simulations
 
-(Incomplete)
+INCOMPLETE - Need to integrate preexisting pipeline from other lab repos into this
+one.
 
 To generate training data using Meep:
 
-```
-python3 sim/run_sim.py -neighbor_index <index>
-```
+1. Set `experiment: 4` in `config.yaml`
+2. Set desired **Physical Params** in `config.yaml`
+3. Run `python3 main.py --config config.yaml`
 
-This simulates a metasurface with specified radii configurations and saves:
+This simulates a metasurface with specified radii/height configurations and saves:
 - Near-field distributions
 - Far-field patterns
 - Epsilon data
@@ -137,15 +158,15 @@ This simulates a metasurface with specified radii configurations and saves:
 
 ### Data Preprocessing
 
-(Incomplete)
+INCOMPLETE - Process should entail preprocessing from MEEP outputs as well as
+compilation into a single `dataset.pt` file for use by the ML pipeline but at
+present only the latter is implemented in this repo.
 
-After generating raw simulation data:
+1. Prerequisite: Data has been preprocessed into `preprocessed_data/train` (and valid)
+2. Set `experiment: 4` in `config.yaml`
+3. Run `python3 main.py --config config.yaml`
 
-```
-python3 sim/preprocess_data_dip.py
-```
-
-This creates preprocessed datasets containing:
+Preprocessed datasets contain:
 - Normalized field components
 - Phase information
 - Derivative calculations
@@ -164,4 +185,5 @@ After the above is ran a complete YAML configuration file is generated and place
 kubectl apply -f kube/kube_jobs/convlstm-training.yaml
 ```
 
-**Note:** Running these jobs requires access to specific Kubernetes namespaces and PVCs, as well as the private github repo hosting this code. External users will need to modify configurations for their environment and create a ssh key to allow pulling the code within a kube pod.
+**Note:** Running these jobs requires access to specific Kubernetes namespaces and PVCs, as well as the private github repo hosting this code. Instructions for setting up required permissions are detailed in
+the Prerequisites section above.
