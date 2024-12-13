@@ -17,7 +17,7 @@ Exploration of deep learning models for emulating wavefront propagation and resp
   - **save_eval_plots.py** : necessary helper for saving evaluation plots from cloud storage to disk for viewing
 - `core/` : contains various key files such as the models and dataloader.
   - **WaveMLP.py** : MLP implementation
-  - **WaveLSTM.py** : LSTM implementation
+  - **WaveModel.py** : Various model implementations utilizing LSTM in some capacity
   - **datamodule.py** : Master file handling dataloading for both problems
   - **autoencoder.py** : autoencoder implementation
   - **ConvLSTM.py** : Convolutional LSTM implementation
@@ -45,10 +45,9 @@ The `config.yaml` file controls all aspects of training and evaluation. Key para
 
 - `experiment`: 
   - `0`: Train network
-  - `1`: Autoencoder pretraining
+  - `1`: Run evaluation
   - `2`: Data compilation
   - `3`: Load results
-  - `4`: Run evaluation
 
 - `arch`:
   - `0`: Dual MLPs (separate real/imaginary)
@@ -57,6 +56,8 @@ The `config.yaml` file controls all aspects of training and evaluation. Key para
   - `3`: ConvLSTM
   - `4`: Autoencoder-Wrapped LSTM
   - `5`: Autoencoder-Wrapped ConvLSTM
+  - `6`: LSTM with specific modes encoded first
+  - `7`: Autoencoder
 
 - `model_id`: Unique identifier for the model
 - `batch_size`: Training batch size
