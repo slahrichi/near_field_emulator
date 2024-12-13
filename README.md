@@ -84,7 +84,7 @@ From there, we want to run the container but its critical that we mount it utili
 sudo docker run \
 -v /path/to/data:/develop/data \
 -v /path/to/results:/develop/results \
--v {parent directory containing final_project_code}:/develop/code \
+-v {parent directory containing near_field_emulator}:/develop/code \
   kovaleskilab/ml_basic:v4'
 ```
 
@@ -94,10 +94,9 @@ sudo docker run \
 From within the Docker container after launching (should be at **/develop/code**):
 
 ```
-cd final_project_code
+cd near_field_emulator
 python3 main.py --config config.yaml
 ```
-Note: it may be necessary to run `pip install complexPyTorch` before running this.
 
 ### Training
 

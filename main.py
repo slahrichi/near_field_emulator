@@ -18,15 +18,12 @@ if __name__ == '__main__':
         print("Training model...\n")
         train.train(params)
     elif params['experiment'] == 1:
-        print("Pretraining autoencoder...\n")
-        train.train(params)
+        print('Evaluating model...\n')
+        eval_model(params)
     elif params['experiment'] == 2:
         print('Compiling preprocessed pickle files...')
         compile_data(params)
     elif params['experiment'] == 3:
         raise NotImplementedError('Loading results not fully implemented yet.')
-    elif params['experiment'] == 4:
-        print('Evaluating model...\n')
-        eval_model(params)
     else:
         raise NotImplementedError('Experiment not recognized.')

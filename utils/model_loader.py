@@ -18,19 +18,33 @@ from utils.mapping import get_model_type
 from core import datamodule
 from core.autoencoder import Autoencoder
 from core.WaveMLP import WaveMLP
-from core.WaveLSTM import WaveLSTM
+import core.WaveModel as models
 
 def select_model(pm, fold_idx=None):
     logging.debug("select_model.py - Selecting model") 
-    model_type = get_model_type(pm.arch, pm.experiment)
+    model_type = get_model_type(pm.arch)
     if model_type == 'autoencoder': # autoencoder pretraining
         network = Autoencoder(pm.params_model, fold_idx)
     elif model_type == 'mlp' or model_type == 'cvnn':
         pm.params_model['name'] = model_type
         network = WaveMLP(pm.params_model, fold_idx)
-    else: # lstm or convlstm (or the ae equipped variants)
+    elif model_type == 'lstm':
         pm.params_model['name'] = model_type
-        network = WaveLSTM(pm.params_model, fold_idx)
+        network = models.WaveLSTM(pm.params_model, fold_idx)
+    elif model_type == 'convlstm':
+        pm.params_model['name'] = model_type
+        network = models.WaveConvLSTM(pm.params_model, fold_idx)
+    elif model_type == 'ae-lstm':
+        pm.params_model['name'] = model_type
+        network = models.WaveAELSTM(pm.params_model, fold_idx)
+    elif model_type == 'ae-convlstm':
+        pm.params_model['name'] = model_type
+        network = models.WaveAEConvLSTM(pm.params_model, fold_idx)
+    elif model_type == 'mode-lstm':
+        pm.params_model['name'] = model_type
+        network = models.WaveModeLSTM(pm.params_model, fold_idx)
+    else:
+        raise NotImplementedError("Model type not recognized.")
 
     if pm.load_checkpoint:
          

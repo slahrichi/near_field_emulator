@@ -1,11 +1,26 @@
-# Experiment type
+# Experiment Type
 # - 0: train network
-# - 1: autoencoder pretraining
+# - 1: run evaluation
 # - 2: data compilation (preprocessed train/valid -> .pt file)
 # - 3: load results
-# - 4: run evaluation
 
 experiment: 0
+
+# - arch: Network Architecture
+# *** Mapping design parameters to DFT fields ***
+    # - 0: Dual MLPs - separate MLPs for real and imaginary
+    # - 1: CVNN - Complex-valued MLP
+# *** Learning wavefront propagation ***
+    # - 2: LSTM
+    # - 3: ConvLSTM
+    # - 4: AE-LSTM - LSTM with linearautoencoder
+    # - 5: AE-ConvLSTM - ConvLSTM with convolutional autoencoder
+    # - 6: mode-LSTM - LSTM operating on a deterministic dim reduction of the fields
+        # - SVD, random projection, gauss, fourier
+# *** Learning a reconstrutible latent representation of the fields ***
+    # - 7: Autoencoder - Used in conjunction witharch 4, 5
+
+arch: 4
 
 #--------------------------------
 #       General Params
@@ -24,7 +39,7 @@ experiment: 0
 
 seed: [True, 1337]
 train: True
-model_id: 'ae-linear-v1'
+model_id: 'svd-no-decoder-v2'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -32,12 +47,6 @@ num_design_params: 9
 #--------------------------------
 #       Network Params
 #--------------------------------
-
-# General Network Parameters
-# - arch: Network architecture (0: MLPs, 1: CVNN, 2: LSTM, 3: ConvLSTM, 
-#                               4: AE-LSTM, 5: AE-ConvLSTM, 6: Autoencoder)
-
-arch: 4
 
 # MLP Parameters
 # - ***separate MLPs for real and imaginary parts, or a single CVNN***
@@ -89,11 +98,6 @@ convlstm:
     kernel_size: 5
     padding: 2
     spatial: 166
-    use_ae: True
-    pretrained_ae: True
-    freeze_ae_weights: False
-    encoder_channels: [2, 32, 64] # each step halves
-    decoder_channels: [64, 32, 2] # each step doubles
 
 # Autoencoder Parameters
 # - encoder_channels: encoder channel progression
@@ -101,32 +105,46 @@ convlstm:
 # - pretrained: use pretrained autoencoder
 # - freeze_weights: whether to freeze weights
 # - spatial: spatial size of the input
-# - modes: modes to encode ('svd' or 'linear' or 'conv')
+# - method: layer types ('linear' or 'conv')
 
 autoencoder:
     encoder_channels: [2, 32, 64] # each step halves
     decoder_channels: [64, 32, 2] # each step doubles
+    latent_dim: 512
     pretrained: True
     freeze_weights: False
+    use_decoder: False
     spatial: 166
-    modes: 'linear'
+    method: 'linear'
 
+# Mode-LSTM Parameters
+# - latent_dim: latent dimension for mode-LSTM
+# - spatial: spatial size of the input
+# - top_k: number of modes to encode
+# - method: layer types ('svd' or 'random' or 'gauss' or 'fourier')
+
+mode-encoder:
+    latent_dim: 3320
+    spatial: 166
+    top_k: 10
+    method: 'svd'
 
 # General Time Series Parameters
 # - seq_len: number of time steps
 # - io_mode: 'one_to_many' or 'many_to_many'
 # - spacing_mode: 'sequential' or 'distributed'
+# - autoreg: autoregressive mode or teacher forcing - M2M only
 
-seq_len: 10
+seq_len: 15
 io_mode: 'one_to_many'
 spacing_mode: 'sequential'
-
+autoreg: True
 
 #--------------------------------
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 25 # maximum
+num_epochs: 10 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -165,7 +183,7 @@ path_valid: 'valid/'
 path_results: 'results/'
 path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
 path_resims: 'resims/'
-path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-linear-v1/'
+path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-svd-v2/'
 
 #--------------------------------
 #       Physical Params

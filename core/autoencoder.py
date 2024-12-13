@@ -12,45 +12,31 @@ class Encoder(nn.Module):
     def __init__(self, channels, params):
         super().__init__()
         
-        self.mode = params['modes']
+        self.method = params['method']
+        self.latent_dim = params['latent_dim']
         self.layers = nn.ModuleList()
+        self.top_k = params['top_k']
         current_channels = channels[0]
         
-        if self.mode == 'svd':
-            # Use SVDEmbedding
-            self.svd_embedding = SVDEmbedding(
-                in_channels=channels[0],
-                out_channels=channels[1],
-                spatial_size=params['spatial']
-            )
-            current_channels = channels[1]  # Update current_channels after SVDEmbedding
-            # Start building layers from index 1 since channels[0] and channels[1] are used in SVDEmbedding
-            for i in range(1, len(channels) - 1):
-                self.layers.extend([
-                    nn.Conv2d(channels[i], channels[i+1],
-                              kernel_size=3, stride=2, padding=1),
-                    nn.BatchNorm2d(channels[i+1]),
-                    nn.LeakyReLU(0.2)
-                ])
-                current_size = current_size // 2
+        if self.method == 'svd':
+            # no trainable layers, just a forward method computing SVD
+            self.layers = None
+            current_size = 2*166*self.top_k
                 
-        elif self.mode == 'linear': # lstm
+        elif self.method == 'linear': # lstm
             # flatten and map up linearly
             flattened_size = params['spatial'] * params['spatial'] * 2
-            latent_size = 256
             self.layers = nn.Sequential(
                 nn.Flatten(),
                 nn.Linear(flattened_size, 2048),
                 nn.ReLU(),
                 nn.Linear(2048, 1024),
                 nn.ReLU(),
-                nn.Linear(1024, 512),
-                nn.ReLU(),
-                nn.Linear(512, latent_size)
+                nn.Linear(1024, self.latent_dim)
             )
-            current_size = latent_size
+            current_size = self.latent_dim
                 
-        elif self.mode == 'conv': #convlstm
+        elif self.method == 'conv': #convlstm
             current_size = params['spatial']
             # Standard downsampling approach
             for i in range(len(channels) - 1):
@@ -69,10 +55,38 @@ class Encoder(nn.Module):
         
     def forward(self, x):
         # x shape [batch, channels, xdim, ydim]
-        if self.mode == 'svd':
-            x = self.svd_embedding(x)
-        for layer in self.layers:
-            x = layer(x)
+        if self.method == 'svd':
+            batch_size = x.shape[0]
+            x = x.view(batch_size, 2, 166, 166)
+            
+            # Compute SVD
+            embeddings = []
+            for i in range(batch_size):
+                real = x[i, 0] # [166, 166]
+                imag = x[i, 1] # [166, 166]
+                
+                # perform SVD on each channel separately 
+                u_real, s_real, vh_real = torch.linalg.svd(real, full_matrices=False)
+                u_r_k = u_real[:, :self.top_k]
+                s_r_k = s_real[:self.top_k]
+                # embed
+                real_emb = u_r_k * s_r_k # [166, k]
+                
+                u_imag, s_imag, vh_imag = torch.linalg.svd(imag, full_matrices=False)
+                u_i_k = u_imag[:, :self.top_k]
+                s_i_k = s_imag[:self.top_k]
+                # embed
+                imag_emb = u_i_k * s_i_k # [166, k]
+                
+                # stack real and imag embeddings
+                emb = torch.stack([real_emb, imag_emb], dim=0) # [2, 166, k]
+                embeddings.append(emb)
+                
+            x = torch.stack(embeddings, dim=0) # [batch, 2, 166, k]
+            x = x.view(batch_size, -1) # flatten
+        else:
+            for layer in self.layers:
+                x = layer(x)
         # Output: [batch, final_channels, reduced_spatial, reduced_spatial]
         return x
     
@@ -82,18 +96,17 @@ class Decoder(nn.Module):
         super().__init__()
         
         self.channels = channels
-        self.mode = params['modes']
+        self.method = params['method']
+        self.top_k = params['top_k']
+        self.latent_dim = params['latent_dim'] if self.method == 'linear' else 2*166*self.top_k
         self.initial_size = params['spatial'] // (2 ** (len(channels) - 1))
         self.layers = nn.ModuleList()
         
-        if self.mode == 'linear':
+        if self.method == 'linear' or self.method == 'svd':
             # flatten and map up linearly
             flattened_size = params['spatial'] * params['spatial'] * 2
-            latent_size = 256
             self.layers = nn.Sequential(
-                nn.Linear(latent_size, 512),
-                nn.ReLU(),
-                nn.Linear(512, 1024),
+                nn.Linear(self.latent_dim, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 2048),
                 nn.ReLU(),
@@ -101,7 +114,7 @@ class Decoder(nn.Module):
                 nn.Unflatten(1, (2, params['spatial'], params['spatial']))
             )
             
-        elif self.mode == 'conv':
+        elif self.method == 'conv':
             # transposed convolution upsampling
             for i in range(len(channels) - 1):
                 self.layers.extend([
@@ -124,33 +137,6 @@ class Decoder(nn.Module):
             x = x[:, :, :166, :166]  # Crop to exact size
         return x # [batch, 2, 166, 166]
     
-class SVDEmbedding(nn.Module):
-    """For use with the encoder, dim reductions of E with SVD"""    
-    def __init__(self, in_channels, out_channels, spatial_size):
-        super(SVDEmbedding, self).__init__()
-        self.input_channels = in_channels
-        self.spatial_size = spatial_size
-        self.out_channels = out_channels
-        self.flattened_size = in_channels * spatial_size * spatial_size
-
-        # Define the SVD components
-        self.U = nn.Linear(self.flattened_size, self.out_channels, bias=False)
-        self.S = nn.Parameter(torch.ones(self.out_channels))
-        self.VT = nn.Linear(self.out_channels, self.flattened_size, bias=False)
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        
-        x_flat = x.view(batch_size, -1)  # flatten input: [batch_size, flattened_size]
-        u = self.U(x_flat)  # [batch_size, out_channels]
-        s = torch.diag(self.S)  # apply singular vals: [out_channels, out_channels]
-        vt = self.VT.weight  # [flattened_size, out_channels]
-        x_svd = u @ s @ vt.T  # reconstruct: [batch_size, flattened_size]
-        
-        # Reshape back to original spatial dimensions
-        x_svd = x_svd.view(batch_size, self.input_channels, self.spatial_size, self.spatial_size)
-        return x_svd
-    
 class Autoencoder(LightningModule):
     def __init__(self, params_model, fold_idx=None):
         super().__init__()
@@ -164,7 +150,11 @@ class Autoencoder(LightningModule):
         self.learning_rate = self.params['learning_rate']
         self.lr_scheduler = self.params['lr_scheduler']
         self.fold_idx = fold_idx
-
+        
+        if self.params['autoencoder']['modes'] == 'svd':
+            for param in self.encoder.parameters():
+                param.requires_grad = False # should be none anyways
+                
         self.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
                              'valid': {'nf_pred': [], 'nf_truth': []}}
         

@@ -23,7 +23,7 @@ def run(params):
     environment = Environment(loader = FileSystemLoader(folder))
     template = environment.get_template(tag)
 
-    model_type = mapping.get_model_type(params['arch'], params['experiment'])
+    model_type = mapping.get_model_type(params['arch'])
         
     job_name = model_type + '-evaluation'
 

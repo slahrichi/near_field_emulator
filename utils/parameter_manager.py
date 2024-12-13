@@ -76,10 +76,11 @@ class Parameter_Manager():
             self.convlstm = params['convlstm']
             self.seq_len = params['seq_len']
             self.io_mode = params['io_mode']
+            self.autoreg = params['autoreg']
             self.spacing_mode = params['spacing_mode']
             self.cvnn = params['cvnn']
             self.autoencoder = params['autoencoder']
-            
+            self.mode_encoder = params['mode_encoder']
             # Load: Datamodule Params
             self.n_cpus = params['n_cpus']
             self.n_folds = params['n_folds']
@@ -128,7 +129,7 @@ class Parameter_Manager():
             except:
                 self.jobid = 0
                 
-            self.model_type = get_model_type(self._arch, self.experiment)
+            self.model_type = get_model_type(self._arch)
 
             self.path_results = f"{self.path_results}meep_meep/{self.model_type}/model_{self.model_id}/"
             self.results_path = self.path_results
@@ -166,11 +167,14 @@ class Parameter_Manager():
                                 'lstm'                  : self.lstm,
                                 'convlstm'              : self.convlstm,
                                 'seq_len'               : self.seq_len,
-                                'io_mode'             : self.io_mode,
+                                'io_mode'               : self.io_mode,
+                                'autoreg'               : self.autoreg,
                                 'spacing_mode'          : self.spacing_mode,
                                 'path_pretrained_ae'    : self.path_pretrained_ae,
                                 'cvnn'                  : self.cvnn,
                                 'autoencoder'           : self.autoencoder,
+                                'mode_encoder'          : self.mode_encoder,
+                                'batch_size'            : self.batch_size,
                                 }
 
              
@@ -202,6 +206,7 @@ class Parameter_Manager():
                                 'io_mode'      : self.io_mode,
                                 'spacing_mode'   : self.spacing_mode,
                                 'experiment' : self.experiment,
+                                'mode_encoder' : self.mode_encoder,
                                 }
         
         self._params_kube = {
