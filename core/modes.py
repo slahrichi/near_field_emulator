@@ -159,10 +159,15 @@ def gauss_laguerre_proj(x, params):
     # generate k modes [k, xdim, ydim] (complex)
     modes = generate_gl_modes(xdim, ydim, k, w0, p_max, l_max, x.device, x.dtype)
     
+    # calculate single dim for output
+    k_dim = int(math.sqrt(k))
+    # Verify k is a perfect square
+    if k_dim * k_dim != k:
+        raise ValueError(f"i_dims ({k}) must be a perfect square")
+    x_lg = torch.zeros(samples, r_i, k_dim, k_dim, slices, device=x.device, dtype=x.dtype)
+    
     # Projection: coeff: sum over x,y of E(x,y)*conjugate(mode(x,y))
     # E(x,y) = E_r + i E_i. mode is complex
-    x_lg = torch.zeros(samples, r_i, k, slices, device=x.device, dtype=x.dtype)
-    
     for i in range(samples):
         for j in range(slices):
             # construct complex field for this slice
@@ -175,9 +180,14 @@ def gauss_laguerre_proj(x, params):
             E_expanded = E.unsqueeze(0) # Expanded: [1, xdim, ydim], broadcast mul
             coeffs = (E_expanded * modes_conj).sum(dim=(-2, -1)) # [k]
             
+            # reshape embeddings to square matrices - friendly for datamodule 
+            # but we flatten back for actual processing
+            real = coeffs.real.reshape(k_dim, k_dim)
+            imag = coeffs.imag.reshape(k_dim, k_dim)
+            
             # update output tensor
-            x_lg[i, 0, :, j] = coeffs.real
-            x_lg[i, 1, :, j] - coeffs.imag
+            x_lg[i, 0, :, :, j] = real
+            x_lg[i, 1, :, :, j] = imag
             
     return x_lg
     
