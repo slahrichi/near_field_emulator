@@ -5,7 +5,7 @@
 # - 3: MEEP simulations
 # - 4: data preprocessing and formatting for model
 
-experiment: 0
+experiment: 1
 
 # - arch: Network Architecture
 # *** Mapping design parameters to DFT fields ***
@@ -19,9 +19,9 @@ experiment: 0
     # - 6: mode-LSTM - LSTM operating on a deterministic dim reduction of the fields
         # - SVD, random projection, gauss, fourier
 # *** Learning a reconstrutible latent representation of the fields ***
-    # - 7: Autoencoder - Used in conjunction witharch 4, 5
+    # - 7: Autoencoder - Used in conjunction with arch 4, 5
 
-arch: 4
+arch: 6
 
 #--------------------------------
 #       General Params
@@ -40,7 +40,7 @@ arch: 4
 
 seed: [True, 1337]
 train: True
-model_id: 'svd-no-decoder-v2'
+model_id: '12M-v3'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -82,6 +82,30 @@ lstm:
     i_dims: 55112 # this is (r/i * 166 * 166)
     h_dims: 256
 
+# Mode-LSTM Parameters - LSTM but data has already been encoded
+# - i_dims: input dimensionality - depends on the encoding method
+# ----> svd: spatial * top_k * 2
+# ----> random: any perfect square
+# - spatial: spatial size of the input
+# - top_k: number of modes to encode
+# - w0: beam waist parameter (laguerre-gaussian)
+# - p_max: radial index max (laguerre-gaussian)
+# - l_max: azimuthal index max (laguerre-gaussian)
+# - method: encoding types ('svd' or 'random' or 'gauss' or 'fourier')
+
+modelstm:
+    num_layers: 1
+    i_dims: 1600
+    h_dims: 256
+    spatial: 166
+    top_k: 5
+    w0: 1.0
+    p_max: 5
+    l_max: 5
+    seed: 1337
+    method: 'gauss'
+
+
 # ConvLSTM Parameters
 # - in_channels: number of input channels for conv
 # - kernel_size: size of the conv kernel
@@ -118,18 +142,6 @@ autoencoder:
     spatial: 166
     method: 'linear'
 
-# Mode-LSTM Parameters
-# - latent_dim: latent dimension for mode-LSTM
-# - spatial: spatial size of the input
-# - top_k: number of modes to encode
-# - method: layer types ('svd' or 'random' or 'gauss' or 'fourier')
-
-mode-encoder:
-    latent_dim: 3320
-    spatial: 166
-    top_k: 10
-    method: 'svd'
-
 # General Time Series Parameters
 # - seq_len: number of time steps
 # - io_mode: 'one_to_many' or 'many_to_many'
@@ -145,7 +157,7 @@ autoreg: True
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 10 # maximum
+num_epochs: 50 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -184,7 +196,7 @@ path_valid: 'valid/'
 path_results: 'results/'
 path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
 path_resims: 'resims/'
-path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-svd-v2/'
+path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-linear-v1/'
 
 #--------------------------------
 #       Physical Params

@@ -107,35 +107,42 @@ def save_eval_item(save_dir, eval_item, file_name, type):
     
 
 def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], save_fig=False, save_dir=None):
-    
     losses = [fold['losses'] for fold in fold_results]
+    model_type = mapping.get_model_type(pm.arch)
     title = pm.model_id
     lr = pm.learning_rate
     optimizer = pm.optimizer
     lr_scheduler = pm.lr_scheduler
     batch_size = pm.batch_size
-    if pm.arch == 0 or pm.arch == 1:
+    if model_type == 'mlp' or model_type == 'cvnn':
         mlp_layers = pm.mlp_real['layers']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
         #if params['mlp_strategy'] != 0:
         #    patch_size = params['patch_size']
         #    model_identifier += f", patch_size: {patch_size}"
-    elif pm.arch == 2 or pm.arch == 4:
+    elif model_type == 'lstm' or model_type == 'ae-lstm':
         lstm_num_layers = pm.lstm['num_layers']
         lstm_i_dims = pm.lstm['i_dims']
         lstm_h_dims = pm.lstm['h_dims']
         seq_len = pm.seq_len
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
-    elif pm.arch == 3 or pm.arch == 5:
+    elif model_type == 'convlstm' or model_type == 'ae-convlstm':
         in_channels = pm.convlstm['in_channels']
         out_channels = pm.convlstm['out_channels']
         kernel_size = pm.convlstm['kernel_size']
         padding = pm.convlstm['padding']
         model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, kernel_size: {kernel_size}, padding: {padding}'
-    elif pm.arch == 6:
+    elif model_type == 'modelstm':
+        method = pm.modelstm['method']
+        lstm_num_layers = pm.modelstm['num_layers']
+        lstm_i_dims = pm.modelstm['i_dims']
+        lstm_h_dims = pm.modelstm['h_dims']
+        seq_len = pm.seq_len
+        model_identifier = f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
+    elif model_type == 'autoencoder':
         latent_dim = pm.autoencoder['latent_dim']
-        mode = pm.autoencoder['modes']
-        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, latent_dim: {latent_dim}, encoder_mode: {mode}'
+        method = pm.autoencoder['method']
+        model_identifier = f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, latent_dim: {latent_dim}'
     
     plt.style.use("ggplot")
     

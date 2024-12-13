@@ -85,7 +85,7 @@ def get_model_type(arch):
     elif arch == 5:
         return 'ae-convlstm'
     elif arch == 6:
-        return 'mode-lstm'
+        return 'modelstm'
     elif arch == 7:
         return 'autoencoder'
     else:

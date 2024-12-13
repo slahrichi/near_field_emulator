@@ -94,7 +94,7 @@ def eval_model(params):
     eval.plot_loss(pm, fold_results, save_fig=True, save_dir=results_dir)
 
     # determine model type
-    model_type = get_model_type(pm.arch, pm.experiment)
+    model_type = get_model_type(pm.arch)
         
     # compute relevant metrics across folds
     if model_type != 'autoencoder':

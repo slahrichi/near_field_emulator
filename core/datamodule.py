@@ -17,7 +17,7 @@ import torch
 # Import: Custom Python Libraries
 #--------------------------------
 sys.path.append('../')
-from core import curvature
+from core import curvature, modes
 from utils import mapping
 
 # debugging
@@ -31,7 +31,7 @@ class NF_Datamodule(LightningDataModule):
         self.params = params.copy()
         logging.debug("datamodule.py - Setting params to {}".format(self.params))
         self.experiment = params['experiment']
-        self.arch = params['arch']
+        self.model_type = mapping.get_model_type(params['arch'])
         self.n_cpus = self.params['n_cpus']
         self.seed = self.params['seed']
         self.n_folds = self.params['n_folds']
@@ -64,19 +64,19 @@ class NF_Datamodule(LightningDataModule):
         pass
 
     def setup(self, stage: Optional[str] = None):
-        # load the full dataset
-        if self.experiment == 1: # autoencoder pretraining
-            datafile = os.path.join(self.path_data, 'dataset.pt')
-            self.dataset = format_ae_data(datafile, self.params)
-        else:
-            if self.arch == 0 or self.arch == 1: # MLP
-                data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
-                if self.params['interpolate_fields']: # interpolate fields to lower resolution
-                    data = interpolate_fields(data)
-                self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
-            else: # LSTM
-                datafile = os.path.join(self.path_data, 'dataset.pt')
-                self.dataset = format_temporal_data(datafile, self.params)
+        if self.model_type == 'autoencoder': # pretraining
+            data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
+            self.dataset = format_ae_data(data, self.params)
+        elif self.model_type == 'mlp' or self.model_type == 'cvnn':
+            data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
+            if self.params['interpolate_fields']: # interpolate fields to lower resolution
+                data = interpolate_fields(data)
+            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
+        else: # time series models
+            data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
+            if self.model_type == 'modelstm': # modifying the data
+                data = encode_modes(data, self.params['modelstm'])
+            self.dataset = format_temporal_data(data, self.params)
             
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
@@ -107,6 +107,9 @@ class NF_Datamodule(LightningDataModule):
                         )
 
 class WaveMLP_Dataset(Dataset):
+    """
+    Dataset for the MLP models associated with mapping design params to fields.
+    """
     def __init__(self, data, transform, approach=0, patch_size=1):
         logging.debug("datamodule.py - Initializing WaveMLP_Dataset")
         self.transform = transform
@@ -160,9 +163,12 @@ class WaveMLP_Dataset(Dataset):
         
         return near_field, radius
     
-class WaveLSTM_Dataset(Dataset):
+class WaveModel_Dataset(Dataset):
+    """
+    Dataset for the time series models associated with emulating wave propagation.
+    """
     def __init__(self, samples, labels):
-        logging.debug("datamodule.py - Initializing WaveLSTM_Dataset")
+        logging.debug("datamodule.py - Initializing WaveModel_Dataset")
         self.samples = samples
         self.labels = labels
 
@@ -240,38 +246,37 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
                 'tag': tag_tensor}, save_path)
     print(f"Data saved to {save_path}")
     
-def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
+def format_temporal_data(data, params, order=(-1, 0, 1, 2)):
     """Formats the preprocessed data file into the correct setup  
     and order for the LSTM model.
 
     Args:
-        data (str): path to the file containing the preprocessed data
+        data (tensor): the dataset
         seq_len (int): length of the sequence to be used
         order (tuple, optional): order of the sequence to be used. Defaults to (-1, 0, 1, 2).
         
     Returns:
-        dataset (WaveLSTM_Dataset): formatted dataset
+        dataset (WaveModel_Dataset): formatted dataset
     """
     all_samples, all_labels = [], []
-    data = torch.load(datafile)
     
-    # [100, 2, 166, 166, 63] --> access each of the 100 datapoints
+    # [samples, 2, xdim, ydim, 63] --> access each of the datapoints
     for i in range(data['near_fields'].shape[0]):
         full_sequence = data['near_fields'][i] # [2, xdim, ydim, total_slices]
         total = full_sequence.shape[-1] # all time slices
         
-        if config['spacing_mode'] == 'distributed':
-            if config['io_mode'] == 'one_to_many':
+        if params['spacing_mode'] == 'distributed':
+            if params['io_mode'] == 'one_to_many':
                 # calculate seq_len+1 evenly spaced indices
-                indices = np.linspace(1, total-1, config['seq_len']+1)
+                indices = np.linspace(1, total-1, params['seq_len']+1)
                 distributed_block = full_sequence[:, :, :, indices]
                 # the sample is the first one, labels are the rest
                 sample = distributed_block[:, :, :, :1]  # [2, xdim, ydim, 1]
                 label = distributed_block[:, :, :, 1:]  # [2, xdim, ydim, seq_len]
                 
-            elif config['io_mode'] == 'many_to_many':
+            elif params['io_mode'] == 'many_to_many':
                 # Calculate seq_len+1 evenly spaced indices for input and shifted output
-                indices = np.linspace(0, total-1, config['seq_len']+1).astype(int)
+                indices = np.linspace(0, total-1, params['seq_len']+1).astype(int)
                 distributed_block = full_sequence[:, :, :, indices]
                 
                 # Input sequence: all but last timestep
@@ -289,33 +294,32 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
             all_samples.append(sample)
             all_labels.append(label)
             
-        # 
-        elif config['spacing_mode'] == 'sequential':
-            if config['io_mode'] == 'one_to_many':
-                #for t in range(0, total, config['seq_len']+1): note: this raise the total number of sample/label pairs
+        elif params['spacing_mode'] == 'sequential':
+            if params['io_mode'] == 'one_to_many':
+                #for t in range(0, total, params['seq_len']+1): note: this raise the total number of sample/label pairs
                 t = 0
                 # check if there are enough timesteps for a full block
-                if t + config['seq_len'] < total:
-                    block = full_sequence[:, :, :, t:t+config['seq_len'] + 1]
+                if t + params['seq_len'] < total:
+                    block = full_sequence[:, :, :, t:t+params['seq_len'] + 1]
                     # ex: sample -> t=0 , label -> t=1, t=2, t=3 (if seq_len were 3)
                     sample = block[:, :, :, :1]
                     label = block[:, :, :, 1:]
                         
-            elif config['io_mode'] == 'many_to_many':
+            elif params['io_mode'] == 'many_to_many':
                 # true many to many
-                sample = full_sequence[:, :, :, :config['seq_len']]
-                label = full_sequence[:, :, :, 1:config['seq_len']+1]
+                sample = full_sequence[:, :, :, :params['seq_len']]
+                label = full_sequence[:, :, :, 1:params['seq_len']+1]
                 
                 # this is our 'encoder-decoder' mode - not really realistic here
-                '''step_size = 2 * config['seq_len']
+                '''step_size = 2 * params['seq_len']
                 #for t in range(0, total, step_size):
                 t = 0
                 # check if there's enough
                 if t + step_size <= total:
                     # input is first seq_len steps in the block
-                    sample = full_sequence[:, :, :, t:t+config['seq_len']]
+                    sample = full_sequence[:, :, :, t:t+params['seq_len']]
                     # output is next seq_len steps
-                    label = full_sequence[:, :, :, t+config['seq_len']:t+step_size]'''
+                    label = full_sequence[:, :, :, t+params['seq_len']:t+step_size]'''
                 
             else:
                 raise NotImplementedError(f'Specified recurrent input-output mode is not implemented.')
@@ -327,23 +331,22 @@ def format_temporal_data(datafile, config, order=(-1, 0, 1, 2)):
         
         else:
             # no other spacing modes are implemented
-            raise NotImplementedError(f'Specified recurrent dataloading configuration is not implemented.')
+            raise NotImplementedError(f'Specified recurrent dataloading paramsuration is not implemented.')
         
-    return WaveLSTM_Dataset(all_samples, all_labels)
+    return WaveModel_Dataset(all_samples, all_labels)
 
-def format_ae_data(datafile, config):
+def format_ae_data(data, params):
     """Formats the preprocessed data file into the correct setup  
     and order for the autoencoder pretraining.
 
     Args:
-        datafile (str): path to the file containing the preprocessed data
-        config (dict): configuration parameters
+        data (tensor): the dataset
+        params (dict): configuration parameters
         
     Returns:
-        dataset (WaveLSTM_Dataset): formatted dataset
+        dataset (WaveModel_Dataset): formatted dataset
     """
     all_samples = []
-    data = torch.load(datafile)
     
     # 100 samples, 63 slices per sample, 63*100 = 6300 samples/labels to train on
     for i in range(data['near_fields'].shape[0]):
@@ -353,7 +356,38 @@ def format_ae_data(datafile, config):
             all_samples.append(sample)
             
     # were training on reconstruction, so samples == labels
-    return WaveLSTM_Dataset(all_samples, all_samples)
+    return WaveModel_Dataset(all_samples, all_samples)
+
+def encode_modes(data, params):
+    """Takes the input formatted dataset and applies a specified modal decomposition
+
+    Args:
+        data (tensor): the dataset
+        params (dict): mode encoding parameters
+        
+    Returns:
+        dataset (WaveModel_Dataset): formatted dataset with encoded data
+    """
+    near_fields = data['near_fields'].clone()
+    
+    method = params['method']
+    print(f"Performing '{method}' encoding...")
+    
+    if method == 'svd': # encoding singular value decomposition
+        encoded_fields = modes.svd(near_fields, params)
+    elif method == 'rand': # random projection / Johnson-Lindenstrauss
+        encoded_fields = modes.random_proj(near_fields, params)
+    elif method == 'gauss': # gauss-laguerre modes
+        encoded_fields = modes.gauss_laguerre_proj(near_fields, params)
+    elif method == 'fourier': # a fourier encoding
+        encoded_fields = modes.fourier_modes(near_fields, params)
+    else:
+        raise NotImplementedError(f"Mode encoding method '{method}' not recognized.")
+    
+    # update the real data
+    data['near_fields'] = encoded_fields
+    
+    return data
         
 def interpolate_fields(data):
     """Interpolates the fields to a lower resolution. Currently supports 2x downsampling.  
@@ -362,7 +396,7 @@ def interpolate_fields(data):
         data (dict): dictionary containing the near fields, phases, and radii
         
     Returns:
-        dataset (WaveLSTM_Dataset): formatted dataset
+        dataset (WaveModel_Dataset): formatted dataset
     """
     near_fields = data['all_near_fields']['near_fields_1550']
     near_fields = torch.stack(near_fields, dim=0)

@@ -6,7 +6,7 @@ import sys
 import torch
 import numpy as np
 #from geomloss import SamplesLoss
-from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
+from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 #from torchvision.models import resnet50, resnet18, resnet34
 import torch.nn as nn
 import torch.nn.functional as F
@@ -218,10 +218,10 @@ class WaveLSTM(WaveModel):
     Architecture: LSTM"""
     def __init__(self, params_model, fold_idx=None):
         super().__init__(params_model, fold_idx)
-        
-        self.arch_params = self.params[self.name] 
 
     def create_architecture(self):
+            self.arch_params = self.params[self.name]
+             
             i_dims = self.arch_params['i_dims']
                 
             self.arch = torch.nn.LSTM(input_size=i_dims,
@@ -347,10 +347,10 @@ class WaveConvLSTM(WaveModel):
     Architecture: ConvLSTM"""
     def __init__(self, params_model, fold_idx=None):
         super().__init__(params_model, fold_idx)
-        
+
+    def create_architecture(self):
         self.arch_params = self.params[self.name]
         
-    def create_architecture(self):
         seq_len = self.params['seq_len']
         kernel_size = self.arch_params['kernel_size']
         padding = self.arch_params['padding']
@@ -441,11 +441,11 @@ class WaveAELSTM(WaveModel):
     def __init__(self, params_model, fold_idx=None):
         super().__init__(params_model, fold_idx)
         
-        base_name = self.name.split('-')[-1] # convlstm or lstm
+    def create_architecture(self):
+        base_name = self.name.split('-')[-1] # lstm
         self.arch_params = {**self.params['autoencoder'], **self.params[base_name]}
         self.encoding_done = False
         
-    def create_architecture(self):
         seq_len = self.params['seq_len']
         
         # configure autoencoder to get reduced image
@@ -704,11 +704,11 @@ class WaveAEConvLSTM(WaveModel):
     def __init__(self, params_model, fold_idx=None):
         super().__init__(params_model, fold_idx)
         
+    def create_architecture(self):
         base_name = self.name.split('-')[-1] # convlstm or lstm
         self.arch_params = {**self.params['autoencoder'], **self.params[base_name]}
         self.encoding_done = False
         
-    def create_architecture(self):
         seq_len = self.params['seq_len']
         kernel_size = self.arch_params['kernel_size']
         padding = self.arch_params['padding']
@@ -918,21 +918,3 @@ class WaveAEConvLSTM(WaveModel):
         
         else: # already encoded
             return x
-        
-class WaveModeLSTM(WaveModel):
-    """Near Field Response Time Series Prediction Model  
-    Architecture: LSTM with Mode Encoder"""
-    def __init__(self, params_model, fold_idx=None):
-        super().__init__(params_model, fold_idx)
-        
-    def create_architecture(self):
-        pass
-        
-    def forward(self, x, meta=None):
-        pass
-        
-    def shared_step(self, batch, batch_idx):
-        pass
-        
-    def organize_testing(self, preds, batch, batch_idx, dataloader_idx=0):
-        pass

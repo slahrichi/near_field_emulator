@@ -80,7 +80,7 @@ class Parameter_Manager():
             self.spacing_mode = params['spacing_mode']
             self.cvnn = params['cvnn']
             self.autoencoder = params['autoencoder']
-            self.mode_encoder = params['mode_encoder']
+            self.modelstm = params['modelstm']
             # Load: Datamodule Params
             self.n_cpus = params['n_cpus']
             self.n_folds = params['n_folds']
@@ -131,7 +131,10 @@ class Parameter_Manager():
                 
             self.model_type = get_model_type(self._arch)
 
-            self.path_results = f"{self.path_results}meep_meep/{self.model_type}/model_{self.model_id}/"
+            if self.model_type == 'modelstm': # further categorize by mode encoding method
+                self.path_results = f"{self.path_results}meep_meep/{self.model_type}/{self.modelstm['method']}/model_{self.model_id}/"
+            else:
+                self.path_results = f"{self.path_results}meep_meep/{self.model_type}/model_{self.model_id}/"
             self.results_path = self.path_results
 
             self.seed_flag, self.seed_value = params['seed']
@@ -173,7 +176,7 @@ class Parameter_Manager():
                                 'path_pretrained_ae'    : self.path_pretrained_ae,
                                 'cvnn'                  : self.cvnn,
                                 'autoencoder'           : self.autoencoder,
-                                'mode_encoder'          : self.mode_encoder,
+                                'modelstm'              : self.modelstm,
                                 'batch_size'            : self.batch_size,
                                 }
 
@@ -202,11 +205,11 @@ class Parameter_Manager():
                                 'arch'          : self._arch,
                                 'mlp_strategy'  : self.mlp_strategy,
                                 'patch_size'    : self.patch_size,
-                                'interpolate_fields': self.interpolate_fields,
-                                'io_mode'      : self.io_mode,
-                                'spacing_mode'   : self.spacing_mode,
-                                'experiment' : self.experiment,
-                                'mode_encoder' : self.mode_encoder,
+                                'interpolate_fields' : self.interpolate_fields,
+                                'io_mode'       : self.io_mode,
+                                'spacing_mode'  : self.spacing_mode,
+                                'experiment'    : self.experiment,
+                                'modelstm'      : self.modelstm,
                                 }
         
         self._params_kube = {

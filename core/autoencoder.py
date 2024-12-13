@@ -15,15 +15,9 @@ class Encoder(nn.Module):
         self.method = params['method']
         self.latent_dim = params['latent_dim']
         self.layers = nn.ModuleList()
-        self.top_k = params['top_k']
         current_channels = channels[0]
-        
-        if self.method == 'svd':
-            # no trainable layers, just a forward method computing SVD
-            self.layers = None
-            current_size = 2*166*self.top_k
-                
-        elif self.method == 'linear': # lstm
+
+        if self.method == 'linear': # lstm
             # flatten and map up linearly
             flattened_size = params['spatial'] * params['spatial'] * 2
             self.layers = nn.Sequential(
@@ -47,6 +41,7 @@ class Encoder(nn.Module):
                     nn.LeakyReLU(0.2)
                 ])
                 current_size = current_size // 2
+                
         else:
             raise ValueError(f"Unsupported mode: {self.mode}")
             
@@ -55,38 +50,8 @@ class Encoder(nn.Module):
         
     def forward(self, x):
         # x shape [batch, channels, xdim, ydim]
-        if self.method == 'svd':
-            batch_size = x.shape[0]
-            x = x.view(batch_size, 2, 166, 166)
-            
-            # Compute SVD
-            embeddings = []
-            for i in range(batch_size):
-                real = x[i, 0] # [166, 166]
-                imag = x[i, 1] # [166, 166]
-                
-                # perform SVD on each channel separately 
-                u_real, s_real, vh_real = torch.linalg.svd(real, full_matrices=False)
-                u_r_k = u_real[:, :self.top_k]
-                s_r_k = s_real[:self.top_k]
-                # embed
-                real_emb = u_r_k * s_r_k # [166, k]
-                
-                u_imag, s_imag, vh_imag = torch.linalg.svd(imag, full_matrices=False)
-                u_i_k = u_imag[:, :self.top_k]
-                s_i_k = s_imag[:self.top_k]
-                # embed
-                imag_emb = u_i_k * s_i_k # [166, k]
-                
-                # stack real and imag embeddings
-                emb = torch.stack([real_emb, imag_emb], dim=0) # [2, 166, k]
-                embeddings.append(emb)
-                
-            x = torch.stack(embeddings, dim=0) # [batch, 2, 166, k]
-            x = x.view(batch_size, -1) # flatten
-        else:
-            for layer in self.layers:
-                x = layer(x)
+        for layer in self.layers:
+            x = layer(x)
         # Output: [batch, final_channels, reduced_spatial, reduced_spatial]
         return x
     
@@ -97,12 +62,11 @@ class Decoder(nn.Module):
         
         self.channels = channels
         self.method = params['method']
-        self.top_k = params['top_k']
-        self.latent_dim = params['latent_dim'] if self.method == 'linear' else 2*166*self.top_k
+        self.latent_dim = params['latent_dim']
         self.initial_size = params['spatial'] // (2 ** (len(channels) - 1))
         self.layers = nn.ModuleList()
         
-        if self.method == 'linear' or self.method == 'svd':
+        if self.method == 'linear':
             # flatten and map up linearly
             flattened_size = params['spatial'] * params['spatial'] * 2
             self.layers = nn.Sequential(
@@ -150,10 +114,6 @@ class Autoencoder(LightningModule):
         self.learning_rate = self.params['learning_rate']
         self.lr_scheduler = self.params['lr_scheduler']
         self.fold_idx = fold_idx
-        
-        if self.params['autoencoder']['modes'] == 'svd':
-            for param in self.encoder.parameters():
-                param.requires_grad = False # should be none anyways
                 
         self.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
                              'valid': {'nf_pred': [], 'nf_truth': []}}

@@ -28,7 +28,8 @@ def select_model(pm, fold_idx=None):
     elif model_type == 'mlp' or model_type == 'cvnn':
         pm.params_model['name'] = model_type
         network = WaveMLP(pm.params_model, fold_idx)
-    elif model_type == 'lstm':
+    # mode lstm is just the lstm but on epre-encoded data
+    elif model_type == 'lstm' or model_type == 'modelstm':
         pm.params_model['name'] = model_type
         network = models.WaveLSTM(pm.params_model, fold_idx)
     elif model_type == 'convlstm':
@@ -40,9 +41,6 @@ def select_model(pm, fold_idx=None):
     elif model_type == 'ae-convlstm':
         pm.params_model['name'] = model_type
         network = models.WaveAEConvLSTM(pm.params_model, fold_idx)
-    elif model_type == 'mode-lstm':
-        pm.params_model['name'] = model_type
-        network = models.WaveModeLSTM(pm.params_model, fold_idx)
     else:
         raise NotImplementedError("Model type not recognized.")
 
