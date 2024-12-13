@@ -2,14 +2,6 @@
 
 Exploration of deep learning models for emulating wavefront propagation and response from metasurfaces. Supports two distinct problems: Time-series networks for modeling propagation directly, and MLP-based methods for mapping metasurface parameters to downstream fields. Currently supports the following architectures: MLP, CVNN, LSTM, Autoencoder-LSTM, and Autoencoder-ConvLSTM.
 
-## Prerequisites
-
-- Docker
-- Python 3.8+
-- CUDA-capable GPU (for training)
-- Access to specific Kubernetes namespaces and PVCs
-- deploy key associated with the remote repository
-
 ## Description of Contents
 
 - `kube/` : contains files for loading, configuring, and launcing Kubernetes jobs. This includes scripts for training, evaluation, and analyzing results.
