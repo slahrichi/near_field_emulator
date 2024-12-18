@@ -9,11 +9,11 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1
 
 # - arch: Network Architecture
-# *** Mapping design parameters to DFT fields ***
+# *** Learning a mapping from design parameters to DFT fields ***
     # - 0: Dual MLPs - separate MLPs for real and imaginary
     # - 1: CVNN - Complex-valued MLP
 # *** Learning wavefront propagation ***
@@ -100,7 +100,7 @@ lstm:
 
 modelstm:
     num_layers: 1
-    i_dims: 1600
+    i_dims: 1660
     h_dims: 256
     spatial: 166
     top_k: 5
@@ -108,7 +108,7 @@ modelstm:
     p_max: 39
     l_max: 20
     seed: 1337
-    method: 'random'
+    method: 'svd'
 
 
 # ConvLSTM Parameters
