@@ -10,7 +10,7 @@ spec:
       containers:
         - name: ethan-modelstm-train
           image: docker.io/kovaleskilab/ml_basic:v4 
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8880
           env:

@@ -9,6 +9,8 @@ RUN apt-get update && \
     chmod +x kubectl && mv kubectl /usr/local/bin/kubectl && \
     rm -rf /var/lib/apt/lists/*
 
+RUN pip install complexPyTorch
+
 WORKDIR /develop/data
 WORKDIR /develop/results
 WORKDIR /develop/code
