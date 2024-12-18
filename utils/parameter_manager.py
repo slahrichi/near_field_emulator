@@ -135,9 +135,9 @@ class Parameter_Manager():
             self.model_type = get_model_type(self._arch)
 
             if self.model_type == 'modelstm': # further categorize by mode encoding method
-                self.path_results = f"{self.path_results}meep_meep/{self.model_type}/{self.modelstm['method']}/model_{self.model_id}/"
+                self.path_results = f"{self.path_results}meep_meep/{self.model_type}/{self.modelstm['method']}/{self.io_mode}/{self.spacing_mode}/model_{self.model_id}/"
             else:
-                self.path_results = f"{self.path_results}meep_meep/{self.model_type}/model_{self.model_id}/"
+                self.path_results = f"{self.path_results}meep_meep/{self.model_type}/{self.io_mode}/{self.spacing_mode}/model_{self.model_id}/"
             self.results_path = self.path_results
 
             self.seed_flag, self.seed_value = params['seed']

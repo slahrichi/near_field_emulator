@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1
 
 # - arch: Network Architecture
@@ -45,7 +45,7 @@ arch: 6
 
 seed: [True, 1337]
 train: True
-model_id: '12M-v1'
+model_id: '10'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -100,10 +100,10 @@ lstm:
 
 modelstm:
     num_layers: 1
-    i_dims: 1660
+    i_dims: 3320
     h_dims: 256
     spatial: 166
-    top_k: 5
+    top_k: 10
     w0: 1.0
     p_max: 39
     l_max: 20
@@ -153,7 +153,7 @@ autoencoder:
 # - spacing_mode: 'sequential' or 'distributed'
 # - autoreg: autoregressive mode or teacher forcing - M2M only
 
-seq_len: 15
+seq_len: 10
 io_mode: 'one_to_many'
 spacing_mode: 'sequential'
 autoreg: True

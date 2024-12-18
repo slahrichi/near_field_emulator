@@ -280,6 +280,7 @@ def format_temporal_data(data, params, order=(-1, 0, 1, 2)):
     # [samples, 2, xdim, ydim, 63] --> access each of the datapoints
     for i in range(data['near_fields'].shape[0]):
         full_sequence = data['near_fields'][i] # [2, xdim, ydim, total_slices]
+
         total = full_sequence.shape[-1] # all time slices
         
         if params['spacing_mode'] == 'distributed':
