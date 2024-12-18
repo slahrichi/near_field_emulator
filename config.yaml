@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 5
+directive: 0
 deployment: 1
 
 # - arch: Network Architecture
@@ -45,7 +45,7 @@ arch: 6
 
 seed: [True, 1337]
 train: True
-model_id: 'trainertest'
+model_id: '12M-v1'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -108,7 +108,7 @@ modelstm:
     p_max: 39
     l_max: 20
     seed: 1337
-    method: 'svd'
+    method: 'random'
 
 
 # ConvLSTM Parameters
@@ -162,7 +162,7 @@ autoreg: True
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 5 # maximum
+num_epochs: 100 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -179,7 +179,7 @@ load_checkpoint: False
 objective_function: 'mse'
 
 include_testing: False
-cross_validation: True
+cross_validation: False
 
 # early stopping settings
 patience: 15
