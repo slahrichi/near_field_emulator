@@ -108,7 +108,7 @@ modelstm:
     p_max: 39
     l_max: 20
     seed: 1337
-    method: 'svd'
+    method: 'random'
 
 
 # ConvLSTM Parameters
@@ -252,11 +252,11 @@ kube:
     pvc_preprocessed : preprocessed-data 
     pvc_results : training-results
 
-    compile_job:
-        num_cpus : 4
+    data_job:
+        num_cpus : 20
         num_mem_lim : 64Gi 
-        num_mem_req : 32Gi
-        kill_tag : compile-data
+        num_mem_req : 64Gi
+        kill_tag : data-job
 
         paths:
             # local / repo path where meta-atom radii are stored
@@ -268,7 +268,7 @@ kube:
             timing: /develop/data/preprocessed_data/timing 
 
             # local path where template is located
-            template: kube/templates/compile_job.txt
+            template: kube/templates/data_job.txt
 
     train_job :
         num_cpus : 16

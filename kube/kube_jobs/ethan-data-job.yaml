@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job 
 metadata:
-  name: compile-data
+  name: ethan-data-job
   namespace: gpn-mizzou-muem 
 spec:
   ttlSecondsAfterFinished: 3600
@@ -9,12 +9,12 @@ spec:
   backoffLimit: 0
   template:
     metadata:
-      name: compile-data
+      name: ethan-data-job
       namespace: gpn-mizzou-muem
     spec:
       restartPolicy: Never
       containers:
-        - name: compile-data
+        - name: ethan-data-job
           image: docker.io/kovaleskilab/ml_basic:v4
           command: ["/bin/sh", "-c"]
 
@@ -25,10 +25,10 @@ spec:
           resources:
             limits:
               memory: 64Gi
-              cpu: 4
+              cpu: 20
             requests:
-              memory: 32Gi
-              cpu: 4
+              memory: 64Gi
+              cpu: 20
           volumeMounts: 
             - name: preprocessed-data
               mountPath: /develop/data/preprocessed_data

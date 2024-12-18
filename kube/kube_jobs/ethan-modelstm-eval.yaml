@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ethan-modelstm-eval 
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never 
+      containers:
+        - name: ethan-modelstm-eval
+          image: docker.io/kovaleskilab/ml_basic:v4 
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8880
+          env:
+            - name: NCCL_SOCKET_IFNAME
+              value: eth0
+            - name: NCCL_DEBUG
+              value: INFO
+          command: ["/bin/sh", "-c"]
+          args: ["set -x &&
+                  mkdir -p /root/.ssh &&
+                  git clone git@github.com:Kovaleski-Research-Lab/near_field_emulator.git &&
+                  python3 /develop/code/near_field_emulator/main.py --config /develop/code/near_field_emulator/config.yaml"]
+          resources:
+            limits:
+              memory: 100Gi 
+              cpu: 16 
+              nvidia.com/a100: 1
+            requests:
+              memory: 100Gi
+              cpu: 16
+              nvidia.com/a100: 1
+          volumeMounts:
+            - name: preprocessed-data
+              mountPath: /develop/data/preprocessed_data
+            - name: training-results
+              mountPath: /develop/results
+            - name: shm 
+              mountPath: /dev/shm
+            - name: ssh-key
+              mountPath: "/root/.ssh"
+              readOnly: true
+
+      volumes:
+        - name: preprocessed-data
+          persistentVolumeClaim:
+            claimName: preprocessed-data
+        - name: training-results
+          persistentVolumeClaim:
+            claimName: training-results
+        - name: shm
+          emptyDir:
+            medium: Memory
+        - name: ssh-key
+          secret:
+            secretName: github-ssh-key
+            defaultMode: 0400

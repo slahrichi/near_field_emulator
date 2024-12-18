@@ -218,7 +218,6 @@ def encode_modes(data, params):
     near_fields = data['near_fields'].clone()
     
     method = params['method']
-    print(f"Performing '{method}' encoding...")
     
     if method == 'svd': # encoding singular value decomposition
         encoded_fields = svd(near_fields, params)

@@ -25,7 +25,7 @@ def run(params):
     
     model_type = mapping.get_model_type(params['arch'])
         
-    job_name = model_type + '-training'
+    job_name = f'ethan-{model_type}-train'
 
     template_info = {'job_name': job_name,
                         'num_cpus': str(params['kube']['train_job']['num_cpus']),
@@ -33,7 +33,7 @@ def run(params):
                         'num_mem_req': str(params['kube']['train_job']['num_mem_req']),
                         'num_mem_lim': str(params['kube']['train_job']['num_mem_lim']),
                         'pvc_preprocessed': params['kube']['pvc_preprocessed'],
-                        'pp_data_path': params['kube']['compile_job']['paths']['data']['preprocessed_data'],
+                        'pp_data_path': params['kube']['data_job']['paths']['data']['preprocessed_data'],
                         'pvc_results': params['kube']['pvc_results'],
                         'results_path': params['kube']['train_job']['paths']['results']['model_results'],
                         'ckpt_path': params['kube']['train_job']['paths']['results']['model_checkpoints'],
@@ -48,7 +48,6 @@ def run(params):
     save_file(path_job, filled_template)
 
     #subprocess.run(['kubectl', 'apply', '-f', path_job])
-    #print(f"launching job for {arch}, {sequence}")
          
     
 if __name__=="__main__":
