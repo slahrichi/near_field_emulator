@@ -30,7 +30,8 @@ class Writer:
         
         # Add fold-specific paths for good organization
         if self.fold_idx is not None:
-            self.path_metrics = os.path.join(self.path, f"loss_fold{self.fold_idx+1}.csv")
+            os.makedirs(os.path.join(self.path, 'losses'), exist_ok=True)
+            self.path_metrics = os.path.join(self.path, 'losses', f"fold{self.fold_idx+1}.csv")
             self.path_train = os.path.join(self.path, "train_info", f"fold{self.fold_idx+1}")
             self.path_valid = os.path.join(self.path, "valid_info", f"fold{self.fold_idx+1}")
         else:
@@ -38,7 +39,7 @@ class Writer:
             self.path_train = os.path.join(self.path, "train_info")
             self.path_valid = os.path.join(self.path, "valid_info")
 
-        # Ensure fold-specific directories exist
+        # Ensure specific directories exist
         os.makedirs(self.path_valid, exist_ok=True)
         os.makedirs(self.path_train, exist_ok=True)
         

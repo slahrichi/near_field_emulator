@@ -11,10 +11,10 @@ from pytorch_lightning import seed_everything
 # Import: Custom Python Libraries
 #--------------------------------
 sys.path.append('../')
-from utils import parameter_manager
+from utils import parameter_manager, mapping
 from core import datamodule as dm
 
-def compile_data(params):
+def run(params):
     """This function finishes the preprocessing pipeline for the data,  
        fully loading it into the PyTorch format expected by the dataloader.  
        It operates on the preprocessed pickle files separated by train/valid.  
@@ -33,13 +33,15 @@ def compile_data(params):
     train_path = os.path.join(params['path_root'], params['path_data'], 'train')
     valid_path = os.path.join(params['path_root'], params['path_data'], 'valid')
     
+    model_type = mapping.get_model_type(pm.arch)
+    
     # Load data
-    if pm.arch == 0: # MLP
-        save_path = os.path.join(params['path_root'], params['path_data'], 'dataset.pt')
+    if model_type == 'mlp' or model_type == 'cvnn':
+        save_path = os.path.join(params['path_root'], params['path_data'], 'dataset_nobuffer.pt')
         if os.path.exists(save_path):
             raise FileExistsError(f"Output file {save_path} already exists!")
         dm.load_pickle_data(train_path, valid_path, save_path, arch='mlp')
-    elif pm.arch == 1 or params['arch'] == 2: # LSTM
+    else: # LSTM
         save_path = os.path.join(params['path_root'], params['path_data'], 'dataset.pt')
         logging.debug(f"Save path: {save_path}")
         logging.debug(f"Save directory exists: {os.path.exists(os.path.dirname(save_path))}")
@@ -47,6 +49,3 @@ def compile_data(params):
         #if os.path.exists(save_path):
         #    raise FileExistsError(f"Output file {save_path} already exists!")
         dm.load_pickle_data(train_path, valid_path, save_path, arch='lstm')
-    else:
-        logging.error("datamodule.py | Dataset {} not implemented!".format(params['which']))
-        exit()

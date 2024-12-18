@@ -15,15 +15,13 @@ Exploration of deep learning models for emulating wavefront propagation and resp
   - **autoencoder.py** : autoencoder implementation
   - **ConvLSTM.py** : Convolutional LSTM implementation
   - **CVNN.py** : implementation of Complex-Valued NN, activations
-- `sim/` : contains files required for dataset generation/meep simulations
-  - (incomplete)
-  - **simulation.py** : Configures a MEEP simulation
+  - **preprocess_data.py** : Handles the formatting of data .pkl files for time series networks, splitting into train/valid.
+  - **compile_data.py** : Data after preprocessing is saved as .pkl files, This file contains a function that compiles it into a single pytorch file for use with the model.
 - `evaluation/` : contains files used for eval pipeline
   - **eval_model.py** : Primary file for evaluation process
   - **evaluation.py** : File containing all plotting, measuring, etc. methods
   - **inference.py** : Contains additional evaluation functions for real-time analysis
 - `utils/` : Helper files
-  - **compile_data.py** : Data after preprocessing is saved as .pkl files, This file contains a function that compiles it into a single pytorch file for use with the model.
   - **mapping.py** : Primarily contains the functions `cartesian_to_polar` and its vice versa counterpart for converting between polar and cartesian before displaying plots
   - **model_loader.py** : This wrapper dynamically determines which model we're using
   - **parameter_manager.py** : Formats and organizes `config.yaml` contents in a manner consistent with the needs of files which reference them such as the model, data module, etc.
@@ -37,11 +35,17 @@ Exploration of deep learning models for emulating wavefront propagation and resp
 
 The `config.yaml` file controls all aspects of training and evaluation. Key parameters include:
 
-- `experiment`: 
+- `directive`: 
   - `0`: Train network
   - `1`: Run evaluation
   - `2`: Data compilation
   - `3`: Load results
+  - `4`: Preprocess and format data
+  - `5`: Perform mode encoding on data (modeLSTM)
+
+- `deployment`: 
+  - `0`: Local deployment
+  - `1`: Kubernetes deployment
 
 - `arch`:
   - `0`: Dual MLPs (separate real/imaginary)
@@ -107,14 +111,14 @@ python3 main.py --config config.yaml
 
 ### Training
 
-1. Set `experiment: 0` in `config.yaml`
+1. Set `directive: 0` in `config.yaml`
 2. Choose architecture with `arch` parameter
 3. Set desired `model_id` and hyperparameters
 4. Run `python3 main.py --config config.yaml`
 
 ### Evaluation
 
-1. Set `experiment: 1` in `config.yaml`
+1. Set `directive: 1` in `config.yaml`
 2. Set other desired parameters
 3. Run `python3 main.py --config config.yaml`
 
@@ -127,36 +131,23 @@ Evaluation outputs (saved to `develop/results`, copied to `training_results` PVC
 
 (Note: Process not fully integrated yet)
 
-1. Set `experiment: 2` in `config.yaml`
+1. Set `directive: 2` in `config.yaml`
 2. Set `arch` to `convlstm` (for example) to get all eval results for that model
 3. Run `python3 main.py --config config.yaml`
 
 ### Running Meep Simulations
 
-INCOMPLETE - Need to integrate preexisting pipeline from other lab repos into this
-one.
-
 To generate training data using Meep:
 
-1. Set `experiment: 4` in `config.yaml`
-2. Set desired **Physical Params** in `config.yaml`
-3. Run `python3 main.py --config config.yaml`
-
-This simulates a metasurface with specified radii/height configurations and saves:
-- Near-field distributions
-- Far-field patterns
-- Epsilon data
-- Field slices
+1. Follow instructions in this repo (ensure you are in `nfe_branch`): [general_3x3](https://github.com/Kovaleski-Research-Lab/general_3x3/tree/nfe_branch?tab=readme-ov-file)
 
 ### Data Preprocessing
 
-INCOMPLETE - Process should entail preprocessing from MEEP outputs as well as
-compilation into a single `dataset.pt` file for use by the ML pipeline but at
-present only the latter is implemented in this repo.
-
-1. Prerequisite: Data has been preprocessed into `preprocessed_data/train` (and valid)
-2. Set `experiment: 4` in `config.yaml`
-3. Run `python3 main.py --config config.yaml`
+1. Prerequisite: MEEP Simulation(s) have been ran and reduced to volumes in `data/nfe-data/volumes`
+2. Copy `neighbors_library_allrandom.pkl` to `/develop/code/near_field_emulator/utils/` if not done already (can copy from `general_3x3` repo)
+3. Set `directive: 4` in `config.yaml`
+4. Set `deployment` accordingly for deployment type
+5. Run `python3 main.py --config config.yaml`
 
 Preprocessed datasets contain:
 - Normalized field components

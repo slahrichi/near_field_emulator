@@ -33,7 +33,8 @@ class Parameter_Manager():
         try:
             logging.debug(f"Keys in params: {params.keys()}")
 
-            self.experiment = params['experiment']
+            self.directive = params['directive']
+            self.deployment = params['deployment']
 
             # Load: Paths 
             self.path_root = params['path_root']
@@ -42,6 +43,8 @@ class Parameter_Manager():
             self.path_valid = params['path_valid']
             self.path_results = params['path_results']
             self.path_resims = params['path_resims']
+            self.path_volumes = params['path_volumes']
+            self.path_library = params['path_library']
             self._path_checkpoint = params['path_checkpoint']
             self.path_pretrained_ae = params['path_pretrained_ae']
  
@@ -120,7 +123,7 @@ class Parameter_Manager():
             # Datashape from the sim information
             self.data_shape = [1,2,self.Nxp,self.Nyp]
 
-            # Determine the type of experiment we are running
+            # Determine the type of directive we are running
             self.model_id = params['model_id']
 
 
@@ -208,13 +211,15 @@ class Parameter_Manager():
                                 'interpolate_fields' : self.interpolate_fields,
                                 'io_mode'       : self.io_mode,
                                 'spacing_mode'  : self.spacing_mode,
-                                'experiment'    : self.experiment,
+                                'directive'     : self.directive,
+                                'deployment'    : self.deployment,
                                 'modelstm'      : self.modelstm,
                                 }
         
         self._params_kube = {
                                 'kube'          : self.kube,
-                                'experiment'    : self.experiment,
+                                'directive'     : self.directive,
+                                'deployment'    : self.deployment,
                                 'arch'          : self._arch,
                                 'model_id'      : self.model_id,
                                 }
@@ -225,7 +230,8 @@ class Parameter_Manager():
                             'accelerator'       : self.accelerator,
                             'patience'          : self.patience,
                             'min_delta'         : self.min_delta,
-                            'experiment'        : self.experiment,
+                            'directive'         : self.directive,
+                            'deployment'        : self.deployment,
                             'include_testing'   : self.include_testing,
                             'cross_validation'  : self.cross_validation
                             }
@@ -256,6 +262,8 @@ class Parameter_Manager():
                         'path_valid'                    : self.path_valid,
                         'path_results'                  : self.path_results, 
                         'path_checkpoint'               : self._path_checkpoint,
+                        'path_volumes'                  : self.path_volumes,
+                        'path_library'                  : self.path_library,
                         'path_resims'                   : self.path_resims,
                         'path_pretrained_ae'            : self.path_pretrained_ae,
                         }

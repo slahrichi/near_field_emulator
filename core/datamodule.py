@@ -17,7 +17,7 @@ import torch
 # Import: Custom Python Libraries
 #--------------------------------
 sys.path.append('../')
-from core import curvature, modes
+from core import curvature
 from utils import mapping
 
 # debugging
@@ -30,7 +30,7 @@ class NF_Datamodule(LightningDataModule):
 
         self.params = params.copy()
         logging.debug("datamodule.py - Setting params to {}".format(self.params))
-        self.experiment = params['experiment']
+        self.directive = params['directive']
         self.model_type = mapping.get_model_type(params['arch'])
         self.n_cpus = self.params['n_cpus']
         self.seed = self.params['seed']
@@ -44,6 +44,10 @@ class NF_Datamodule(LightningDataModule):
         
         self.batch_size = self.params['batch_size']
         self.transform = transform #TODO
+        self.index_map = {
+            'train': [],
+            'valid': []
+        }
         self.dataset = None
         self.train = None
         self.valid = None
@@ -63,6 +67,7 @@ class NF_Datamodule(LightningDataModule):
         #preprocess_data.preprocess_data(path = os.path.join(self.path_data, 'raw'))
         pass
 
+    # TODO: Getting a bit messy, consider abstraction/subclassing
     def setup(self, stage: Optional[str] = None):
         if self.model_type == 'autoencoder': # pretraining
             data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
@@ -73,15 +78,27 @@ class NF_Datamodule(LightningDataModule):
                 data = interpolate_fields(data)
             self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
         else: # time series models
-            data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
-            if self.model_type == 'modelstm': # modifying the data
-                data = encode_modes(data, self.params['modelstm'])
+            if self.model_type == 'modelstm': # using an encoded representation
+                data = torch.load(os.path.join(self.path_data, f"dataset_{self.params['modelstm']['method']}.pt"))
+            else: # regular dataset
+                data = torch.load(os.path.join(self.path_data, f"dataset.pt"))
             self.dataset = format_temporal_data(data, self.params)
+        # create a map of indices for OG train/valid split - default for when we don't use crossval
+        for i in range(len(data['tag'])):
+            if data['tag'][i] == 0:
+                self.index_map['valid'].append(i)
+            else:
+                self.index_map['train'].append(i)
             
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
         self.train = Subset(self.dataset, train_idx)
         self.valid = Subset(self.dataset, val_idx)
+        
+    def setup_og(self):
+        # use index map to create subsets in line with the original fixed random split
+        self.train = Subset(self.dataset, self.index_map['train'])
+        self.valid = Subset(self.dataset, self.index_map['valid'])
 
     def train_dataloader(self):
         return DataLoader(self.train,
@@ -357,37 +374,6 @@ def format_ae_data(data, params):
             
     # were training on reconstruction, so samples == labels
     return WaveModel_Dataset(all_samples, all_samples)
-
-def encode_modes(data, params):
-    """Takes the input formatted dataset and applies a specified modal decomposition
-
-    Args:
-        data (tensor): the dataset
-        params (dict): mode encoding parameters
-        
-    Returns:
-        dataset (WaveModel_Dataset): formatted dataset with encoded data
-    """
-    near_fields = data['near_fields'].clone()
-    
-    method = params['method']
-    print(f"Performing '{method}' encoding...")
-    
-    if method == 'svd': # encoding singular value decomposition
-        encoded_fields = modes.svd(near_fields, params)
-    elif method == 'rand': # random projection / Johnson-Lindenstrauss
-        encoded_fields = modes.random_proj(near_fields, params)
-    elif method == 'gauss': # gauss-laguerre modes
-        encoded_fields = modes.gauss_laguerre_proj(near_fields, params)
-    elif method == 'fourier': # a fourier encoding
-        encoded_fields = modes.fourier_modes(near_fields, params)
-    else:
-        raise NotImplementedError(f"Mode encoding method '{method}' not recognized.")
-    
-    # update the real data
-    data['near_fields'] = encoded_fields
-    
-    return data
         
 def interpolate_fields(data):
     """Interpolates the fields to a lower resolution. Currently supports 2x downsampling.  

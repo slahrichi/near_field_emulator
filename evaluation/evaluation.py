@@ -85,7 +85,7 @@ def get_all_results(folder_path, n_folds, resub=False):
     return fold_results
         
 def save_eval_item(save_dir, eval_item, file_name, type):
-    """Save metrics or plot(s) to a specified file"""
+    """Save metrics or plot(s) to a specified file."""
     if 'metrics' in type:
         save_path = os.path.join(save_dir, "performance_metrics")
     elif type == 'loss':
@@ -97,119 +97,193 @@ def save_eval_item(save_dir, eval_item, file_name, type):
     if 'metrics' in type:
         with open(save_path, 'w') as file:
             for metric, value in eval_item.items():
-                if type == 'all_metrics':
-                    file.write(f"{metric}: {np.mean(value):.4f} ± {np.std(value):.4f}\n")
-                else:
-                    file.write(f"{metric}: {value:.4f}\n")
+                file.write(f"{metric}: {value:.4f}\n")
     else:
         eval_item.savefig(save_path)
     print(f"Generated evaluation item: {type}")
     
-
-def plot_loss(pm, fold_results, min_list=[None, None], max_list=[None, None], save_fig=False, save_dir=None):
-    losses = [fold['losses'] for fold in fold_results]
+def get_model_identifier(pm):
+    """Construct a model identifier string for the plot title based on model parameters."""
     model_type = mapping.get_model_type(pm.arch)
     title = pm.model_id
     lr = pm.learning_rate
     optimizer = pm.optimizer
     lr_scheduler = pm.lr_scheduler
     batch_size = pm.batch_size
-    if model_type == 'mlp' or model_type == 'cvnn':
+    
+    if model_type in ['mlp', 'cvnn']:
         mlp_layers = pm.mlp_real['layers']
-        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
-        #if params['mlp_strategy'] != 0:
-        #    patch_size = params['patch_size']
-        #    model_identifier += f", patch_size: {patch_size}"
-    elif model_type == 'lstm' or model_type == 'ae-lstm':
+        return f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
+    elif model_type in ['lstm', 'ae-lstm']:
         lstm_num_layers = pm.lstm['num_layers']
         lstm_i_dims = pm.lstm['i_dims']
         lstm_h_dims = pm.lstm['h_dims']
         seq_len = pm.seq_len
-        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
-    elif model_type == 'convlstm' or model_type == 'ae-convlstm':
+        return (f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
+                f'batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, '
+                f'h_dims: {lstm_h_dims}, seq_len: {seq_len}')
+    elif model_type in ['convlstm', 'ae-convlstm']:
         in_channels = pm.convlstm['in_channels']
         out_channels = pm.convlstm['out_channels']
         kernel_size = pm.convlstm['kernel_size']
         padding = pm.convlstm['padding']
-        model_identifier = f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, kernel_size: {kernel_size}, padding: {padding}'
+        return (f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
+                f'batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, '
+                f'kernel_size: {kernel_size}, padding: {padding}')
     elif model_type == 'modelstm':
         method = pm.modelstm['method']
         lstm_num_layers = pm.modelstm['num_layers']
         lstm_i_dims = pm.modelstm['i_dims']
         lstm_h_dims = pm.modelstm['h_dims']
         seq_len = pm.seq_len
-        model_identifier = f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, h_dims: {lstm_h_dims}, seq_len: {seq_len}'
+        return (f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
+                f'batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, '
+                f'h_dims: {lstm_h_dims}, seq_len: {seq_len}')
     elif model_type == 'autoencoder':
         latent_dim = pm.autoencoder['latent_dim']
         method = pm.autoencoder['method']
-        model_identifier = f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, latent_dim: {latent_dim}'
-    
-    plt.style.use("ggplot")
-    
-    # Create two subplots: one for training and one for validation
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4.5))  # 1 row, 2 columns
-    
-    train_loss_dfs = []
-    val_loss_dfs = []
-    
-    for fold_idx, loss_df in enumerate(losses):
-        loss_df = loss_df.set_index('epoch')
-        train_loss = loss_df['train_loss'].dropna()
-        val_loss = loss_df['val_loss'].dropna()
-        
-        train_loss.name = f'Fold_{fold_idx+1}'
-        val_loss.name = f'Fold_{fold_idx+1}'
-        
-        train_loss_dfs.append(train_loss)
-        val_loss_dfs.append(val_loss)
-        
-    # align on the epoch index
-    train_loss_df = pd.concat(train_loss_dfs, axis=1)
-    val_loss_df = pd.concat(val_loss_dfs, axis=1)
-    
-    # compute across folds and ignore NaN
-    mean_train_loss = train_loss_df.mean(axis=1, skipna=True)
-    std_train_loss = train_loss_df.std(axis=1, skipna=True)
-    
-    mean_val_loss = val_loss_df.mean(axis=1, skipna=True)
-    std_val_loss = val_loss_df.std(axis=1, skipna=True)
+        return (f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, '
+                f'optimizer: {optimizer}, batch: {batch_size}, latent_dim: {latent_dim}')
+    else:
+        return f'{title} - lr: {lr}, optimizer: {optimizer}, batch: {batch_size}'
 
-    # Extract the epochs
-    #epochs = losses[0]["epoch"]
 
-    # Plot training loss with std deviation
-    ax[0].plot(mean_train_loss.index, mean_train_loss.values, color='red', label=f'Training Mean')
-    '''ax[0].fill_between(mean_train_loss.index, 
-                       mean_train_loss.values - std_train_loss.values, 
-                       mean_train_loss.values + std_train_loss.values, 
-                       color='red', alpha=0.3, label='Training Std Dev')'''
-    ax[0].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
-    ax[0].set_xlabel("Epoch", fontsize=10)
-    ax[0].set_title(f"Training Loss", fontsize=12)
-    ax[0].set_ylim([min_list[0], max_list[0]])
-    ax[0].legend()
+import os
+import pandas as pd
+import matplotlib.pyplot as plt
+from utils.mapping import get_model_type
+
+def clean_loss_df(df):
+    """
+    Clean up the loss DataFrame which may have each epoch split into two lines.
+    We group by epoch and take max() since one of train_loss/val_loss lines will be NaN on one row.
+    """
+    df = df.dropna(how='all')  # Drop completely empty rows
+    # Convert columns to numeric
+    for col in ['val_loss', 'epoch', 'train_loss']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    # Group by epoch and aggregate
+    df = df.groupby('epoch', as_index=False).agg({'val_loss': 'max', 'train_loss': 'max'})
+    df = df.set_index('epoch')
+    df = df.sort_index()
+    return df
+
+def plot_loss(pm, min_list=[None, None], max_list=[None, None], save_fig=False, save_dir=None):
+    model_identifier = get_model_type(pm.arch)  # or get_model_identifier(pm) if you have that function
     
-    # Plot validation loss with std deviation
-    ax[1].plot(mean_val_loss.index, mean_val_loss.values, color='blue', label=f'Validation Mean')
-    '''ax[1].fill_between(mean_val_loss.index, 
-                       mean_val_loss.values - std_val_loss.values, 
-                       mean_val_loss.values + std_val_loss.values, 
-                       color='blue', alpha=0.3, label='Validation Std Dev')'''
-    ax[1].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
-    ax[1].set_xlabel("Epoch", fontsize=10)
-    ax[1].set_title(f"Validation Loss", fontsize=12)
-    ax[1].set_ylim([min_list[1], max_list[1]])
-    ax[1].legend()
+    if pm.cross_validation:
+        losses_path = os.path.join(save_dir, "losses")
+        if not os.path.exists(losses_path):
+            print(f"No losses directory found at {losses_path}.")
+            return
+        
+        fold_files = [f for f in os.listdir(losses_path) if f.startswith('fold')]
+        if not fold_files:
+            print("No fold loss files found.")
+            return
+        
+        train_losses = []
+        val_losses = []
+        for f in fold_files:
+            path = os.path.join(losses_path, f)
+            if os.path.getsize(path) == 0:
+                print(f"Empty CSV file: {path}")
+                continue
+            df = pd.read_csv(path)
+            df = clean_loss_df(df)
+
+            train_losses.append(df['train_loss'])
+            val_losses.append(df['val_loss'])
+        
+        if not train_losses or not val_losses:
+            print("No valid training/validation losses to plot after cleaning.")
+            return
+        
+        # Align on epochs
+        train_loss_df = pd.concat(train_losses, axis=1)
+        val_loss_df = pd.concat(val_losses, axis=1)
+        
+        mean_train_loss = train_loss_df.mean(axis=1, skipna=True)
+        std_train_loss = train_loss_df.std(axis=1, skipna=True)
+        
+        mean_val_loss = val_loss_df.mean(axis=1, skipna=True)
+        std_val_loss = val_loss_df.std(axis=1, skipna=True)
+        
+        plt.style.use("ggplot")
+        fig, ax = plt.subplots(1, 2, figsize=(12, 4.5))
+        
+        # Plot training mean and std
+        ax[0].plot(mean_train_loss.index, mean_train_loss.values, color='red', label='Training Mean')
+        ax[0].fill_between(mean_train_loss.index,
+                           mean_train_loss.values - std_train_loss.values,
+                           mean_train_loss.values + std_train_loss.values,
+                           color='red', alpha=0.3, label='Training Std Dev')
+        ax[0].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[0].set_xlabel("Epoch", fontsize=10)
+        ax[0].set_title("Training Loss", fontsize=12)
+        ax[0].set_ylim([min_list[0], max_list[0]])
+        ax[0].legend()
+        
+        # Plot validation mean and std
+        ax[1].plot(mean_val_loss.index, mean_val_loss.values, color='blue', label='Validation Mean')
+        ax[1].fill_between(mean_val_loss.index,
+                           mean_val_loss.values - std_val_loss.values,
+                           mean_val_loss.values + std_val_loss.values,
+                           color='blue', alpha=0.3, label='Validation Std Dev')
+        ax[1].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[1].set_xlabel("Epoch", fontsize=10)
+        ax[1].set_title("Validation Loss", fontsize=12)
+        ax[1].set_ylim([min_list[1], max_list[1]])
+        ax[1].legend()
+        
+        fig.suptitle(model_identifier)
+        fig.tight_layout()
+        
+        if save_fig:
+            save_eval_item(save_dir, fig, 'loss.pdf', 'loss')
+        else:
+            plt.show()
     
-    fig.suptitle(model_identifier)
-    fig.tight_layout()
-    
-    # Save the plot if requested
-    if save_fig:
-        if not save_dir:
-            raise ValueError("Please specify a save directory")
-        file_name = f'loss.pdf'
-        save_eval_item(save_dir, fig, file_name, 'loss')
+    else:
+        # Single run scenario
+        loss_file = os.path.join(save_dir, "loss.csv")
+        if not os.path.exists(loss_file) or os.path.getsize(loss_file) == 0:
+            print("No loss.csv found or it's empty.")
+            return
+        
+        df = pd.read_csv(loss_file)
+        df = clean_loss_df(df)  # Clean the df to properly align train and val loss per epoch
+        
+        if 'train_loss' not in df.columns or 'val_loss' not in df.columns:
+            print("train_loss or val_loss columns not found in cleaned DataFrame.")
+            return
+        
+        plt.style.use("ggplot")
+        fig, ax = plt.subplots(1, 2, figsize=(12, 4.5))
+
+        ax[0].plot(df.index, df['train_loss'].values, color='red', label='Training Loss')
+        ax[0].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[0].set_xlabel("Epoch", fontsize=10)
+        ax[0].set_title("Training Loss", fontsize=12)
+        ax[0].set_ylim([min_list[0], max_list[0]])
+        ax[0].legend()
+
+        ax[1].plot(df.index, df['val_loss'].values, color='blue', label='Validation Loss')
+        ax[1].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[1].set_xlabel("Epoch", fontsize=10)
+        ax[1].set_title("Validation Loss", fontsize=12)
+        ax[1].set_ylim([min_list[1], max_list[1]])
+        ax[1].legend()
+
+        fig.suptitle(model_identifier)
+        fig.tight_layout()
+
+        if save_fig:
+            save_eval_item(save_dir, fig, 'loss.pdf', 'loss')
+        else:
+            plt.show()
 
 def calculate_metrics(truth, pred):
     """Calculate various metrics between ground truth and predictions."""
@@ -230,82 +304,38 @@ def calculate_metrics(truth, pred):
         'SSIM': ssim.item()
     }
 
-def print_metrics(fold_results, fold_idx=None, dataset='valid', save_fig=False, save_dir=None):
+def print_metrics(test_results, fold_idx=None, dataset='valid', save_fig=False, save_dir=None):
     """Print metrics for a specific fold and dataset (train or valid)."""
-    if fold_idx is not None:
-        results = fold_results[fold_idx][dataset]
-        truth = results['nf_truth']
-        pred = results['nf_pred']
-        
-        metrics = calculate_metrics(truth, pred)
-        print(f"Metrics for Fold {fold_idx + 1} - {dataset.capitalize()} Dataset:")
-        for metric, value in metrics.items():
-            print(f"{metric}: {value:.4f}")
-            
-        # save to file
-        if save_fig:
-            if not save_dir:
-                raise ValueError("Please specify a save directory")
-            file_name = f'{dataset}_metrics_fold{fold_idx+1}.txt'
-            save_eval_item(save_dir, metrics, file_name, 'metrics')
-    else:
-        # calculate metrics for all folds
-        all_metrics = {metric: [] for metric in ['MAE', 'RMSE', 'Correlation', 'PSNR', 'SSIM']}
-        for fold_idx, fold in enumerate(fold_results):
-            results = fold[dataset]
-            truth = results['nf_truth']
-            pred = results['nf_pred']
-            
-            metrics = calculate_metrics(truth, pred)
-            for metric, value in metrics.items():
-                all_metrics[metric].append(value)
-        
-        print(f"Average Metrics for All Folds - {dataset.capitalize()} Dataset:")
-        for metric, values in all_metrics.items():
-            print(f"{metric}: {np.mean(values):.4f} ± {np.std(values):.4f}")
-            
-        # save to file
-        if save_fig:
-            if not save_dir:
-                raise ValueError("Please specify a save directory")
-            file_name = f'{dataset}_metrics.txt'
-            save_eval_item(save_dir, all_metrics, file_name, 'all_metrics')
+    if dataset not in test_results:
+        raise ValueError(f"Dataset '{dataset}' not found in test_results.")
 
-def determine_fold_to_plot(fold_results, plot_type, fold_idx=None):
-    # Determine which fold to plot based on plot_type
-    if plot_type == "best":
-        # Select the fold with the best validation loss
-        best_fold_idx = min(range(len(fold_results)), key=lambda i: fold_results[i]['losses']['val_loss'].iloc[-2])
-        selected_results = fold_results[best_fold_idx]
-        title = f"Best Performing Fold - Fold {best_fold_idx + 1}"
-    elif plot_type == "worst":
-        # Select the fold with the worst validation loss
-        worst_fold_idx = max(range(len(fold_results)), key=lambda i: fold_results[i]['losses']['val_loss'].iloc[-2])
-        selected_results = fold_results[worst_fold_idx]
-        title = f"Worst Performing Fold - Fold {worst_fold_idx + 1}"
-    elif plot_type == "specific" and fold_idx is not None:
-        # Plot a specific fold by index
-        selected_results = fold_results[fold_idx]
-        title = f"Specific Fold -  Fold {fold_idx + 1}"
-    else:
-        raise ValueError("Invalid plot_type or fold_idx provided")
-    
-    return selected_results, title
+    truth = test_results[dataset]['nf_truth']
+    pred = test_results[dataset]['nf_pred']
 
-def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", resub=False,
+    metrics = calculate_metrics(truth, pred)
+    print(f"Metrics for {dataset.capitalize()} Dataset:")
+    for metric, value in metrics.items():
+        print(f"{metric}: {value:.4f}")
+
+    # save to file if requested
+    if save_fig:
+        if not save_dir:
+            raise ValueError("Please specify a save directory")
+        file_name = f'{dataset}_metrics.txt'
+        save_eval_item(save_dir, metrics, file_name, 'metrics')
+
+def plot_dft_fields(test_results, plot_type="best", resub=False,
                     sample_idx=0, save_fig=False, save_dir=None,
-                    arch='mlp', format='polar'):
+                    arch='mlp', format='polar', fold_num=False):
     """
     Parameters:
-    - fold_results: List of dictionaries containing train and valid results for each fold
-    - fold_idx: Optional, if you want to visualize a specific fold by index
-    - plot_type: "best" to plot best-performing fold, "worst" to plot worst-performing fold,  
-      or "specific" if fold_idx is provided  
+    - test_results: List of dictionaries containing train and valid results
     - sample_idx: Index of the sample to plot
     - save_fig: Whether to save the plot to a file
     - save_dir: Directory to save the plot to
     - arch: "mlp" or "lstm"
     - format: "cartesian" or "polar"
+    - fold_num: the fold # of the selected fold being plotted (if cross val)
     """
     def plot_single_set(results, title, format, save_path, sample_idx):
         if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
@@ -448,29 +478,29 @@ def plot_dft_fields(fold_results, fold_idx=None, plot_type="best", resub=False,
 
         plt.show()
 
-    # grab the data and title for the selected fold
-    selected_results, title = determine_fold_to_plot(fold_results, plot_type, fold_idx)
-
-    # Plot both training and validation results for the selected fold
+    if fold_num:
+        title = f'Cross Val - Fold {fold_num}'
+    else:
+        title = 'Default Split'
+    # Plot both training and validation results
     if resub:
-        plot_single_set(selected_results['train'], f"{title} - Random Training Sample - {format}", format, save_dir, sample_idx)
-    plot_single_set(selected_results['valid'], f"{title} - Random Validation Sample - {format}", format, save_dir, sample_idx)
+        plot_single_set(test_results['train'], f"{title} - Random Training Sample - {format}", format, save_dir, sample_idx)
+    plot_single_set(test_results['valid'], f"{title} - Random Validation Sample - {format}", format, save_dir, sample_idx)
     
-def plot_absolute_difference(fold_results, resub=False, plot_type='best', 
-                             sample_idx=0, fold_idx=None, save_fig=False, 
-                             save_dir=None, arch='mlp'):
+def plot_absolute_difference(test_results, resub=False, sample_idx=0, 
+                             save_fig=False, save_dir=None, arch='mlp', fold_num=None):
     """
     Plot a sequence of absolute difference between predicted and ground truth fields
     
     Args:
-        fold_results (list): List of dictionaries containing train and valid results for each fold
+        test_results (list): List of dictionaries containing train and valid results
         resub (bool): Whether to plot a random training sample instead of a random validation sample
-        plot_type (str): Type of plot ('best', 'worst', or 'specific')
         sample_idx (int): Index of sample to plot
-        fold_idx (int): Index of fold to plot if plot_type is 'specific'
         save_fig (bool): Whether to save the figure
         save_dir (str): Directory to save figure if save_fig is True
         arch (str): Architecture type ('mlp' or 'lstm')
+        fold_num: the fold # of the selected fold being plotted (if cross val)
+
     """
     def plot_single_set(results, title, sample_idx):
         abs_diff = calculate_absolute_difference(results, sample_idx)
@@ -541,10 +571,13 @@ def plot_absolute_difference(fold_results, resub=False, plot_type='best',
         else:
             plt.show()
 
-    selected_results, title = determine_fold_to_plot(fold_results, plot_type, fold_idx)
-    plot_single_set(selected_results['valid'], f"{title} - Validation", sample_idx)
+    if fold_num:
+        title = f'Cross Val - Fold {fold_num}'
+    else:
+        title = 'Default Split'
+    plot_single_set(test_results['valid'], f"{title} - Validation", sample_idx)
     if resub:
-        plot_single_set(selected_results['train'], f"{title} - Training", sample_idx)
+        plot_single_set(test_results['train'], f"{title} - Training", sample_idx)
 
 def calculate_absolute_difference(results, sample_idx=0):
     """Generate absolute difference data for a given sample"""
@@ -552,8 +585,8 @@ def calculate_absolute_difference(results, sample_idx=0):
     pred = torch.from_numpy(results['nf_pred'][sample_idx, :])
     return torch.abs(truth - pred)
     
-def animate_fields(fold_results, dataset, fold_idx=0, sample_idx=0, seq_len=5, save_dir=None): 
-    results = fold_results[fold_idx][dataset]
+def animate_fields(test_results, dataset, sample_idx=0, seq_len=5, save_dir=None): 
+    results = test_results[dataset]
     truth_real = torch.from_numpy(results['nf_truth'][sample_idx, :, 0, :, :])
     truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, :, 1, :, :])
     pred_real = torch.from_numpy(results['nf_pred'][sample_idx, :, 0, :, :])

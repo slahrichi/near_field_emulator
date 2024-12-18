@@ -1,11 +1,16 @@
-# Experiment Type
+# directive: Process to execute
 # - 0: train network
 # - 1: run evaluation
 # - 2: load results/copy to local for viewing
 # - 3: MEEP simulations
 # - 4: data preprocessing and formatting for model
+# - 5: mode encoding
+# deployment: Deployment mode
+# - 0: local
+# - 1: kubernetes
 
-experiment: 1
+directive: 5
+deployment: 1
 
 # - arch: Network Architecture
 # *** Mapping design parameters to DFT fields ***
@@ -40,7 +45,7 @@ arch: 6
 
 seed: [True, 1337]
 train: True
-model_id: '12M-v3'
+model_id: 'trainertest'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -100,10 +105,10 @@ modelstm:
     spatial: 166
     top_k: 5
     w0: 1.0
-    p_max: 5
-    l_max: 5
+    p_max: 39
+    l_max: 20
     seed: 1337
-    method: 'gauss'
+    method: 'svd'
 
 
 # ConvLSTM Parameters
@@ -157,7 +162,7 @@ autoreg: True
 #       Training Params
 #--------------------------------
 batch_size: 8
-num_epochs: 50 # maximum
+num_epochs: 5 # maximum
 
 accelerator: 'gpu' 
 gpu_config: [True, [0]]
@@ -173,8 +178,8 @@ transfer_learn: False
 load_checkpoint: False
 objective_function: 'mse'
 
-include_testing: True
-cross_validation: False
+include_testing: False
+cross_validation: True
 
 # early stopping settings
 patience: 15
@@ -195,6 +200,8 @@ path_train: 'train/'
 path_valid: 'valid/'
 path_results: 'results/'
 path_checkpoint: 'model_checkpoints/model_baseline_phases_derivatives'
+path_volumes: 'data/nfe-data/volumes'
+path_library: 'code/near_field_emulator/utils/neighbors_library_allrandom.pkl'
 path_resims: 'resims/'
 path_pretrained_ae: 'results/meep_meep/autoencoder/model_ae-linear-v1/'
 

@@ -198,18 +198,16 @@ class WaveModel(LightningModule, metaclass=abc.ABCMeta):
             if self.test_results[mode]['nf_pred']:
                 self.test_results[mode]['nf_pred'] = np.concatenate(self.test_results[mode]['nf_pred'], axis=0)
                 self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
-
-                # Handle fold index
-                #fold_suffix = f"_fold{self.fold_idx+1}" if self.fold_idx is not None else ""
-                #name = f"results{fold_suffix}"
-                                
+                
+                # old approach
+                '''             
                 # Log or save results
                 self.logger.experiment.log_results(
                     results=self.test_results[mode],
                     epoch=None,
                     mode=mode,
                     name="results"
-                )
+                )'''
             else:
                 print(f"No test results for mode: {mode}")
 
@@ -223,6 +221,10 @@ class WaveLSTM(WaveModel):
             self.arch_params = self.params[self.name]
              
             i_dims = self.arch_params['i_dims']
+            if self.name == 'modelstm': # when encoding modes some methods require a fix here
+                if self.arch_params['method'] == 'random' or self.arch_params['method'] == 'gauss':
+                    i_dims = i_dims*2
+                
                 
             self.arch = torch.nn.LSTM(input_size=i_dims,
                                       hidden_size=self.arch_params['h_dims'],
