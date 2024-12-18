@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: monitor-data
+  name: ethan-monitor-data
 spec:
   containers:
     - name: monitor-data
@@ -13,7 +13,7 @@ spec:
           memory: 20G
           cpu: 2
         requests:
-          memory: 10G
+          memory: 20G
           cpu: 2
       volumeMounts:
         - name: preprocessed-data 

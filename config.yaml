@@ -108,7 +108,7 @@ modelstm:
     p_max: 39
     l_max: 20
     seed: 1337
-    method: 'random'
+    method: 'svd'
 
 
 # ConvLSTM Parameters
@@ -253,9 +253,10 @@ kube:
     pvc_results : training-results
 
     data_job:
-        num_cpus : 20
-        num_mem_lim : 64Gi 
-        num_mem_req : 64Gi
+        num_cpus : 32
+        num_parallel_ops : 2
+        num_mem_lim : 200Gi 
+        num_mem_req : 200Gi
         kill_tag : data-job
 
         paths:

@@ -24,11 +24,11 @@ spec:
                     python3 /develop/code/near_field_emulator/main.py --config /develop/code/near_field_emulator/config.yaml"]
           resources:
             limits:
-              memory: 64Gi
-              cpu: 20
+              memory: 200Gi
+              cpu: 32
             requests:
-              memory: 64Gi
-              cpu: 20
+              memory: 200Gi
+              cpu: 32
           volumeMounts: 
             - name: preprocessed-data
               mountPath: /develop/data/preprocessed_data
