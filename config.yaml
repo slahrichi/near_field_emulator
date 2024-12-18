@@ -9,8 +9,8 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 0
-deployment: 1
+directive: 1
+deployment: 0
 
 # - arch: Network Architecture
 # *** Learning a mapping from design parameters to DFT fields ***
@@ -45,7 +45,7 @@ arch: 6
 
 seed: [True, 1337]
 train: True
-model_id: '10'
+model_id: '10-v4'
 torch_home: '/develop/pretrained_models'
 exp_name: 'Test One'
 num_design_params: 9
@@ -100,8 +100,8 @@ lstm:
 
 modelstm:
     num_layers: 1
-    i_dims: 3320
-    h_dims: 256
+    i_dims: 20
+    h_dims: 64
     spatial: 166
     top_k: 10
     w0: 1.0
@@ -155,7 +155,7 @@ autoencoder:
 
 seq_len: 10
 io_mode: 'one_to_many'
-spacing_mode: 'sequential'
+spacing_mode: 'distributed'
 autoreg: True
 
 #--------------------------------

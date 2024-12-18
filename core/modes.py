@@ -4,7 +4,7 @@ from tqdm import tqdm
 from scipy.special import genlaguerre
 import os
 
-def svd(x, params):
+'''def svd(x, params):
     """
     Computes the Singular Value Decomposition on the input data
     
@@ -40,9 +40,9 @@ def svd(x, params):
             x_svd[i, 0, :, :, j] = real_emb
             x_svd[i, 1, :, :, j] = imag_emb
             
-    return x_svd
+    return x_svd'''
     
-'''def svd(x, params):
+def svd(x, params):
     """
     Computes the Singular Value Decomposition on the entire sequence for each sample.
     
@@ -104,7 +104,7 @@ def svd(x, params):
             # We need to assign [k, slices] to [1, k, slices] for each channel
             x_svd[i, c, 0, :, :] = topk_v  # Broadcasting the same topk_v across channels
     
-    return x_svd'''
+    return x_svd
     
 '''def svd(x, params):
     """
