@@ -11,7 +11,6 @@ from pytorch_lightning import seed_everything
 # Import: Custom Python Libraries
 #--------------------------------
 sys.path.append('../')
-from utils import parameter_manager, mapping
 from core import datamodule as dm
 
 def run(conf):
