@@ -119,12 +119,12 @@ class PathsConfig(BaseModel):
             raise ValueError(f"Valid directory {model.valid} does not exist")
         if not os.path.exists(model.results):
             raise ValueError(f"Results directory {model.results} does not exist")
-        if not os.path.exists(model.volumes):
+        '''if not os.path.exists(model.volumes):
             raise ValueError(f"Volumes directory {model.volumes} does not exist")
         if not os.path.exists(model.library):
             raise ValueError(f"Library file {model.library} does not exist")
         if not os.path.exists(model.pretrained_ae):
-            raise ValueError(f"Pretrained AE directory {model.pretrained_ae} does not exist")
+            raise ValueError(f"Pretrained AE directory {model.pretrained_ae} does not exist")'''
         return model
     
 class DataConfig(BaseModel):
@@ -153,7 +153,7 @@ class PhysicsConfig(BaseModel):
     
 class KubeConfig(BaseModel):
     namespace: Literal['gpn-mizzou-muem']
-    image: Literal['docker.io/kovaleskilab/ml_basic:v4-kube']
+    image: str
     job_files: str
     pvc_volumes: str
     pvc_preprocessed: str
@@ -170,8 +170,8 @@ class KubeConfig(BaseModel):
         return model
 
 class MainConfig(BaseModel):
-    directive: str
-    deployment: str
+    directive: int
+    deployment: int
     paths: PathsConfig
     trainer: TrainerConfig
     model: ModelConfig
@@ -180,24 +180,13 @@ class MainConfig(BaseModel):
     kube: KubeConfig
     seed: List[Any] = field(default_factory=list)
     
-    @field_validator("paths", mode="before")
-    def validate_pretrained_ae(cls, main):
-        # check if pretrained AE is correct for the model architecture
-        if main.model.arch == 'ae-lstm':
-            if 'linear' not in main.paths.pretrained_ae:
-                raise ValueError("Pretrained AE must be a linear autoencoder")
-        if main.model.arch == 'ae-convlstm':
-            if 'linear' in main.paths.pretrained_ae:
-                raise ValueError("Pretrained AE must be a convolutional autoencoder")
-        return main
-    
     @model_validator(mode="after")
     def validate_results(cls, main):
         # need specific path for good categorization in results
         if main.model.arch == 'modelstm': # further categorize by mode encoding method
-            main.paths.results = os.path.join(main.paths.results, main.model.model_type, main.model.modelstm['method'], main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
+            main.paths.results = os.path.join(main.paths.results, main.model.arch, main.model.modelstm.method, main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
         else:
-            main.paths.results = os.path.join(main.paths.results, main.model.model_type, main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
+            main.paths.results = os.path.join(main.paths.results, main.model.arch, main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
         
         return main
     

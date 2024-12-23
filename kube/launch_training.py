@@ -25,22 +25,22 @@ def run(conf):
                         'num_gpus': str(conf.kube.train_job['num_gpus']),
                         'num_mem_req': str(conf.kube.train_job['num_mem_req']),
                         'num_mem_lim': str(conf.kube.train_job['num_mem_lim']),
-                        'pvc_preprocessed': conf.kube['pvc_preprocessed'],
-                        'pp_data_path': conf.kube['data_job']['paths']['data']['preprocessed_data'],
-                        'pvc_results': conf.kube['pvc_results'],
+                        'pvc_preprocessed': conf.kube.pvc_preprocessed,
+                        'pp_data_path': conf.kube.data_job['paths']['data']['preprocessed_data'],
+                        'pvc_results': conf.kube.pvc_results,
                         'results_path': conf.kube.train_job['paths']['results']['model_results'],
                         'ckpt_path': conf.kube.train_job['paths']['results']['model_checkpoints'],
-                        'path_image': conf.kube['image'],
+                        'path_image': conf.kube.image,
                     }
 
     filled_template = template.render(template_info)
 
-    if not os.path.exists(conf.kube['job_files']):
-        os.makedirs(conf.kube['job_files'])
-    path_job = os.path.join(conf.kube['job_files'], job_name + ".yaml")
+    if not os.path.exists(conf.kube.job_files):
+        os.makedirs(conf.kube.job_files)
+    path_job = os.path.join(conf.kube.job_files, job_name + ".yaml")
     save_file(path_job, filled_template)
 
-    subprocess.run(['kubectl', 'apply', '-f', path_job])
+    #subprocess.run(['kubectl', 'apply', '-f', path_job]) 
          
     
 if __name__=="__main__":

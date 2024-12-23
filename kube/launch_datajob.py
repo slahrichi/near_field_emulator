@@ -8,8 +8,8 @@ import subprocess
 from jinja2 import Environment, FileSystemLoader
 
 sys.path.append("../")
-from kube.support import load_file, save_file, load_config
-
+from kube.support import load_file, save_file
+from conf.schema import load_config
 def run(conf):
 
     template = load_file(conf.kube.data_job['paths']['template'])
@@ -25,19 +25,19 @@ def run(conf):
                      'num_cpus' : str(conf.kube.data_job['num_cpus']),
                      'num_mem_lim' : str(conf.kube.data_job['num_mem_lim']),
                      'num_mem_req' : str(conf.kube.data_job['num_mem_req']),
-                     'pvc_preprocessed' : conf.kube['pvc_preprocessed'],
+                     'pvc_preprocessed' : conf.kube.pvc_preprocessed,
                      'preprocessed_path' : conf.kube.data_job['paths']['data']['preprocessed_data'],
-                     'path_image' : conf.kube['image']
+                     'path_image' : conf.kube.image
                     }
 
     filled_template = template.render(template_info)
 
-    if not os.path.exists(conf.kube['job_files']):
-        os.makedirs(conf.kube['job_files'])
-    path_job = os.path.join(conf.kube['job_files'], job_name + ".yaml")
+    if not os.path.exists(conf.kube.job_files):
+        os.makedirs(conf.kube.job_files)
+    path_job = os.path.join(conf.kube.job_files, job_name + ".yaml")
     save_file(path_job, filled_template)
 
-    subprocess.run(['kubectl', 'apply', '-f', path_job])
+    #subprocess.run(['kubectl', 'apply', '-f', path_job])
 
 if __name__=="__main__":
      

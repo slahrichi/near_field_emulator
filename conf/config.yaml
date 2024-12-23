@@ -236,7 +236,7 @@ physics:
 #--------------------------------
 #       Datamodule Params
 #--------------------------------
-datamodule:
+data:
     n_cpus: 5
     n_folds: 3
 
