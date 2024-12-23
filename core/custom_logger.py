@@ -104,21 +104,11 @@ class Logger(Logger):
         self._experiment = None
         self._version = version
         self.fold_idx = fold_idx
-        root = all_paths['path_root']
-        self._save_dir = os.path.join(root, all_paths['path_results'])
+        self._save_dir = all_paths.results
         self.fold_idx = fold_idx
 
         # Ensure directories exist
         os.makedirs(self._save_dir, exist_ok=True)
-
-        self.display_paths(all_paths)
-        
-    @rank_zero_only
-    def display_paths(self, all_paths):
-      
-        logging.debug("\nLogger | Experiment Paths:")
-        for current_key in all_paths.keys():
-            logging.debug("Logger | Path %s: %s" % (current_key, all_paths[current_key]))
 
     #----------------------------
     # Gather: Path (Root Folder)

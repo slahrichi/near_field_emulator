@@ -20,7 +20,7 @@ from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, Comp
 #--------------------------------
 #from utils import parameter_manager
 #from core.complexNN import ComplexLinear, ModReLU
-from core.CVNN import ComplexReLU, ModReLU, ComplexLinearFinal
+from CVNN import ComplexReLU, ModReLU, ComplexLinearFinal
 
 sys.path.append("../")
 
@@ -28,24 +28,24 @@ class WaveMLP(LightningModule):
     """Near Field Response Prediction Model  
     Architecture: MLPs (real and imaginary)  
     Modes: Full, patch-wise"""
-    def __init__(self, params_model, fold_idx=None):
+    def __init__(self, model_config, fold_idx=None):
         super().__init__()
         
-        self.params = params_model
-        self.num_design_params = int(self.params['num_design_params'])
-        self.learning_rate = self.params['learning_rate']
-        self.lr_scheduler = self.params['lr_scheduler']
-        self.loss_func = self.params['objective_function']
+        self.conf = model_config
+        self.learning_rate = self.conf.learning_rate
+        self.lr_scheduler = self.conf.lr_scheduler
+        self.loss_func = self.conf.objective_function
         self.fold_idx = fold_idx
-        self.patch_size = self.params['patch_size'] # for non-default approaches
-        self.name = self.params['name'] # mlp or cvnn
+        self.patch_size = self.conf.patch_size # for non-default approaches
+        self.name = self.conf.arch # mlp or cvnn
+        self.num_design_conf = int(self.conf.num_design_conf)
         self.strat = None
         
-        if self.params['mlp_strategy'] == 0:
+        if self.conf.mlp_strategy == 0:
             self.strat = 'standard'
-        elif self.params['mlp_strategy'] == 1:
+        elif self.conf.mlp_strategy == 1:
             self.strat = 'patch'
-        elif self.params['mlp_strategy'] == 2:
+        elif self.conf.mlp_strategy == 2:
             self.strat = 'distributed'
         else:
             raise ValueError("Approach not recognized.")
@@ -59,33 +59,34 @@ class WaveMLP(LightningModule):
             # if not, we have separate MLPs, if so, we have one MLP
             if self.name == 'cvnn':
                 self.cvnn = nn.ModuleList([
-                    self.build_mlp(self.num_design_params, self.params['cvnn']) for _ in range(self.num_patches)
+                    self.build_mlp(self.num_design_conf, self.conf['cvnn']) for _ in range(self.num_patches)
                 ])
             else:
                 # Build MLPs for each patch
                 self.mlp_real = nn.ModuleList([
-                self.build_mlp(self.num_design_params, self.params['mlp_real']) for _ in range(self.num_patches)
+                self.build_mlp(self.num_design_conf, self.conf['mlp_real']) for _ in range(self.num_patches)
                 ])
                 self.mlp_imag = nn.ModuleList([
-                    self.build_mlp(self.num_design_params, self.params['mlp_imag']) for _ in range(self.num_patches)
+                    self.build_mlp(self.num_design_conf, self.conf['mlp_imag']) for _ in range(self.num_patches)
                 ])
+                
         elif self.strat == 'distributed': # distributed subset
             self.output_size = (self.patch_size)**2
             if self.name == 'cvnn':
-                self.cvnn = self.build_mlp(self.num_design_params, self.params['cvnn'])
+                self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
             else:
                 # build MLPs
-                self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
-                self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
+                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
+                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
             
         else:
             # Build full MLPs
             self.output_size = 166 * 166
             if self.name == 'cvnn':
-                self.cvnn = self.build_mlp(self.num_design_params, self.params['cvnn'])
+                self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
             else:
-                self.mlp_real = self.build_mlp(self.num_design_params, self.params['mlp_real'])
-                self.mlp_imag = self.build_mlp(self.num_design_params, self.params['mlp_imag'])
+                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
+                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
         
         self.save_hyperparameters()
         
@@ -99,15 +100,15 @@ class WaveMLP(LightningModule):
         self.val_psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.val_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
          
-    def build_mlp(self, input_size, mlp_params):
+    def build_mlp(self, input_size, mlp_conf):
         layers = []
         in_features = input_size
-        for layer_size in mlp_params['layers']:
+        for layer_size in mlp_conf['layers']:
             if self.name == 'cvnn': # complex-valued NN
                 layers.append(ComplexLinear(in_features, layer_size))
             else: # real-valued NN
                 layers.append(nn.Linear(in_features, layer_size))
-            layers.append(self.get_activation_function(mlp_params['activation']))
+            layers.append(self.get_activation_function(mlp_conf['activation']))
             in_features = layer_size
         if self.name == 'cvnn':
             layers.append(ComplexLinearFinal(in_features, self.output_size))
@@ -236,7 +237,7 @@ class WaveMLP(LightningModule):
                                                                     cooldown=2)
         elif self.lr_scheduler == 'CosineAnnealingLR':
             choice = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
-                                                                T_max=self.params['num_epochs'],
+                                                                T_max=self.conf['num_epochs'],
                                                                 eta_min=1e-6)
         elif self.lr_scheduler == 'None':
             return optimizer

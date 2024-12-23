@@ -3,6 +3,7 @@ import math
 from tqdm import tqdm
 from scipy.special import genlaguerre
 import os
+import matplotlib.pyplot as plt
 
 '''def svd(x, params):
     """
@@ -177,9 +178,6 @@ def svd(x, params):
     k_root = int(math.sqrt(k/2))
     x_svd = x_svd.reshape(samples, 2, k_root, k_root, slices)
     return x_svd'''
-
-
-import matplotlib.pyplot as plt
 
 def plot_scree(singular_values):
     plt.plot(singular_values.cpu().numpy(), marker='o')

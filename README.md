@@ -7,14 +7,16 @@ Exploration of deep learning models for emulating wavefront propagation and resp
 - `kube/` : contains files for loading, configuring, and launcing Kubernetes jobs. This includes scripts for training, evaluation, and analyzing results.
   - **launch_training.py** : This file generates a useable YAML file for a training instance; similar files exist for evaluation and data manipulation
   - **save_eval_plots.py** : necessary helper for saving evaluation plots from cloud storage to disk for viewing
-- `core/` : contains various key files such as the models and dataloader.
-  - **WaveMLP.py** : MLP implementation
-  - **WaveModel.py** : Various model implementations utilizing LSTM in some capacity
+- `core/` : contains various key files.
+  - `models/` : contains model implementations
+    - **WaveMLP.py** : MLP implementation for metasurface -> field
+    - **WaveModel.py** : Base abstract class for wavefront propagation problem
+    - **WaveXXXX.py** : Subclass implementation of model XXXX
+    - **ConvLSTM.py** : Convolutional LSTM implementation
+    - **CVNN.py** : implementation of Complex-Valued NN, activations
+    - **autoencoder.py** : autoencoder implementation
   - **datamodule.py** : Master file handling dataloading for both problems
   - **modes.py** : Defines different mode encoding approaches (SVD, Random Projection, etc.)
-  - **autoencoder.py** : autoencoder implementation
-  - **ConvLSTM.py** : Convolutional LSTM implementation
-  - **CVNN.py** : implementation of Complex-Valued NN, activations
   - **preprocess_data.py** : Handles the formatting of data .pkl files for time series networks, splitting into train/valid.
   - **compile_data.py** : Data after preprocessing is saved as .pkl files, This file contains a function that compiles it into a single pytorch file for use with the model.
 - `evaluation/` : contains files used for eval pipeline
@@ -70,10 +72,26 @@ The `config.yaml` file controls all aspects of training and evaluation. Key para
 
 ### Prerequisites
 
-1. Install Kubernetes: [Kube Setup Process](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/kubernetes.md)
-2. Setup Docker: [Docker Setup](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/docker.md)
-3. Pull down this repo to (ideally) `develop/code/` on your local machine
-4. Configure SSH **deploy key** authentication with this repo: {ssh_deploy_key guide here}
+
+1. Having the following directory structure on your local machine will minimize the potential for errors but it isn't strictly necessary:
+
+```
+develop/  
+│
+└───code/
+│   │
+│   └───(pull down this repo here)
+│   
+└───data/
+│   │ 
+│   └───preprocessed_data/
+│
+└───results/
+```
+
+2. Install Kubernetes: [Kube Setup Process](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/kubernetes.md)
+3. Setup Docker: [Docker Setup](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/docker.md)
+4. Configure SSH **deploy key** authentication: [Setting up Deploy Key](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/github-deploy-key.md)
 
 ### Docker
 
@@ -89,7 +107,7 @@ docker build -t kovaleskilab/ml_basic:v4 .
 sudo docker pull kovaleskilab/ml_basic:v4
 ```
 
-From there, we want to run the container but its critical that we mount it utilizing the following scheme to ensure the code exists within the container:
+From there, we want to run the container but its critical that we mount it utilizing the following scheme to ensure the code exists within the container (if you set up the directory structure introduced earlier, this step is intuitive):
 
 ```
 sudo docker run \

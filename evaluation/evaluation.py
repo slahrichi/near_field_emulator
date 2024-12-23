@@ -102,56 +102,51 @@ def save_eval_item(save_dir, eval_item, file_name, type):
         eval_item.savefig(save_path)
     print(f"Generated evaluation item: {type}")
     
-def get_model_identifier(pm):
+def get_model_identifier(conf):
     """Construct a model identifier string for the plot title based on model parameters."""
-    model_type = mapping.get_model_type(pm.arch)
-    title = pm.model_id
-    lr = pm.learning_rate
-    optimizer = pm.optimizer
-    lr_scheduler = pm.lr_scheduler
-    batch_size = pm.batch_size
+    model_type = conf.model.arch
+    title = conf.model.model_id
+    lr = conf.model.learning_rate
+    optimizer = conf.model.optimizer
+    lr_scheduler = conf.model.lr_scheduler
+    batch_size = conf.trainer.batch_size
     
     if model_type in ['mlp', 'cvnn']:
-        mlp_layers = pm.mlp_real['layers']
+        mlp_layers = conf.model.mlp_real['layers']
         return f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, batch: {batch_size}, mlp_layers: {mlp_layers}'
     elif model_type in ['lstm', 'ae-lstm']:
-        lstm_num_layers = pm.lstm['num_layers']
-        lstm_i_dims = pm.lstm['i_dims']
-        lstm_h_dims = pm.lstm['h_dims']
-        seq_len = pm.seq_len
+        lstm_num_layers = conf.model.lstm.num_layers
+        lstm_i_dims = conf.model.lstm.i_dims
+        lstm_h_dims = conf.model.lstm.h_dims
+        seq_len = conf.model.seq_len
         return (f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
                 f'batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, '
                 f'h_dims: {lstm_h_dims}, seq_len: {seq_len}')
     elif model_type in ['convlstm', 'ae-convlstm']:
-        in_channels = pm.convlstm['in_channels']
-        out_channels = pm.convlstm['out_channels']
-        kernel_size = pm.convlstm['kernel_size']
-        padding = pm.convlstm['padding']
+        in_channels = conf.model.convlstm.in_channels
+        out_channels = conf.model.convlstm.out_channels
+        kernel_size = conf.model.convlstm.kernel_size
+        padding = conf.model.convlstm.padding
         return (f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
                 f'batch: {batch_size}, in_channels: {in_channels}, out_channels: {out_channels}, '
                 f'kernel_size: {kernel_size}, padding: {padding}')
     elif model_type == 'modelstm':
-        method = pm.modelstm['method']
-        lstm_num_layers = pm.modelstm['num_layers']
-        lstm_i_dims = pm.modelstm['i_dims']
-        lstm_h_dims = pm.modelstm['h_dims']
-        seq_len = pm.seq_len
-        return (f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
+        method = conf.model.modelstm.method
+        top_k = conf.model.modelstm.top_k
+        lstm_num_layers = conf.model.modelstm.num_layers
+        lstm_i_dims = conf.model.modelstm.i_dims
+        lstm_h_dims = conf.model.modelstm.h_dims
+        seq_len = conf.model.seq_len
+        return (f'{title} - encoding: {method}, top_k: {top_k}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
                 f'batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, '
                 f'h_dims: {lstm_h_dims}, seq_len: {seq_len}')
     elif model_type == 'autoencoder':
-        latent_dim = pm.autoencoder['latent_dim']
-        method = pm.autoencoder['method']
+        latent_dim = conf.model.autoencoder.latent_dim
+        method = conf.model.autoencoder.method
         return (f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, '
                 f'optimizer: {optimizer}, batch: {batch_size}, latent_dim: {latent_dim}')
     else:
         return f'{title} - lr: {lr}, optimizer: {optimizer}, batch: {batch_size}'
-
-
-import os
-import pandas as pd
-import matplotlib.pyplot as plt
-from utils.mapping import get_model_type
 
 def clean_loss_df(df):
     """
@@ -170,10 +165,10 @@ def clean_loss_df(df):
     df = df.sort_index()
     return df
 
-def plot_loss(pm, min_list=[None, None], max_list=[None, None], save_fig=False, save_dir=None):
-    model_identifier = get_model_type(pm.arch)  # or get_model_identifier(pm) if you have that function
+def plot_loss(conf, min_list=[None, None], max_list=[None, None], save_fig=False, save_dir=None):
+    model_identifier = get_model_identifier(conf)
     
-    if pm.cross_validation:
+    if conf.trainer.cross_validation:
         losses_path = os.path.join(save_dir, "losses")
         if not os.path.exists(losses_path):
             print(f"No losses directory found at {losses_path}.")
@@ -220,7 +215,7 @@ def plot_loss(pm, min_list=[None, None], max_list=[None, None], save_fig=False, 
                            mean_train_loss.values - std_train_loss.values,
                            mean_train_loss.values + std_train_loss.values,
                            color='red', alpha=0.3, label='Training Std Dev')
-        ax[0].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[0].set_ylabel(f"{conf.model.objective_function} Loss", fontsize=10)
         ax[0].set_xlabel("Epoch", fontsize=10)
         ax[0].set_title("Training Loss", fontsize=12)
         ax[0].set_ylim([min_list[0], max_list[0]])
@@ -232,7 +227,7 @@ def plot_loss(pm, min_list=[None, None], max_list=[None, None], save_fig=False, 
                            mean_val_loss.values - std_val_loss.values,
                            mean_val_loss.values + std_val_loss.values,
                            color='blue', alpha=0.3, label='Validation Std Dev')
-        ax[1].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[1].set_ylabel(f"{conf.model.objective_function} Loss", fontsize=10)
         ax[1].set_xlabel("Epoch", fontsize=10)
         ax[1].set_title("Validation Loss", fontsize=12)
         ax[1].set_ylim([min_list[1], max_list[1]])
@@ -264,14 +259,14 @@ def plot_loss(pm, min_list=[None, None], max_list=[None, None], save_fig=False, 
         fig, ax = plt.subplots(1, 2, figsize=(12, 4.5))
 
         ax[0].plot(df.index, df['train_loss'].values, color='red', label='Training Loss')
-        ax[0].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[0].set_ylabel(f"{conf.model.objective_function} Loss", fontsize=10)
         ax[0].set_xlabel("Epoch", fontsize=10)
         ax[0].set_title("Training Loss", fontsize=12)
         ax[0].set_ylim([min_list[0], max_list[0]])
         ax[0].legend()
 
         ax[1].plot(df.index, df['val_loss'].values, color='blue', label='Validation Loss')
-        ax[1].set_ylabel(f"{pm.objective_function} Loss", fontsize=10)
+        ax[1].set_ylabel(f"{conf.model.objective_function} Loss", fontsize=10)
         ax[1].set_xlabel("Epoch", fontsize=10)
         ax[1].set_title("Validation Loss", fontsize=12)
         ax[1].set_ylim([min_list[1], max_list[1]])
@@ -324,7 +319,7 @@ def print_metrics(test_results, fold_idx=None, dataset='valid', save_fig=False, 
         file_name = f'{dataset}_metrics.txt'
         save_eval_item(save_dir, metrics, file_name, 'metrics')
 
-def plot_dft_fields(test_results, plot_type="best", resub=False,
+def plot_dft_fields(test_results, resub=False,
                     sample_idx=0, save_fig=False, save_dir=None,
                     arch='mlp', format='polar', fold_num=False):
     """

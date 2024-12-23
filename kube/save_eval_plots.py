@@ -5,7 +5,7 @@ import sys
 from pdf2image import convert_from_path
 
 sys.path.append("../")
-from utils import parameter_manager
+from conf.schema import load_config
 
 def save_file(filepath, save_directory):
     """Save different file types to a specified directory"""
@@ -62,21 +62,8 @@ def save_all_in_directory(directory, save_directory):
 def process_model_type(config_path):
     """Process all model directories for model type specified in config"""
     # Load config
-    params = yaml.load(open(config_path), Loader = yaml.FullLoader).copy()
-    
-    pm = parameter_manager.Parameter_Manager(params = params)
-        
-    if pm.experiment == 1:
-        model_type = 'autoencoder'
-    else:
-        if pm.arch == 0:
-            model_type = 'mlp'
-        elif pm.arch == 1 or pm.arch == 2:
-            model_type = 'lstm' if pm.arch == 1 else 'convlstm'
-        elif pm.arch == 3:
-            model_type = 'autoencoder'
-        else:
-            raise ValueError("Model type not recognized")
+    config = load_config(config_path)
+    model_type = config.model.arch
     
     base_path = '/develop/results/meep_meep'
     model_type_path = os.path.join(base_path, model_type)
@@ -100,7 +87,7 @@ def process_model_type(config_path):
         save_plot_directories(full_model_path, save_base_path)
 
 if __name__ == "__main__":
-    process_model_type('/develop/code/near_field_inverse_design/config.yaml')
+    process_model_type('/develop/code/near_field_emulator/config.yaml')
     
     # then,
     # kubectl cp save-eval-plots:/develop/saved_results /develop/results

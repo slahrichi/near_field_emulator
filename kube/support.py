@@ -5,13 +5,13 @@ import yaml
 from kubernetes import client, config
 import subprocess
 
-def exit_handler(params,kill_tag): # always run this script after this file ends.
+def exit_handler(config,kill_tag): # always run this script after this file ends.
 
     config.load_kube_config()   # python can see the kube config now. now we can run API commands.
 
     v1 = client.CoreV1Api()   # initializing a tool to do kube stuff.
 
-    pod_list = v1.list_namespaced_pod(namespace = params["kube"]["namespace"])    # get all pods currently running (1 pod generates a single meep sim) 
+    pod_list = v1.list_namespaced_pod(namespace = config.kube.namespace)    # get all pods currently running (1 pod generates a single meep sim) 
 
     current_group = [ele.metadata.owner_references[0].name for ele in pod_list.items if(kill_tag in ele.metadata.name)]    # getting the name of the pod
 

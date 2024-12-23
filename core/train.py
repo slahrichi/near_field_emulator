@@ -22,7 +22,8 @@ from pytorch_lightning.plugins.environments import SLURMEnvironment
 #--------------------------------
 sys.path.append('../')
 from core import datamodule, custom_logger
-from utils import parameter_manager, model_loader
+from utils import model_loader
+from conf.schema import load_config
 
 # debugging
 #logging.basicConfig(level=logging.DEBUG)
@@ -104,25 +105,24 @@ class CustomEarlyStopping(EarlyStopping):
                     print(f"\nEarlyStopping at epoch {trainer.current_epoch}: {self.monitor} did not improve by at least {self.min_delta} over the last {self.patience} epochs.\n")
                 trainer.should_stop = True
            
-def configure_trainer(pm, logger, checkpoint_callback, early_stopping, progress_bar):
+def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar):
     """Create and return a configured Trainer instance."""
     trainer_kwargs = {
         'logger': logger,
-        'max_epochs': pm.num_epochs,
+        'max_epochs': conf.trainer.num_epochs,
         'deterministic': True,
         'enable_progress_bar': True,
         'enable_model_summary': True,
-        'default_root_dir': pm.path_root,
+        'default_root_dir': conf.paths.root,
         'callbacks': [checkpoint_callback, early_stopping, progress_bar],
-        'check_val_every_n_epoch': pm.valid_rate,
+        'check_val_every_n_epoch': conf.trainer.valid_rate,
         'num_sanity_val_steps': 1,
         'log_every_n_steps': 1
     }
 
-    if pm.gpu_flag and torch.cuda.is_available():
+    if conf.trainer.gpu_flag and torch.cuda.is_available():
         trainer_kwargs.update({
             'accelerator': 'cuda',
-            'devices': pm.gpu_list
         })
         logging.debug("Training with GPUs")
     else:
@@ -133,10 +133,10 @@ def configure_trainer(pm, logger, checkpoint_callback, early_stopping, progress_
 
     return Trainer(**trainer_kwargs)
 
-def save_best_model(pm, best_model_path, n_splits=None):
+def save_best_model(conf, best_model_path, n_splits=None):
     """Save the best model checkpoint and clean up temporary ones."""
     if best_model_path:
-        results_dir = os.path.join(pm.path_root, pm.path_results)
+        results_dir = conf.paths.results
         os.makedirs(results_dir, exist_ok=True)
         checkpoint_path = os.path.join(results_dir, 'model.ckpt')
         
@@ -147,7 +147,7 @@ def save_best_model(pm, best_model_path, n_splits=None):
         # If cross-validation was used, remove fold checkpoints
         if n_splits is not None:
             for fold in range(n_splits):
-                temp_fold_ckpt = os.path.join(pm.path_root, pm.path_results, f"model_fold{fold + 1}.ckpt")
+                temp_fold_ckpt = os.path.join(conf.paths.results, f"model_fold{fold + 1}.ckpt")
                 if os.path.exists(temp_fold_ckpt):
                     os.remove(temp_fold_ckpt)
                     
@@ -169,7 +169,7 @@ def record_split_info(fold_idx, train_idx, val_idx, results_dir):
 # Training Functions
 #--------------------------------
                   
-def train_once(pm, data_module):
+def train_once(conf, data_module):
     """
     Train without cross-validation, utilizing the train/valid split originally
     established during data preprocessing (should be 80/20) 
@@ -178,46 +178,46 @@ def train_once(pm, data_module):
     """
     data_module.setup_og()
 
-    model_instance = model_loader.select_model(pm)
+    model_instance = model_loader.select_model(conf.model)
     logger = custom_logger.Logger(
-        all_paths=pm.all_paths,
-        name=pm.model_id,
+        all_paths=conf.paths,
+        name=conf.model.model_id,
         version=0
     )
 
     # Checkpoint and EarlyStopping
-    checkpoint_path = os.path.join(pm.path_root, pm.path_results)
+    checkpoint_path = conf.paths.results
     filename = 'model'
     checkpoint_callback = ModelCheckpoint(
         dirpath=checkpoint_path,
         filename=filename,
         save_top_k=1,
         monitor='val_loss',
-        mode='min' if pm.params['objective_function'] == 'mse' else 'max',
+        mode='min' if conf.model.objective_function == 'mse' else 'max',
         verbose=True
     )
 
     early_stopping = CustomEarlyStopping(
         monitor='val_loss',
-        patience=pm.patience,
-        min_delta=pm.min_delta,
-        mode='min' if pm.params['objective_function'] == 'mse' else 'max',
+        patience=conf.trainer.patience,
+        min_delta=conf.trainer.min_delta,
+        mode='min' if conf.model.objective_function == 'mse' else 'max',
         verbose=True
     )
 
     progress_bar = CustomProgressBar()
 
-    trainer = configure_trainer(pm, logger, checkpoint_callback, early_stopping, progress_bar)
+    trainer = configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar)
 
     # Train
     trainer.fit(model_instance, data_module)
     
     # Save best model
     best_model_path = checkpoint_callback.best_model_path
-    save_best_model(pm, best_model_path, n_splits=None)
+    save_best_model(conf, best_model_path, n_splits=None)
 
     # Test if needed
-    if pm.include_testing:
+    if conf.trainer.include_testing:
         trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
     else:
         base_path = os.path.dirname(best_model_path)
@@ -226,13 +226,13 @@ def train_once(pm, data_module):
         shutil.rmtree(os.path.join(base_path, 'valid_info'))
 
 
-def train_with_cross_validation(pm, data_module):
+def train_with_cross_validation(conf, data_module):
     """Train using K-Fold Cross Validation."""
     full_dataset = data_module.dataset
-    n_splits = pm.params_datamodule['n_folds']
-    kf = KFold(n_splits=n_splits, shuffle=True, random_state=pm.seed_value)
+    n_splits = conf.data.n_folds
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=conf.seed_value)
 
-    best_val_loss = float('-inf') if pm.params['objective_function'] == 'psnr' else float('inf')
+    best_val_loss = float('-inf') if conf.model.objective_function == 'psnr' else float('inf')
     best_model_path = None
 
     fold_results = []
@@ -242,44 +242,44 @@ def train_with_cross_validation(pm, data_module):
         if fold_idx > 0:
             clear_memory()
 
-        model_instance = model_loader.select_model(pm, fold_idx)
+        model_instance = model_loader.select_model(conf.model, fold_idx)
         data_module.setup_fold(train_idx, val_idx)
 
         logger = custom_logger.Logger(
-            all_paths=pm.all_paths,
-            name=f"{pm.model_id}_fold{fold_idx + 1}", 
+            all_paths=conf.paths,
+            name=f"{conf.model.model_id}_fold{fold_idx + 1}", 
             version=0, 
             fold_idx=fold_idx
         )
 
-        checkpoint_path = os.path.join(pm.path_root, pm.path_results)
+        checkpoint_path = conf.paths.results
         filename = f'model_fold{fold_idx + 1}'
         checkpoint_callback = ModelCheckpoint(
             dirpath=checkpoint_path,
             filename=filename,
             save_top_k=1,
             monitor='val_loss',
-            mode='min' if pm.params['objective_function'] == 'mse' else 'max',
+            mode='min' if conf.model.objective_function == 'mse' else 'max',
             verbose=True
         )
         
         early_stopping = CustomEarlyStopping(
             monitor='val_loss',
-            patience=pm.patience,
-            min_delta=pm.min_delta,
-            mode='min' if pm.params['objective_function'] == 'mse' else 'max',
+            patience=conf.trainer.patience,
+            min_delta=conf.trainer.min_delta,
+            mode='min' if conf.model.objective_function == 'mse' else 'max',
             verbose=True
         )
 
         progress_bar = CustomProgressBar(fold_idx, n_splits)
-        trainer = configure_trainer(pm, logger, checkpoint_callback, early_stopping, progress_bar)
+        trainer = configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar)
 
         # Training
         trainer.fit(model_instance, data_module)
 
         current_val_loss = checkpoint_callback.best_model_score.item()
 
-        if pm.params['objective_function'] == 'psnr':
+        if conf.model.objective_function == 'psnr':
             if current_val_loss > best_val_loss:
                 best_val_loss = current_val_loss
                 best_model_path = checkpoint_callback.best_model_path
@@ -293,7 +293,7 @@ def train_with_cross_validation(pm, data_module):
                 record_split_info(fold_idx, train_idx, val_idx, os.path.dirname(best_model_path))
 
         # Testing if needed
-        if pm.include_testing:
+        if conf.trainer.include_testing:
             trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
             fold_results.append(model_instance.test_results)
         else:
@@ -303,33 +303,26 @@ def train_with_cross_validation(pm, data_module):
             shutil.rmtree(os.path.join(base_path, 'valid_info'))
 
     # After all folds, save the best model
-    save_best_model(pm, best_model_path, n_splits)
+    save_best_model(conf, best_model_path, n_splits)
 
 #--------------------------------
 # Main Training Entry Point
 #--------------------------------
 
-def run(params):
+def run(conf):
     logging.debug("train.py() | running training")
 
-    # Initialize: Parameter manager
-    pm = parameter_manager.Parameter_Manager(params=params)
-          
-    # Initialize: Seeding
-    if(pm.seed_flag):
-        seed_everything(pm.seed_value, workers = True)
-
     # Initialize: The datamodule
-    data_module = datamodule.select_data(pm.params_datamodule)
+    data_module = datamodule.select_data(conf)
     data_module.prepare_data()
     data_module.setup(stage='fit')
     
     # Dump config for future reference
-    os.makedirs(os.path.join(pm.path_root, pm.path_results), exist_ok=True)
-    yaml.dump(params, open(os.path.join(pm.path_root, f'{pm.path_results}/params.yaml'), 'w'))
+    os.makedirs(conf.paths.results, exist_ok=True)
+    yaml.dump(conf, open(os.path.join(conf.paths.results, 'params.yaml'), 'w'))
     
     # run training
-    if(pm.cross_validation):
-        train_with_cross_validation(pm, data_module)
+    if(conf.trainer.cross_validation):
+        train_with_cross_validation(conf, data_module)
     else: # run once
-        train_once(pm, data_module)
+        train_once(conf, data_module)

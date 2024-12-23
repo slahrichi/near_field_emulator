@@ -24,25 +24,23 @@ from utils import mapping
 #logging.basicConfig(level=logging.DEBUG)
 
 class NF_Datamodule(LightningDataModule):
-    def __init__(self, params, transform = None):
+    def __init__(self, conf, transform = None):
         super().__init__() 
         logging.debug("datamodule.py - Initializing NF_DataModule")
 
-        self.params = params.copy()
-        logging.debug("datamodule.py - Setting params to {}".format(self.params))
-        self.directive = params['directive']
-        self.model_type = mapping.get_model_type(params['arch'])
-        self.n_cpus = self.params['n_cpus']
-        self.seed = self.params['seed']
-        self.n_folds = self.params['n_folds']
-        self.mlp_strategy = self.params['mlp_strategy']
-        self.patch_size = self.params['patch_size']
-        self.path_data = self.params['path_data']
-        self.path_root = self.params['path_root']
-        self.path_data = os.path.join(self.path_root,self.path_data)
+        self.conf = conf.copy()
+        logging.debug("datamodule.py - Setting conf to {}".format(self.conf))
+        self.directive = conf.directive
+        self.model_type = conf.model.arch
+        self.n_cpus = conf.data.n_cpus
+        self.seed = conf.seed
+        self.n_folds = conf.data.n_folds
+        self.mlp_strategy = conf.model.mlp_strategy
+        self.patch_size = conf.model.patch_size
+        self.path_data = conf.paths.data
         logging.debug("datamodule.py - Setting path_data to {}".format(self.path_data))
         
-        self.batch_size = self.params['batch_size']
+        self.batch_size = conf.trainer.batch_size
         self.transform = transform #TODO
         self.index_map = {
             'train': [],
@@ -71,18 +69,18 @@ class NF_Datamodule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         if self.model_type == 'autoencoder': # pretraining
             data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
-            self.dataset = format_ae_data(data, self.params)
+            self.dataset = format_ae_data(data, self.conf)
         elif self.model_type == 'mlp' or self.model_type == 'cvnn':
             data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
-            if self.params['interpolate_fields']: # interpolate fields to lower resolution
+            if self.conf['interpolate_fields']: # interpolate fields to lower resolution
                 data = interpolate_fields(data)
             self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
         else: # time series models
             if self.model_type == 'modelstm': # using an encoded representation
-                data = torch.load(os.path.join(self.path_data, f"dataset_{self.params['modelstm']['method']}.pt"))
+                data = torch.load(os.path.join(self.path_data, f"dataset_{self.conf.model.modelstm.method}.pt"))
             else: # regular dataset
                 data = torch.load(os.path.join(self.path_data, f"dataset.pt"))
-            self.dataset = format_temporal_data(data, self.params)
+            self.dataset = format_temporal_data(data, self.conf)
         # create a map of indices for OG train/valid split - default for when we don't use crossval
         for i in range(len(data['tag'])):
             if data['tag'][i] == 0:
@@ -125,7 +123,7 @@ class NF_Datamodule(LightningDataModule):
 
 class WaveMLP_Dataset(Dataset):
     """
-    Dataset for the MLP models associated with mapping design params to fields.
+    Dataset for the MLP models associated with mapping design conf to fields.
     """
     def __init__(self, data, transform, approach=0, patch_size=1):
         logging.debug("datamodule.py - Initializing WaveMLP_Dataset")
@@ -195,8 +193,8 @@ class WaveModel_Dataset(Dataset):
     def __len__(self):
         return len(self.samples)
         
-def select_data(params):
-    return NF_Datamodule(params)
+def select_data(conf):
+    return NF_Datamodule(conf)
 
 #--------------------------------
 # Initialize: Format data
@@ -263,38 +261,39 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
                 'tag': tag_tensor}, save_path)
     print(f"Data saved to {save_path}")
     
-def format_temporal_data(data, params, order=(-1, 0, 1, 2)):
+def format_temporal_data(data, conf, order=(-1, 0, 1, 2)):
     """Formats the preprocessed data file into the correct setup  
     and order for the LSTM model.
 
     Args:
         data (tensor): the dataset
-        seq_len (int): length of the sequence to be used
+        conf (dict): configuration parameters
         order (tuple, optional): order of the sequence to be used. Defaults to (-1, 0, 1, 2).
         
     Returns:
         dataset (WaveModel_Dataset): formatted dataset
     """
     all_samples, all_labels = [], []
-    
+    spacing_mode = conf.model.spacing_mode
+    io_mode = conf.model.io_mode
     # [samples, 2, xdim, ydim, 63] --> access each of the datapoints
     for i in range(data['near_fields'].shape[0]):
         full_sequence = data['near_fields'][i] # [2, xdim, ydim, total_slices]
 
         total = full_sequence.shape[-1] # all time slices
         
-        if params['spacing_mode'] == 'distributed':
-            if params['io_mode'] == 'one_to_many':
+        if spacing_mode == 'distributed':
+            if io_mode == 'one_to_many':
                 # calculate seq_len+1 evenly spaced indices
-                indices = np.linspace(1, total-1, params['seq_len']+1)
+                indices = np.linspace(1, total-1, conf['seq_len']+1)
                 distributed_block = full_sequence[:, :, :, indices]
                 # the sample is the first one, labels are the rest
                 sample = distributed_block[:, :, :, :1]  # [2, xdim, ydim, 1]
                 label = distributed_block[:, :, :, 1:]  # [2, xdim, ydim, seq_len]
                 
-            elif params['io_mode'] == 'many_to_many':
+            elif io_mode == 'many_to_many':
                 # Calculate seq_len+1 evenly spaced indices for input and shifted output
-                indices = np.linspace(0, total-1, params['seq_len']+1).astype(int)
+                indices = np.linspace(0, total-1, conf['seq_len']+1).astype(int)
                 distributed_block = full_sequence[:, :, :, indices]
                 
                 # Input sequence: all but last timestep
@@ -312,32 +311,32 @@ def format_temporal_data(data, params, order=(-1, 0, 1, 2)):
             all_samples.append(sample)
             all_labels.append(label)
             
-        elif params['spacing_mode'] == 'sequential':
-            if params['io_mode'] == 'one_to_many':
-                #for t in range(0, total, params['seq_len']+1): note: this raise the total number of sample/label pairs
+        elif spacing_mode == 'sequential':
+            if io_mode == 'one_to_many':
+                #for t in range(0, total, conf['seq_len']+1): note: this raise the total number of sample/label pairs
                 t = 0
                 # check if there are enough timesteps for a full block
-                if t + params['seq_len'] < total:
-                    block = full_sequence[:, :, :, t:t+params['seq_len'] + 1]
+                if t + conf['seq_len'] < total:
+                    block = full_sequence[:, :, :, t:t+conf['seq_len'] + 1]
                     # ex: sample -> t=0 , label -> t=1, t=2, t=3 (if seq_len were 3)
                     sample = block[:, :, :, :1]
                     label = block[:, :, :, 1:]
                         
-            elif params['io_mode'] == 'many_to_many':
+            elif io_mode == 'many_to_many':
                 # true many to many
-                sample = full_sequence[:, :, :, :params['seq_len']]
-                label = full_sequence[:, :, :, 1:params['seq_len']+1]
+                sample = full_sequence[:, :, :, :conf['seq_len']]
+                label = full_sequence[:, :, :, 1:conf['seq_len']+1]
                 
                 # this is our 'encoder-decoder' mode - not really realistic here
-                '''step_size = 2 * params['seq_len']
+                '''step_size = 2 * conf['seq_len']
                 #for t in range(0, total, step_size):
                 t = 0
                 # check if there's enough
                 if t + step_size <= total:
                     # input is first seq_len steps in the block
-                    sample = full_sequence[:, :, :, t:t+params['seq_len']]
+                    sample = full_sequence[:, :, :, t:t+conf['seq_len']]
                     # output is next seq_len steps
-                    label = full_sequence[:, :, :, t+params['seq_len']:t+step_size]'''
+                    label = full_sequence[:, :, :, t+conf['seq_len']:t+step_size]'''
                 
             else:
                 raise NotImplementedError(f'Specified recurrent input-output mode is not implemented.')
@@ -349,17 +348,17 @@ def format_temporal_data(data, params, order=(-1, 0, 1, 2)):
         
         else:
             # no other spacing modes are implemented
-            raise NotImplementedError(f'Specified recurrent dataloading paramsuration is not implemented.')
+            raise NotImplementedError(f'Specified recurrent dataloading confuration is not implemented.')
         
     return WaveModel_Dataset(all_samples, all_labels)
 
-def format_ae_data(data, params):
+def format_ae_data(data, conf):
     """Formats the preprocessed data file into the correct setup  
     and order for the autoencoder pretraining.
 
     Args:
         data (tensor): the dataset
-        params (dict): configuration parameters
+        conf (dict): configuration parameters
         
     Returns:
         dataset (WaveModel_Dataset): formatted dataset

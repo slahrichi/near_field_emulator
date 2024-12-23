@@ -70,23 +70,3 @@ def polar_to_cartesian(mag, phase):
     real = torch.real(complex)
     imag = torch.imag(complex)
     return real, imag
-
-def get_model_type(arch):
-    if arch == 0:
-        return 'mlp'
-    elif arch == 1:
-        return 'cvnn'
-    elif arch == 2:
-        return 'lstm'
-    elif arch == 3:
-        return 'convlstm'
-    elif arch == 4:
-        return 'ae-lstm'
-    elif arch == 5:
-        return 'ae-convlstm'
-    elif arch == 6:
-        return 'modelstm'
-    elif arch == 7:
-        return 'autoencoder'
-    else:
-        raise ValueError("Model type not recognized")

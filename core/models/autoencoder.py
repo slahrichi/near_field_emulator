@@ -9,17 +9,17 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 
 class Encoder(nn.Module):
     """Encodes E to a representation space for input to RNN"""
-    def __init__(self, channels, params):
+    def __init__(self, channels, conf):
         super().__init__()
         
-        self.method = params['method']
-        self.latent_dim = params['latent_dim']
+        self.method = conf.method
+        self.latent_dim = conf.latent_dim
         self.layers = nn.ModuleList()
         current_channels = channels[0]
 
         if self.method == 'linear': # lstm
             # flatten and map up linearly
-            flattened_size = params['spatial'] * params['spatial'] * 2
+            flattened_size = conf.spatial * conf.spatial * 2
             self.layers = nn.Sequential(
                 nn.Flatten(),
                 nn.Linear(flattened_size, 2048),
@@ -31,7 +31,7 @@ class Encoder(nn.Module):
             current_size = self.latent_dim
                 
         elif self.method == 'conv': #convlstm
-            current_size = params['spatial']
+            current_size = conf.spatial
             # Standard downsampling approach
             for i in range(len(channels) - 1):
                 self.layers.extend([
@@ -43,7 +43,7 @@ class Encoder(nn.Module):
                 current_size = current_size // 2
                 
         else:
-            raise ValueError(f"Unsupported mode: {self.mode}")
+            raise ValueError(f"Unsupported encoding method: {self.method}")
             
         self.final_size = current_size
         self.final_channels = channels[-1]
@@ -57,25 +57,25 @@ class Encoder(nn.Module):
     
 class Decoder(nn.Module):
     """Decodes latent representation back to E"""
-    def __init__(self, channels, params):
+    def __init__(self, channels, conf):
         super().__init__()
         
         self.channels = channels
-        self.method = params['method']
-        self.latent_dim = params['latent_dim']
-        self.initial_size = params['spatial'] // (2 ** (len(channels) - 1))
+        self.method = conf.method
+        self.latent_dim = conf.latent_dim
+        self.initial_size = conf.spatial // (2 ** (len(channels) - 1))
         self.layers = nn.ModuleList()
         
         if self.method == 'linear':
             # flatten and map up linearly
-            flattened_size = params['spatial'] * params['spatial'] * 2
+            flattened_size = conf.spatial * conf.spatial * 2
             self.layers = nn.Sequential(
                 nn.Linear(self.latent_dim, 1024),
                 nn.ReLU(),
                 nn.Linear(1024, 2048),
                 nn.ReLU(),
                 nn.Linear(2048, flattened_size),
-                nn.Unflatten(1, (2, params['spatial'], params['spatial']))
+                nn.Unflatten(1, (2, conf.spatial, conf.spatial))
             )
             
         elif self.method == 'conv':
@@ -89,7 +89,7 @@ class Decoder(nn.Module):
                 ])
                 
         else:
-            raise ValueError(f"Unsupported mode: {self.mode}")
+            raise ValueError(f"Unsupported decoding method: {self.method}")
             
     def forward(self, x):
         # x shape: [batch, input_channels, reduced_spatial, reduced_spatial]        
@@ -102,17 +102,17 @@ class Decoder(nn.Module):
         return x # [batch, 2, 166, 166]
     
 class Autoencoder(LightningModule):
-    def __init__(self, params_model, fold_idx=None):
+    def __init__(self, model_config, fold_idx=None):
         super().__init__()
         
-        self.params = params_model
-        self.encoder_channels = self.params['autoencoder']['encoder_channels']
-        self.decoder_channels = self.params['autoencoder']['decoder_channels']
-        self.spatial_size = self.params['autoencoder']['spatial']
-        self.encoder = Encoder(self.encoder_channels, params=self.params['autoencoder'])
-        self.decoder = Decoder(self.decoder_channels, params=self.params['autoencoder'])
-        self.learning_rate = self.params['learning_rate']
-        self.lr_scheduler = self.params['lr_scheduler']
+        self.conf = model_config
+        self.encoder_channels = self.conf.autoencoder.encoder_channels
+        self.decoder_channels = self.conf.autoencoder.decoder_channels
+        self.spatial_size = self.conf.autoencoder.spatial
+        self.encoder = Encoder(self.encoder_channels, conf=self.conf.autoencoder)
+        self.decoder = Decoder(self.decoder_channels, conf=self.conf.autoencoder)
+        self.learning_rate = self.conf.learning_rate
+        self.lr_scheduler = self.conf.lr_scheduler
         self.fold_idx = fold_idx
                 
         self.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
@@ -209,7 +209,7 @@ class Autoencoder(LightningModule):
         # LR scheduler setup
         if self.lr_scheduler == 'CosineAnnealingLR':
             lr_scheduler = CosineAnnealingLR(optimizer, 
-                                             T_max=self.params['num_epochs'] * 0.25,
+                                             T_max=100 * 0.25,
                                              eta_min=1e-6)
         elif self.lr_scheduler == 'ReduceLROnPlateau':
             lr_scheduler = ReduceLROnPlateau(optimizer, 
