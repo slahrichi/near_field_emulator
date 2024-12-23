@@ -120,7 +120,7 @@ def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progres
         'log_every_n_steps': 1
     }
 
-    if conf.trainer.gpu_flag and torch.cuda.is_available():
+    if torch.cuda.is_available():
         trainer_kwargs.update({
             'accelerator': 'cuda',
         })
