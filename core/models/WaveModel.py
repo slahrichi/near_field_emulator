@@ -42,7 +42,7 @@ class WaveModel(LightningModule, metaclass=abc.ABCMeta):
         self.loss_func = self.conf.objective_function
         self.io_mode = self.conf.io_mode
         self.name = self.conf.arch
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.seq_len = self.conf.seq_len
         self.io_mode = self.conf.io_mode
         self.spacing_mode = self.conf.spacing_mode
@@ -114,7 +114,7 @@ class WaveModel(LightningModule, metaclass=abc.ABCMeta):
         elif choice == 'psnr':
             # Peak Signal-to-Noise Ratio
             preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
-            fn = PeakSignalNoiseRatio(data_range=1.0).to(self.device)
+            fn = PeakSignalNoiseRatio(data_range=1.0).to(self._device)
             loss = fn(preds, labels)
             
         elif choice == 'ssim':
@@ -122,7 +122,7 @@ class WaveModel(LightningModule, metaclass=abc.ABCMeta):
             preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
             torch.use_deterministic_algorithms(True, warn_only=True)
             with torch.backends.cudnn.flags(enabled=False):
-                fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
+                fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self._device)
                 ssim_value = fn(preds, labels)
                 loss = 1 - ssim_value  # SSIM is a similarity metric
                 

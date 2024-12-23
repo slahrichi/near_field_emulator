@@ -22,7 +22,7 @@ class WaveDiffusion(WaveModel):
         # Load a pretrained image-to-video pipeline from Stability AI
         self.pipeline = DiffusionPipeline.from_pretrained(
              "stabilityai/stable-video-diffusion-img2vid", torch_dtype=torch.float16
-        ).to(self.device)
+        ).to(self._device)
         
         # Pseudocode (you'll need to replace with actual code from the SVD model):
         self.num_generated_frames = self.conf.diffuser.get('num_generated_frames', 14)
@@ -65,7 +65,7 @@ class WaveDiffusion(WaveModel):
         # E.g., (r_i=2) -> (R=real, G=imag, B=imag again or zeros)
         # Ensure no negative values and scale appropriately if needed.
         # This is just a placeholder normalization; adapt as needed.
-        pseudo_rgb = torch.zeros(batch, 3, height, width, device=x.device)
+        pseudo_rgb = torch.zeros(batch, 3, height, width, _device=x._device)
         pseudo_rgb[:, 0] = (initial_frame[:, 0] - initial_frame[:, 0].min()) / (initial_frame[:, 0].max() - initial_frame[:, 0].min() + 1e-8)
         pseudo_rgb[:, 1] = (initial_frame[:, 1] - initial_frame[:, 1].min()) / (initial_frame[:, 1].max() - initial_frame[:, 1].min() + 1e-8)
         pseudo_rgb[:, 2] = pseudo_rgb[:, 1]  # duplicate imag to get a 3rd channel
@@ -93,7 +93,7 @@ class WaveDiffusion(WaveModel):
         # Placeholder: simulate output frames as random noise
         predicted_frames = []
         for _ in range(self.num_generated_frames):
-            predicted_frame = torch.rand(1, 3, height, width, device=x.device)  # Dummy frame
+            predicted_frame = torch.rand(1, 3, height, width, _device=x._device)  # Dummy frame
             predicted_frames.append(predicted_frame)
         
         # Stack predicted frames: (1, num_generated_frames, 3, H, W)

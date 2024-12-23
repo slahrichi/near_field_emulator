@@ -113,9 +113,9 @@ class WaveLSTM(WaveModel):
     
     def init_hidden(self, batch_size):
         h = torch.zeros(self.arch_conf.num_layers, 
-                        batch_size, self.arch_conf.h_dims).to(self.device)
+                        batch_size, self.arch_conf.h_dims).to(self._device)
         c = torch.zeros(self.arch_conf.num_layers, 
-                        batch_size, self.arch_conf.h_dims).to(self.device)
+                        batch_size, self.arch_conf.h_dims).to(self._device)
         return (h, c)
         
     def organize_testing(self, preds, batch, batch_idx, dataloader_idx=0):
