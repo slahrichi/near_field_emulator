@@ -1,5 +1,5 @@
 import torch
-import WaveModel
+from .WaveModel import WaveModel
 from diffusers import DiffusionPipeline
 
 class WaveDiffusion(WaveModel):

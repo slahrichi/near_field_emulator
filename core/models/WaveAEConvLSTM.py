@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-import WaveModel
-import ConvLSTM
-from autoencoder import Encoder, Decoder
+from .WaveModel import WaveModel
+from .ConvLSTM import ConvLSTM
+from .autoencoder import Encoder, Decoder
 
 class WaveAEConvLSTM(WaveModel):
     """Near Field Response Time Series Prediction Model  

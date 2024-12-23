@@ -1,5 +1,5 @@
 import torch
-import WaveModel
+from .WaveModel import WaveModel
 
 class WaveLSTM(WaveModel):
     """Near Field Response Time Series Prediction Model  

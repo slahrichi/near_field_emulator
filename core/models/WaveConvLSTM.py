@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-import WaveModel
-import ConvLSTM
+from .WaveModel import WaveModel
+from .ConvLSTM import ConvLSTM
 
 class WaveConvLSTM(WaveModel):
     """Near Field Response Time Series Prediction Model  

@@ -20,7 +20,7 @@ from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, Comp
 #--------------------------------
 #from utils import parameter_manager
 #from core.complexNN import ComplexLinear, ModReLU
-from CVNN import ComplexReLU, ModReLU, ComplexLinearFinal
+from .CVNN import ComplexReLU, ModReLU, ComplexLinearFinal
 
 sys.path.append("../")
 

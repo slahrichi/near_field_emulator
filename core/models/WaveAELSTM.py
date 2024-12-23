@@ -1,7 +1,7 @@
 import torch
 import numpy as np
-import WaveModel
-from autoencoder import Encoder, Decoder
+from .WaveModel import WaveModel
+from .autoencoder import Encoder, Decoder
 
 class WaveAELSTM(WaveModel):
     """Near Field Response Time Series Prediction Model  
