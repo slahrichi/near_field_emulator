@@ -276,6 +276,7 @@ def format_temporal_data(data, conf, order=(-1, 0, 1, 2)):
     all_samples, all_labels = [], []
     spacing_mode = conf.model.spacing_mode
     io_mode = conf.model.io_mode
+    seq_len = conf.model.seq_len
     # [samples, 2, xdim, ydim, 63] --> access each of the datapoints
     for i in range(data['near_fields'].shape[0]):
         full_sequence = data['near_fields'][i] # [2, xdim, ydim, total_slices]
@@ -285,7 +286,7 @@ def format_temporal_data(data, conf, order=(-1, 0, 1, 2)):
         if spacing_mode == 'distributed':
             if io_mode == 'one_to_many':
                 # calculate seq_len+1 evenly spaced indices
-                indices = np.linspace(1, total-1, conf['seq_len']+1)
+                indices = np.linspace(1, total-1, seq_len+1)
                 distributed_block = full_sequence[:, :, :, indices]
                 # the sample is the first one, labels are the rest
                 sample = distributed_block[:, :, :, :1]  # [2, xdim, ydim, 1]
@@ -293,7 +294,7 @@ def format_temporal_data(data, conf, order=(-1, 0, 1, 2)):
                 
             elif io_mode == 'many_to_many':
                 # Calculate seq_len+1 evenly spaced indices for input and shifted output
-                indices = np.linspace(0, total-1, conf['seq_len']+1).astype(int)
+                indices = np.linspace(0, total-1, seq_len+1).astype(int)
                 distributed_block = full_sequence[:, :, :, indices]
                 
                 # Input sequence: all but last timestep
@@ -316,16 +317,16 @@ def format_temporal_data(data, conf, order=(-1, 0, 1, 2)):
                 #for t in range(0, total, conf['seq_len']+1): note: this raise the total number of sample/label pairs
                 t = 0
                 # check if there are enough timesteps for a full block
-                if t + conf['seq_len'] < total:
-                    block = full_sequence[:, :, :, t:t+conf['seq_len'] + 1]
+                if t + seq_len < total:
+                    block = full_sequence[:, :, :, t:t+seq_len + 1]
                     # ex: sample -> t=0 , label -> t=1, t=2, t=3 (if seq_len were 3)
                     sample = block[:, :, :, :1]
                     label = block[:, :, :, 1:]
                         
             elif io_mode == 'many_to_many':
                 # true many to many
-                sample = full_sequence[:, :, :, :conf['seq_len']]
-                label = full_sequence[:, :, :, 1:conf['seq_len']+1]
+                sample = full_sequence[:, :, :, :seq_len]
+                label = full_sequence[:, :, :, 1:seq_len+1]
                 
                 # this is our 'encoder-decoder' mode - not really realistic here
                 '''step_size = 2 * conf['seq_len']
