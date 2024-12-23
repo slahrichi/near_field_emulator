@@ -40,7 +40,7 @@ def run(conf):
     path_job = os.path.join(conf.kube.job_files, job_name + ".yaml")
     save_file(path_job, filled_template)
 
-    #subprocess.run(['kubectl', 'apply', '-f', path_job])
+    subprocess.run(['kubectl', 'apply', '-f', path_job])
          
     
 if __name__=="__main__":

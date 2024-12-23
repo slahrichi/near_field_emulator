@@ -103,8 +103,15 @@ docker build -t kovaleskilab/ml_basic:v4 .
 ```
 
 (Note): Based on the current contents of the `Dockerfile` this assumes you have already followed instructions in Prerequisites Step 2 and pulled the associated docker image from dockerhub:
+
+Local Deployment
 ```
 sudo docker pull kovaleskilab/ml_basic:v4
+```
+
+Kube Deployment
+```
+sudo docker pull kovaleskilab/ml_basic:v4-kube
 ```
 
 From there, we want to run the container but its critical that we mount it utilizing the following scheme to ensure the code exists within the container (if you set up the directory structure introduced earlier, this step is intuitive):
@@ -115,8 +122,10 @@ sudo docker run \
 -v /path/to/results:/develop/results \
 -v {parent directory containing near_field_emulator}:/develop/code \
 -v ~/.kube:/root/.kube
-  kovaleskilab/ml_basic:v4'
+  kovaleskilab/ml_basic:v4-kube'
 ```
+
+Note: For local deployment, just omit the `kube` part and use the other container.
 
 ### Basic Usage
 

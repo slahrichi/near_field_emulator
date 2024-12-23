@@ -1,4 +1,4 @@
-FROM kovaleskilab/ml_basic:v4
+FROM kovaleskilab/ml_basic:v4-kube
 
 SHELL ["/bin/bash", "-c"]
 
