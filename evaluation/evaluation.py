@@ -17,7 +17,6 @@ from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMe
 sys.path.append('../')
 import utils.mapping as mapping
 import utils.visualize as viz
-import utils.parameter_manager as parameter_manager
 fontsize = 8
 font = FontProperties()
 colors = ['darkgreen','purple','#4e88d9'] 
@@ -634,13 +633,7 @@ def construct_results_table(model_names, model_types):
         for model_name in model_names:
             # Construct paths for train and valid metrics files
             train_metrics_path = os.path.join(base_path, model_type, f"model_{model_name}", "performance_metrics", "train_metrics.txt")
-            valid_metrics_path = os.path.join(base_path, model_type, f"model_{model_name}", "performance_metrics", "valid_metrics.txt")
-            params_path = os.path.join(base_path, model_type, f"model_{model_name}", "params.yaml")
-            
-            # setup parameter mgr
-            params = yaml.load(open(params_path), Loader = yaml.FullLoader).copy()
-            pm = parameter_manager.Parameter_Manager(params=params)
-            
+            valid_metrics_path = os.path.join(base_path, model_type, f"model_{model_name}", "performance_metrics", "valid_metrics.txt")            
             # Read and parse the train metrics file
             with open(train_metrics_path, 'r') as file:
                 for line in file:
