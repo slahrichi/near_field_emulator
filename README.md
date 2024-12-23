@@ -19,6 +19,7 @@ Exploration of deep learning models for emulating wavefront propagation and resp
   - **modes.py** : Defines different mode encoding approaches (SVD, Random Projection, etc.)
   - **preprocess_data.py** : Handles the formatting of data .pkl files for time series networks, splitting into train/valid.
   - **compile_data.py** : Data after preprocessing is saved as .pkl files, This file contains a function that compiles it into a single pytorch file for use with the model.
+  - **train.py** : The training process 
 - `evaluation/` : contains files used for eval pipeline
   - **eval_model.py** : Primary file for evaluation process
   - **evaluation.py** : File containing all plotting, measuring, etc. methods
@@ -29,9 +30,8 @@ Exploration of deep learning models for emulating wavefront propagation and resp
   - **parameter_manager.py** : Formats and organizes `config.yaml` contents in a manner consistent with the needs of files which reference them such as the model, data module, etc.
   - **visualize.py** : contains implementation of plotting function that shows animation of field progression - can be seen in the presentation
 - `build/` : Contains the Dockerfile for building the Docker container.
-- `config.yaml` : Specifies all aspects of training, evaluation, setup, everything.
+- `conf/config.yaml` : Specifies all aspects of training, evaluation, setup, everything.
 - `main.py` : The driver file, refers to `config.yaml` to determine what to do when a process is started.
-- `train.py` : The training process
 
 ## Configuration
 
@@ -57,7 +57,8 @@ The `config.yaml` file controls all aspects of training and evaluation. Key para
   - `4`: Autoencoder-Wrapped LSTM
   - `5`: Autoencoder-Wrapped ConvLSTM
   - `6`: LSTM with specific modes encoded first
-  - `7`: Autoencoder
+  - `7`: img2video diffuser model (In Progress)
+  - `8`: autoencoder
 
 - `model_id`: Unique identifier for the model
 - `batch_size`: Training batch size
@@ -72,8 +73,8 @@ The `config.yaml` file controls all aspects of training and evaluation. Key para
 
 ### Prerequisites
 
-
-1. Having the following directory structure on your local machine will minimize the potential for errors but it isn't strictly necessary:
+1. Ensure you have access to Dr. K's Lab Org [Kovaleski-Research-Lab](https://github.com/Kovaleski-Research-Lab). Certain companion intstructions require you have access to view setup steps/passwords/etc.
+2. Having the following directory structure on your local machine will minimize the potential for errors but it isn't strictly necessary:
 
 ```
 develop/  
@@ -89,9 +90,9 @@ develop/
 └───results/
 ```
 
-2. Install Kubernetes: [Kube Setup Process](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/kubernetes.md)
-3. Setup Docker: [Docker Setup](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/docker.md)
-4. Configure SSH **deploy key** authentication: [Setting up Deploy Key](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/github-deploy-key.md)
+3. Install Kubernetes: [Kube Setup Process](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/kubernetes.md)
+4. Setup Docker: [Docker Setup](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/docker.md)
+5. Configure SSH **deploy key** authentication: [Setting up Deploy Key](https://github.com/Kovaleski-Research-Lab/Global-Lab-Repo/blob/main/sops/software_development/github-deploy-key.md)
 
 ### Docker
 
@@ -133,21 +134,21 @@ From within the Docker container after launching (should be at **/develop/code**
 
 ```
 cd near_field_emulator
-python3 main.py --config config.yaml
+python3 main.py --config conf/config.yaml
 ```
 
 ### Training
 
-1. Set `directive: 0` in `config.yaml`
+1. Set `directive: 0` in `conf/config.yaml`
 2. Choose architecture with `arch` parameter
 3. Set desired `model_id` and hyperparameters
-4. Run `python3 main.py --config config.yaml`
+4. Run `python3 main.py --config conf/config.yaml`
 
 ### Evaluation
 
-1. Set `directive: 1` in `config.yaml`
+1. Set `directive: 1` in `conf/config.yaml`
 2. Set other desired parameters
-3. Run `python3 main.py --config config.yaml`
+3. Run `python3 main.py --config conf/config.yaml`
 
 Evaluation outputs (saved to `develop/results`, copied to `training_results` PVC):
 - Predicted vs actual field distributions - magnitude and phase
@@ -158,9 +159,9 @@ Evaluation outputs (saved to `develop/results`, copied to `training_results` PVC
 
 (Note: Process not fully integrated yet)
 
-1. Set `directive: 2` in `config.yaml`
+1. Set `directive: 2` in `conf/config.yaml`
 2. Set `arch` to `convlstm` (for example) to get all eval results for that model
-3. Run `python3 main.py --config config.yaml`
+3. Run `python3 main.py --config conf/config.yaml`
 
 ### Running Meep Simulations
 
@@ -172,9 +173,9 @@ To generate training data using Meep:
 
 1. Prerequisite: MEEP Simulation(s) have been ran and reduced to volumes in `data/nfe-data/volumes`
 2. Copy `neighbors_library_allrandom.pkl` to `/develop/code/near_field_emulator/utils/` if not done already (can copy from `general_3x3` repo)
-3. Set `directive: 4` in `config.yaml`
+3. Set `directive: 4` in `conf/config.yaml`
 4. Set `deployment` accordingly for deployment type
-5. Run `python3 main.py --config config.yaml`
+5. Run `python3 main.py --config conf/config.yaml`
 
 Preprocessed datasets contain:
 - Normalized field components
@@ -183,7 +184,7 @@ Preprocessed datasets contain:
 
 ## Kubernetes Jobs
 
-The `kube/` directory contains job templates for distributed training. Creating templates is as simple as setting parameters in `config.yaml` and running the following:
+The `kube/` directory contains job templates for distributed training. Creating templates is as simple as setting parameters in `conf/config.yaml` and running the following:
 
 ```
 python3 -m kube.launch_training # (or launch_evaluation)
@@ -195,5 +196,5 @@ After the above is ran a complete YAML configuration file is generated and place
 kubectl apply -f kube/kube_jobs/convlstm-training.yaml
 ```
 
-**Note:** Running these jobs requires access to specific Kubernetes namespaces and PVCs, as well as the private github repo hosting this code. Instructions for setting up required permissions are detailed in
+**Note:** Running these jobs requires access to specific Kubernetes namespaces and PVCs, as well as the relevant private github repos. Instructions for setting up required permissions are detailed in
 the Prerequisites section above.
