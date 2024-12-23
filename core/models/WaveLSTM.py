@@ -45,14 +45,14 @@ class WaveLSTM(WaveModel):
             predictions.append(pred) # t+1 (or + delta split)
             
             # remaining t: no input, we pass 0's as dummy vals
-            for t in range(1, self.conf.seq_len):
+            for t in range(1, self.seq_len):
                 dummy_input = torch.zeros_like(x)
                 lstm_out, meta = self.arch(dummy_input, meta)
                 pred = self.linear(lstm_out)
                 predictions.append(pred)
             
         elif self.io_mode == 'many_to_many':
-            if self.conf.autoreg:
+            if self.autoreg:
                 # Use first timestep
                 current_input = x[:, 0]  # Keep seq_len dim with size 1
                 current_input = current_input.unsqueeze(1)
@@ -61,13 +61,13 @@ class WaveLSTM(WaveModel):
                 predictions.append(pred)
                 
                 # Generate remaining predictions using previous outputs
-                for t in range(1, self.conf.seq_len):
+                for t in range(1, self.seq_len):
                     # Use previous prediction as input
                     lstm_out, meta = self.arch(pred, meta)
                     pred = self.linear(lstm_out)
                     predictions.append(pred)
             else: # teacher forcing
-                for t in range(self.conf.seq_len):
+                for t in range(self.seq_len):
                     current_input = x[:, t] # ground truth at t
                     lstm_out, meta = self.arch(current_input, meta)
                     pred = self.linear(lstm_out)
@@ -91,7 +91,7 @@ class WaveLSTM(WaveModel):
 
         # flatten spatial and r/i dims - (batch_size, seq_len, input_size)
         samples = samples.view(batch_size, input_seq_len, -1)
-        labels = labels.view(batch_size, self.conf.seq_len, -1)
+        labels = labels.view(batch_size, self.seq_len, -1)
         
         # Forward pass
         preds, _ = self.forward(samples)
@@ -102,9 +102,9 @@ class WaveLSTM(WaveModel):
         
         # reshape preds for metrics
         if self.io_mode == "one_to_many":
-            preds = preds.view(batch_size, self.conf.seq_len, r_i, xdim, ydim)
+            preds = preds.view(batch_size, self.seq_len, r_i, xdim, ydim)
         elif self.io_mode == "many_to_many":
-            preds = preds.view(batch_size, self.conf.seq_len, r_i, xdim, ydim)
+            preds = preds.view(batch_size, self.seq_len, r_i, xdim, ydim)
         else:
             # other modes not implemented
             raise NotImplementedError

@@ -10,40 +10,40 @@ class WaveConvLSTM(WaveModel):
         super().__init__(model_config, fold_idx)
 
     def create_architecture(self):
-        self.arch_params = self.conf.convlstm
+        self.arch_conf = self.conf.convlstm
         
-        seq_len = self.conf.seq_len
-        kernel_size = self.arch_params.kernel_size
-        padding = self.arch_params.padding
-        out_channels = self.arch_params.out_channels
-        num_layers = self.arch_params.num_layers
-        in_channels = self.arch_params.in_channels
-        spatial = self.arch_params.spatial
+        self.seq_len = self.conf.seq_len
+        self.kernel_size = self.arch_conf.kernel_size
+        self.padding = self.arch_conf.padding
+        self.out_channels = self.arch_conf.out_channels
+        self.num_layers = self.arch_conf.num_layers
+        self.in_channels = self.arch_conf.in_channels
+        self.spatial = self.arch_conf.spatial
         
         # Create single ConvLSTM layer
         self.arch = ConvLSTM(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            seq_len=seq_len,
-            kernel_size=kernel_size,
-            padding=padding,
-            frame_size=(spatial, spatial)
+            in_channels=self.in_channels,
+            out_channels=self.out_channels,
+            seq_len=self.seq_len,
+            kernel_size=self.kernel_size,
+            padding=self.padding,
+            frame_size=(self.spatial, self.spatial)
         )
         
         # conv reduction + activation to arrive back at real/imag
         self.linear = nn.Sequential(
-            nn.Conv2d(out_channels, 2, kernel_size=1),
+            nn.Conv2d(self.out_channels, 2, kernel_size=1),
             nn.Tanh(),
         )
         
     def forward(self, x, meta=None):
         batch, seq_len, r_i, xdim, ydim = x.size()
-        x = x.view(batch, seq_len, self.arch_params.in_channels, 
-                    self.arch_params.spatial, self.arch_params.spatial)
+        x = x.view(batch, seq_len, self.in_channels, 
+                    self.spatial, self.spatial)
         
         # invoke for specified mode (i.e. many_to_many)
         lstm_out, meta = self.arch(x, meta, mode=self.io_mode, 
-                                    autoregressive=self.conf.autoreg)
+                                    autoregressive=self.autoreg)
         
         # reshape for conv
         b, s, ch, he, w = lstm_out.size()
@@ -70,9 +70,9 @@ class WaveConvLSTM(WaveModel):
         
         # reshape preds for metrics
         if self.io_mode == "one_to_many":
-            preds = preds.view(batch_size, self.conf.seq_len, r_i, xdim, ydim)
+            preds = preds.view(batch_size, self.seq_len, r_i, xdim, ydim)
         elif self.io_mode == "many_to_many":
-            preds = preds.view(batch_size, self.conf.seq_len, r_i, xdim, ydim)
+            preds = preds.view(batch_size, self.seq_len, r_i, xdim, ydim)
         else:
             # other modes not implemented
             raise NotImplementedError
