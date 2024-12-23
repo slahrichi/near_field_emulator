@@ -70,7 +70,7 @@ def run(conf):
     results_dir = conf.paths.results
     
     # setup new parameter manager based on saved parameters
-    saved_conf = load_config(os.path.join(results_dir, 'params.yaml'))
+    saved_conf = conf
        
     # Load model checkpoint
     model_path = os.path.join(results_dir, 'model.ckpt')
