@@ -198,7 +198,7 @@ paths:
     data: 'data/preprocessed_data/'
     train: 'train/'
     valid: 'valid/'
-    results: 'results/'
+    results: 'results/meep_meep/'
     volumes: 'nfe-data/volumes'
     library: 'code/near_field_emulator/utils/neighbors_library_allrandom.pkl'
     pretrained_ae: 'meep_meep/autoencoder/model_ae-v1/'

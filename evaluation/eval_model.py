@@ -39,9 +39,10 @@ def plotting(conf, test_results, results_dir, fold_num=None):
         
     # compute relevant metrics across folds
     if model_type != 'autoencoder':
+        plot_mse = True if conf.model.arch != 'mlp' and conf.model.arch != 'cvnn' else False
         print("\nComputing and saving metrics...")
-        eval.print_metrics(test_results, dataset='train', save_fig=True, save_dir=results_dir)
-        eval.print_metrics(test_results, dataset='valid', save_fig=True, save_dir=results_dir)
+        eval.metrics(test_results, dataset='train', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
+        eval.metrics(test_results, dataset='valid', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
     
     # visualize performance with DFT fields
     print("\nGenerating DFT field plots...")

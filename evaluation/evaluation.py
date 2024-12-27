@@ -20,8 +20,6 @@ import utils.visualize as viz
 fontsize = 8
 font = FontProperties()
 colors = ['darkgreen','purple','#4e88d9'] 
-
-path_results = "/develop/results/"
 model_identifier = ""
 
 def is_csv_empty(path):
@@ -280,31 +278,63 @@ def plot_loss(conf, min_list=[None, None], max_list=[None, None], save_fig=False
             plt.show()
 
 def calculate_metrics(truth, pred):
-    """Calculate various metrics between ground truth and predictions."""
+    """
+    Calculate various metrics between ground truth and predictions.
+    Also compute MSE at each slice if it's a 5D shape (N, T, R, X, Y).
+    """
+    truth_torch = torch.tensor(truth) if not isinstance(truth, torch.Tensor) else truth
+    pred_torch  = torch.tensor(pred)  if not isinstance(pred, torch.Tensor)  else pred
+
     mae = np.mean(np.abs(truth - pred))
     rmse = np.sqrt(np.mean((truth - pred) ** 2))
+    rmse_std = np.sqrt(np.var(truth - pred))
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
-    psnr = PeakSignalNoiseRatio(data_range=1.0)(torch.tensor(pred), torch.tensor(truth))
-    try: # if spatial size is too small set SSIM to 0
-        ssim = StructuralSimilarityIndexMeasure(data_range=1.0)(torch.tensor(pred), torch.tensor(truth))
+
+    psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
+    try:
+        ssim = StructuralSimilarityIndexMeasure(data_range=1.0)(pred_torch, truth_torch)
     except:
         ssim = torch.tensor(0.0)
-    # compute rmse of the final slice of each sequence
-    if truth.ndim == 5:
-        rmse_final_slice = np.sqrt(np.mean((truth[:, -1, :, :, :] - pred[:, -1, :, :, :]) ** 2))
-    else: # not applicable for MLPs
-        rmse_final_slice = 0.0
+
+    # Initialize placeholders
+    rmse_first_slice = None
+    rmse_final_slice = None
+    final_slice_std  = None
     
-    return {
+    # If 5D shape: (N, T, R, X, Y)
+    if truth.ndim == 5:   
+        # Compute final slice MSE across the batch
+        final_slice_errors = (truth[:, -1] - pred[:, -1])**2  
+        final_slice_mse_per_sample = np.mean(final_slice_errors, axis=(1,2,3))  
+        rmse_final_slice = np.sqrt(np.mean(final_slice_mse_per_sample))
+
+        # standard deviation among the batch for the final slice MSE
+        final_slice_std = np.sqrt(np.var(final_slice_mse_per_sample))
+        
+        # same for first slice
+        first_slice_errors = (truth[:, 0] - pred[:, 0])**2  
+        first_slice_mse_per_sample = np.mean(first_slice_errors, axis=(1,2,3))  
+        rmse_first_slice = np.sqrt(np.mean(first_slice_mse_per_sample))
+        first_slice_std = np.sqrt(np.var(first_slice_mse_per_sample))
+
+    # Build dictionary
+    out = {
         'MAE': mae,
-        'RMSE': rmse,
+        'RMSE': f"{rmse:.4f} +/- {rmse_std:.4f}",
         'Correlation': correlation,
         'PSNR': psnr.item(),
-        'SSIM': ssim.item(),
-        'RMSE_Final_Slice': rmse_final_slice
+        'SSIM': ssim.item()
     }
+    if rmse_first_slice is not None:
+        out['RMSE_First_Slice'] = f"{rmse_first_slice:.4f} +/- {first_slice_std:.4f}"
+    if rmse_final_slice is not None:
+        # Add a string with +/- if you like
+        out['RMSE_Final_Slice'] = f"{rmse_final_slice:.4f} +/- {final_slice_std:.4f}"
 
-def print_metrics(test_results, fold_idx=None, dataset='valid', save_fig=False, save_dir=None):
+    return out
+
+def metrics(test_results, fold_idx=None, dataset='valid', 
+                  save_fig=False, save_dir=None, plot_mse=False):
     """Print metrics for a specific fold and dataset (train or valid)."""
     if dataset not in test_results:
         raise ValueError(f"Dataset '{dataset}' not found in test_results.")
@@ -323,6 +353,108 @@ def print_metrics(test_results, fold_idx=None, dataset='valid', save_fig=False, 
             raise ValueError("Please specify a save directory")
         file_name = f'{dataset}_metrics.txt'
         save_eval_item(save_dir, metrics, file_name, 'metrics')
+        
+        # 3) Optionally compute MSE vs. time slice and plot
+    if plot_mse:
+        # compute MSE(t) for each slice
+        mse_means, mse_stds = compute_mse_per_slice(truth, pred)
+
+        # Plot
+        plot_mse_evolution(
+            mse_means, 
+            mse_stds, 
+            title=f"{dataset.capitalize()} - MSE Across Slices",
+            save_fig=save_fig,
+            save_dir=save_dir
+        )
+
+def compute_mse_per_slice(truth, pred):
+    """
+    Compute the mean and std-dev of the MSE across the batch dimension
+    for each timestep in [0..seq_len-1].
+    
+    Args:
+        truth: np.ndarray or torch.Tensor of shape (batch, seq_len, r_i, xdim, ydim)
+        pred:  np.ndarray or torch.Tensor of the same shape
+    
+    Returns:
+        mse_means: np.ndarray of shape (seq_len,) - average MSE at each time t
+        mse_stds:  np.ndarray of shape (seq_len,) - std dev of MSE across the batch at each time t
+    """
+    # Ensure we have numpy arrays
+    if isinstance(truth, torch.Tensor):
+        truth = truth.detach().cpu().numpy()
+    if isinstance(pred, torch.Tensor):
+        pred = pred.detach().cpu().numpy()
+    
+    # If shape is (batch, seq_len, r_i, xdim, ydim), let's extract dimensions
+    batch_size, seq_len = truth.shape[0], truth.shape[1]
+    
+    # Arrays to store results
+    mse_means = np.zeros(seq_len)
+    mse_stds  = np.zeros(seq_len)
+    
+    # For each timestep t, compute MSE for each sample in the batch
+    for t in range(seq_len):
+        # shape of errors: (batch_size, r_i, xdim, ydim)
+        errors_t = (truth[:, t] - pred[:, t])**2  # still shape (N, r_i, xdim, ydim)
+        
+        # MSE per sample = average across spatial dimensions
+        # shape: (batch_size,)
+        mse_per_sample = np.mean(errors_t, axis=(1, 2, 3))  
+        
+        # Now compute mean, std across batch dimension
+        mse_means[t] = np.mean(mse_per_sample)  
+        mse_stds[t]  = np.std(mse_per_sample)
+    
+    return mse_means, mse_stds
+
+def plot_mse_evolution(mse_means, mse_stds=None, title="MSE Across Slices", save_fig=None, save_dir=None):
+    """
+    Plot the MSE vs timestep (with optional std-dev shading or error bars).
+    
+    Args:
+        mse_means: np.ndarray of shape (T,) - the mean MSE at each timestep
+        mse_stds:  (optional) np.ndarray of shape (T,) - the std dev of MSE
+                   if None, we won't plot error shading.
+        title:     title of the plot
+        save_fig: if True, saves the plot to a file
+        save_dir: if provided, saves the plot to this path
+    """
+    timesteps = np.arange(len(mse_means))
+
+    fig = plt.figure(figsize=(8, 5))
+    # Plot the mean
+    ax = fig.add_subplot(111)
+    ax.plot(timesteps, mse_means, label="Mean MSE", color='blue')
+    
+    # Optionally add error shading or error bars
+    if mse_stds is not None:
+        # Shaded region
+        plt.fill_between(
+            timesteps,
+            mse_means - mse_stds,
+            mse_means + mse_stds,
+            color='blue',
+            alpha=0.2,
+            label="Std Dev"
+        )
+        # Or you could do error bars instead:
+        # plt.errorbar(timesteps, mse_means, yerr=mse_stds, fmt='o-', ecolor='lightblue')
+    
+    ax.set_xlabel("Timestep")
+    ax.set_ylabel("MSE")
+    ax.set_title(title)
+    ax.legend()
+    ax.grid(True)
+
+    if save_fig:
+        if not save_dir:
+            raise ValueError("Please specify a save directory")
+        file_name = f'mse_evolution.pdf'
+        save_eval_item(save_dir, fig, file_name, 'loss')
+    else:
+        plt.show()
 
 def plot_dft_fields(test_results, resub=False,
                     sample_idx=0, save_fig=False, save_dir=None,
