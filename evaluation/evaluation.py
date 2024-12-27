@@ -341,11 +341,16 @@ def metrics(test_results, fold_idx=None, dataset='valid',
 
     truth = test_results[dataset]['nf_truth']
     pred = test_results[dataset]['nf_pred']
+    
+    std_metrics = ["RMSE", "RMSE_First_Slice", "RMSE_Final_Slice"]
 
     metrics = calculate_metrics(truth, pred)
     print(f"Metrics for {dataset.capitalize()} Dataset:")
     for metric, value in metrics.items():
-        print(f"{metric}: {value:.4f}")
+        if metric in std_metrics:
+            print(f"{metric}: {value}")
+        else:
+            print(f"{metric}: {value:.4f}")
 
     # save to file if requested
     if save_fig:
