@@ -9,8 +9,8 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
-deployment: 0
+directive: 0
+deployment: 1
 
 #--------------------------------
 #       General Params
@@ -44,7 +44,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 2
-    model_id: 'test'
+    model_id: '15_v1'
 
     # General Model Parameters
 
@@ -162,9 +162,9 @@ model:
     # - spacing_mode: 'sequential' or 'distributed'
     # - autoreg: autoregressive mode or teacher forcing - M2M only
 
-    seq_len: 10
+    seq_len: 15
     io_mode: 'one_to_many'
-    spacing_mode: 'distributed'
+    spacing_mode: 'sequential'
     autoreg: True
 
 #--------------------------------
@@ -172,7 +172,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 8
-    num_epochs: 2 # maximum
+    num_epochs: 50 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]

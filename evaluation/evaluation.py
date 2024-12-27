@@ -289,13 +289,19 @@ def calculate_metrics(truth, pred):
         ssim = StructuralSimilarityIndexMeasure(data_range=1.0)(torch.tensor(pred), torch.tensor(truth))
     except:
         ssim = torch.tensor(0.0)
+    # compute rmse of the final slice of each sequence
+    if truth.ndim == 5:
+        rmse_final_slice = np.sqrt(np.mean((truth[:, -1, :, :, :] - pred[:, -1, :, :, :]) ** 2))
+    else: # not applicable for MLPs
+        rmse_final_slice = 0.0
     
     return {
         'MAE': mae,
         'RMSE': rmse,
         'Correlation': correlation,
         'PSNR': psnr.item(),
-        'SSIM': ssim.item()
+        'SSIM': ssim.item(),
+        'RMSE_Final_Slice': rmse_final_slice
     }
 
 def print_metrics(test_results, fold_idx=None, dataset='valid', save_fig=False, save_dir=None):
