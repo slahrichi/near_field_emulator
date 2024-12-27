@@ -91,10 +91,14 @@ def save_eval_item(save_dir, eval_item, file_name, type):
         save_path = os.path.join(save_dir, "dft_plots")
     os.makedirs(save_path, exist_ok=True)
     save_path = os.path.join(save_path, file_name)
+    std_metrics = ["RMSE", "RMSE_First_Slice", "RMSE_Final_Slice"]
     if 'metrics' in type:
         with open(save_path, 'w') as file:
             for metric, value in eval_item.items():
-                file.write(f"{metric}: {value:.4f}\n")
+                if metric in std_metrics:
+                    file.write(f"{metric}: {value}\n")
+                else:
+                    file.write(f"{metric}: {value:.4f}\n")
     else:
         eval_item.savefig(save_path)
     print(f"Generated evaluation item: {type}")
