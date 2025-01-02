@@ -10,7 +10,7 @@
 # - 1: kubernetes
 
 directive: 1
-deployment: 1
+deployment: 0
 
 #--------------------------------
 #       General Params
@@ -43,8 +43,8 @@ model:
         # - 8: Autoencoder - Used in conjunction with arch 4, 5
     # - model_id: model identifier / name
 
-    arch: 2
-    model_id: '15_v1'
+    arch: 0
+    model_id: 'test'
 
     # General Model Parameters
 
@@ -172,7 +172,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 8
-    num_epochs: 50 # maximum
+    num_epochs: 10 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
@@ -237,8 +237,12 @@ physics:
 #       Datamodule Params
 #--------------------------------
 data:
+    # - n_cpus: number of cpus
+    # - n_folds: number of folds for cross val
+    # - buffer: True/False - whether to use buffer dataset or old U-Net data (no buffer)
     n_cpus: 5
     n_folds: 3
+    buffer: True
 
 #--------------------------------
 #       Kube Params

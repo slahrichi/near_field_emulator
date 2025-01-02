@@ -130,7 +130,7 @@ class PathsConfig(BaseModel):
 class DataConfig(BaseModel):
     n_cpus: int
     n_folds: int
-
+    buffer: bool = True
 class PhysicsConfig(BaseModel):
     Nx_metaAtom: int
     Ny_metaAtom: int
@@ -185,6 +185,8 @@ class MainConfig(BaseModel):
         # need specific path for good categorization in results
         if main.model.arch == 'modelstm': # further categorize by mode encoding method
             main.paths.results = os.path.join(main.paths.results, main.model.arch, main.model.modelstm.method, main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
+        elif main.model.arch == 'mlp' or main.model.arch == 'cvnn':
+            main.paths.results = os.path.join(main.paths.results, main.model.arch, f"model_{main.model.model_id}")
         else:
             main.paths.results = os.path.join(main.paths.results, main.model.arch, main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
         

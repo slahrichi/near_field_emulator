@@ -237,7 +237,7 @@ class WaveMLP(LightningModule):
                                                                     cooldown=2)
         elif self.lr_scheduler == 'CosineAnnealingLR':
             choice = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
-                                                                T_max=self.conf['num_epochs'],
+                                                                T_max=100,
                                                                 eta_min=1e-6)
         elif self.lr_scheduler == 'None':
             return optimizer
@@ -420,10 +420,10 @@ class WaveMLP(LightningModule):
             self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
 
             # Log results for the current fold
-            name = "results"
+            '''name = "results"
             self.logger.experiment.log_results(
                 results=self.test_results[mode],
                 epoch=None,
                 mode=mode,
                 name=name
-            )
+            )'''

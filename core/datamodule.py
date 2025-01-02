@@ -71,10 +71,13 @@ class NF_Datamodule(LightningDataModule):
             data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
             self.dataset = format_ae_data(data, self.conf)
         elif self.model_type == 'mlp' or self.model_type == 'cvnn':
-            data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
-            if self.conf['interpolate_fields']: # interpolate fields to lower resolution
+            if self.conf.data.buffer:
+                data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
+            else:
+                data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
+            if self.conf.model.interpolate_fields: # interpolate fields to lower resolution
                 data = interpolate_fields(data)
-            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size)
+            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size, buffer=self.conf.data.buffer)
         else: # time series models
             if self.model_type == 'modelstm': # using an encoded representation
                 data = torch.load(os.path.join(self.path_data, f"dataset_{self.conf.model.modelstm.method}.pt"))
@@ -125,25 +128,16 @@ class WaveMLP_Dataset(Dataset):
     """
     Dataset for the MLP models associated with mapping design conf to fields.
     """
-    def __init__(self, data, transform, approach=0, patch_size=1):
+    def __init__(self, data, transform, approach=0, patch_size=1, buffer=True):
         logging.debug("datamodule.py - Initializing WaveMLP_Dataset")
         self.transform = transform
         logging.debug("NF_Dataset | Setting transform to {}".format(self.transform))
         self.approach = approach
         self.patch_size = patch_size
-        self.radii = data['radii']
-        self.phases = data['phases']
-        self.derivatives = data['derivatives']
-        # focus on 1550 wavelength in y for now
-        temp_nf_1550 = data['all_near_fields']['near_fields_1550']
-        temp_nf_1550 = torch.stack(temp_nf_1550, dim=0) # stack all sample tensors
-        temp_nf_1550 = temp_nf_1550.squeeze(1) # remove redundant dimension
-        temp_nf_1550 = temp_nf_1550[:, 1, :, :, :] # [num_samples, mag/phase, 166, 166]
-        # convert to cartesian coords
-        mag, phase = mapping.polar_to_cartesian(temp_nf_1550[:, 0, :, :], temp_nf_1550[:, 1, :, :])
-        mag = mag.unsqueeze(1)
-        phase = phase.unsqueeze(1)
-        self.near_fields = torch.cat((mag, phase), dim=1) # [num_samples, r/i, 166, 166]
+        self.data = data
+        self.is_buffer = buffer
+        # setup data accordingly
+        self.format_data()
         
         # distributed subset approach
         if self.approach == 2:
@@ -162,8 +156,8 @@ class WaveMLP_Dataset(Dataset):
         return len(self.near_fields)
 
     def __getitem__(self, idx):
-        near_field = self.near_fields[idx]
-        radius = self.radii[idx].float()
+        near_field = self.near_fields[idx] # [2, 166, 166]
+        radius = self.radii[idx].float() # [9]
         
         if self.approach == 2:
             # selecting patch_size evenly distributed pixels
@@ -178,6 +172,26 @@ class WaveMLP_Dataset(Dataset):
         
         return near_field, radius
     
+    def format_data(self):
+        self.radii = self.data['radii']
+        self.phases = self.data['phases']
+        self.derivatives = self.data['derivatives']
+        if not self.is_buffer: # old buffer dataset (U-NET data)
+            # focus on 1550 wavelength in y for now
+            temp_nf_1550 = self.data['all_near_fields']['near_fields_1550']
+            temp_nf_1550 = torch.stack(temp_nf_1550, dim=0) # stack all sample tensors
+            temp_nf_1550 = temp_nf_1550.squeeze(1) # remove redundant dimension
+            temp_nf_1550 = temp_nf_1550[:, 1, :, :, :] # [num_samples, mag/phase, 166, 166]
+            # convert to cartesian coords
+            mag, phase = mapping.polar_to_cartesian(temp_nf_1550[:, 0, :, :], temp_nf_1550[:, 1, :, :])
+            mag = mag.unsqueeze(1)
+            phase = phase.unsqueeze(1)
+            self.near_fields = torch.cat((mag, phase), dim=1) # [num_samples, r/i, 166, 166]
+        else: # using newer dataset (dataset.pt), simulated for time series models
+            temp_nf_1550 = self.data['near_fields'] # [num_samples, 2, 166, 166, 63]
+            # grab the final slice
+            self.near_fields = temp_nf_1550[:, :, :, :, -1] # [num_samples, 2, 166, 166]
+            
 class WaveModel_Dataset(Dataset):
     """
     Dataset for the time series models associated with emulating wave propagation.
