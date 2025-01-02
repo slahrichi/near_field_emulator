@@ -24,19 +24,24 @@ def run(conf):
     logging.basicConfig(level=logging.DEBUG)
 
     # for accessing the preprocessed data
-    train_path = os.path.join(conf.paths.data, 'train')
-    valid_path = os.path.join(conf.paths.data, 'valid')
+    if conf.deployment == 0:  # we are using local compute
+        path_output = conf.paths.data
+    elif conf.deployment == 1: # we are launching kubernetes jobs
+        path_output = conf.kube.compile_job.paths.data.preprocessed_data
     
     model_type = conf.model.arch
     
+    train_path = os.path.join(path_output, 'train')
+    valid_path = os.path.join(path_output, 'valid')
+    
     # Load data
     if model_type == 'mlp' or model_type == 'cvnn':
-        save_path = os.path.join(conf.paths.data, 'dataset_nobuffer.pt')
+        save_path = os.path.join(path_output, 'dataset_nobuffer.pt')
         if os.path.exists(save_path):
             raise FileExistsError(f"Output file {save_path} already exists!")
         dm.load_pickle_data(train_path, valid_path, save_path, arch='mlp')
     else: # LSTM
-        save_path = os.path.join(conf.paths.data, 'dataset.pt')
+        save_path = os.path.join(path_output, 'dataset.pt')
         logging.debug(f"Save path: {save_path}")
         logging.debug(f"Save directory exists: {os.path.exists(os.path.dirname(save_path))}")
         logging.debug(f"Save directory writable: {os.access(os.path.dirname(save_path), os.W_OK)}")

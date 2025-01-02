@@ -113,10 +113,10 @@ class PathsConfig(BaseModel):
             raise ValueError(f"Root directory {model.root} does not exist")
         if not os.path.exists(model.data):
             raise ValueError(f"Data directory {model.data} does not exist")
-        if not os.path.exists(model.train):
-            raise ValueError(f"Train directory {model.train} does not exist")
-        if not os.path.exists(model.valid):
-            raise ValueError(f"Valid directory {model.valid} does not exist")
+        #if not os.path.exists(model.train):
+        #    raise ValueError(f"Train directory {model.train} does not exist")
+        #if not os.path.exists(model.valid):
+        #    raise ValueError(f"Valid directory {model.valid} does not exist")
         if not os.path.exists(model.results):
             raise ValueError(f"Results directory {model.results} does not exist")
         '''if not os.path.exists(model.volumes):
@@ -131,6 +131,8 @@ class DataConfig(BaseModel):
     n_cpus: int
     n_folds: int
     buffer: bool = True
+    wavelength: float
+    
 class PhysicsConfig(BaseModel):
     Nx_metaAtom: int
     Ny_metaAtom: int

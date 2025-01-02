@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: ethan-monitor-results
+  name: ethan-monitor-volumes
 spec:
   containers:
-    - name: monitor-results
+    - name: monitor-volumes
       image: docker.io/kovaleskilab/ml_basic:v4  
       stdin: True
       tty: True
@@ -16,12 +16,12 @@ spec:
           memory: 20G
           cpu: 2
       volumeMounts:
-        - name: training-results 
-          mountPath: /develop/results
+        - name: dft-volumes
+          mountPath: /develop/data
           
   volumes:
-    - name: training-results
+    - name: dft-volumes
       persistentVolumeClaim:
-        claimName: training-results
+        claimName: dft-volumes
 
   restartPolicy: Never

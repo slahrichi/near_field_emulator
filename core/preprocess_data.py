@@ -48,22 +48,22 @@ def create_folder(folder_path):
 # Our paths are deployment-dependent. This method takes in the params we loaded from configs/params.yaml
 # and determines if we are deploying locally or using kubernetes. It returns the correct paths based on
 # this information.
-def get_paths(params):
+def get_paths(conf):
 
     # A pickle file that contains all the meta-atom radii. It is saved in the meta_atom_rnn repo
     # It matches the file of the same name in the general_3x3 repo from which the dataset was generated.
 
-    library = pickle.load(open(os.path.join(params['path_root'], params['path_library']),'rb'))
+    library = pickle.load(open(conf.paths.library, 'rb'))
 
-    if params['deployment'] == 0:  # we are using local compute
+    if conf.deployment == 0:  # we are using local compute
 
-        path_volumes = os.path.join(params['path_root'], params['path_volumes'])
-        path_output = os.path.join(params['path_root'], params['path_data'])
+        path_volumes = conf.paths.volumes
+        path_output = conf.paths.data
         
-    elif params['deployment'] == 1: # we are launching kubernetes jobs
+    elif conf.deployment == 1: # we are launching kubernetes jobs
 
-        path_volumes = params['kube']['paths']['data']['volumes']
-        path_output = params['kube']['paths']['data']['preprocessed_data']
+        path_volumes = conf.kube.compile_job.paths.data.volumes
+        path_output = conf.kube.compile_job.paths.data.preprocessed_data
 
     return library, path_volumes, path_output
 
@@ -110,9 +110,9 @@ def separate_datasets(folder_path):
 
 # In the future it would be good to parallelize this step! It's pretty slow - taking about 10 
 # seconds per sample.
-def run(params):
+def run(conf):
 
-    library, path_volumes, path_output = get_paths(params)
+    library, path_volumes, path_output = get_paths(conf)
 
     # 'exclude' is a debugging variable - If you already preprocessed some files and want to 
     # exclude them, put them in this list. Generally, you'll leave it empty for deployment.    
@@ -141,8 +141,11 @@ def run(params):
                 sample_path = os.path.join(path_volumes,entry.name)
                 sample = pickle.load(open(sample_path,"rb"))
 
-                # just going to look at the y component of 1550 for now.
-                vol = torch.from_numpy(sample[1.55][1])  # shape is [2,166,166,63]
+                # just going to look at the y component of specified wavelength
+                wavelength = conf.data.wavelength
+                print(f"Looking at wavelength {wavelength}")
+                print(sample.keys())
+                vol = torch.from_numpy(sample[wavelength][1])  # shape is [2,166,166,63]
                                                          #          [real/im,xdim,ydim,num_slices]
 
                 # preprocessed_data has pkl files with phase_vol and amp_vol. -- NOT amp and vol - real and im kept separate

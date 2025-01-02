@@ -16,12 +16,12 @@ spec:
           memory: 20G
           cpu: 2
       volumeMounts:
-        - name: preprocessed-data 
+        - name: nfe-data 
           mountPath: /develop/data/preprocessed_data
           
   volumes:
-    - name: preprocessed-data
+    - name: nfe-data
       persistentVolumeClaim:
-        claimName: preprocessed-data
+        claimName: nfe-data
 
   restartPolicy: Never

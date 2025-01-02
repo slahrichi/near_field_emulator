@@ -32,6 +32,8 @@ spec:
           volumeMounts: 
             - name: {{pvc_preprocessed}}
               mountPath: {{preprocessed_path}}
+            - name: {{pvc_volumes}}
+              mountPath: {{volumes_path}}
             - name: ssh-key
               mountPath: "/root/.ssh"
               readOnly: true
@@ -40,6 +42,9 @@ spec:
         - name: {{pvc_preprocessed}}  # this is where preprocessed pickle files are
           persistentVolumeClaim:
             claimName: {{pvc_preprocessed}}
+        - name: {{pvc_volumes}}
+          persistentVolumeClaim:
+            claimName: {{pvc_volumes}}
         - name: ssh-key
           secret:
             secretName: github-ssh-key

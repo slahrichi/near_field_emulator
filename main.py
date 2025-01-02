@@ -33,7 +33,7 @@ if __name__ == '__main__':
         print('Preprocessing DFT volumes...')
         preprocess_data.run(config)
         print('Compiling data into .pt file...')
-        compile_data.run(config.paths)
+        compile_data.run(config)
     elif directive == 5:
         print(f"Encoding {config.model.modelstm['method']} modes...")
         modes.run(config)

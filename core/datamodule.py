@@ -223,6 +223,9 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
     tag = []
     
     for path in [train_path, valid_path]:
+        # create path if it doesn't exist
+        if not os.path.exists(path):
+            os.makedirs(path)
         # keeping track of original split
         normalized_path = os.path.normpath(path)
         parent_dir = os.path.basename(normalized_path)

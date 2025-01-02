@@ -30,16 +30,21 @@ spec:
               memory: 200Gi
               cpu: 32
           volumeMounts: 
-            - name: preprocessed-data
+            - name: nfe-data
               mountPath: /develop/data/preprocessed_data
+            - name: 
+              mountPath: 
             - name: ssh-key
               mountPath: "/root/.ssh"
               readOnly: true
 
       volumes:
-        - name: preprocessed-data  # this is where preprocessed pickle files are
+        - name: nfe-data  # this is where preprocessed pickle files are
           persistentVolumeClaim:
-            claimName: preprocessed-data
+            claimName: nfe-data
+        - name: 
+          persistentVolumeClaim:
+            claimName: 
         - name: ssh-key
           secret:
             secretName: github-ssh-key
