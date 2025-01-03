@@ -27,7 +27,7 @@ def run(conf):
     if conf.deployment == 0:  # we are using local compute
         path_output = conf.paths.data
     elif conf.deployment == 1: # we are launching kubernetes jobs
-        path_output = conf.kube.data_job.paths.data.preprocessed_data
+        path_output = conf.kube.data_job['paths']['data']['preprocessed_data']
     
     model_type = conf.model.arch
     
