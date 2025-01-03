@@ -91,7 +91,7 @@ def save_eval_item(save_dir, eval_item, file_name, type):
         save_path = os.path.join(save_dir, "dft_plots")
     os.makedirs(save_path, exist_ok=True)
     save_path = os.path.join(save_path, file_name)
-    std_metrics = ["RMSE", "RMSE_First_Slice", "RMSE_Final_Slice"]
+    std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
     if 'metrics' in type:
         with open(save_path, 'w') as file:
             for metric, value in eval_item.items():
@@ -291,7 +291,6 @@ def calculate_metrics(truth, pred):
 
     mae = np.mean(np.abs(truth - pred))
     rmse = np.sqrt(np.mean((truth - pred) ** 2))
-    rmse_std = np.sqrt(np.var(truth - pred))
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
@@ -324,7 +323,7 @@ def calculate_metrics(truth, pred):
     # Build dictionary
     out = {
         'MAE': mae,
-        'RMSE': f"{rmse:.4f} +/- {rmse_std:.4f}",
+        'RMSE': rmse,
         'Correlation': correlation,
         'PSNR': psnr.item(),
         'SSIM': ssim.item()
@@ -346,7 +345,7 @@ def metrics(test_results, fold_idx=None, dataset='valid',
     truth = test_results[dataset]['nf_truth']
     pred = test_results[dataset]['nf_pred']
     
-    std_metrics = ["RMSE", "RMSE_First_Slice", "RMSE_Final_Slice"]
+    std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
 
     metrics = calculate_metrics(truth, pred)
     print(f"Metrics for {dataset.capitalize()} Dataset:")
