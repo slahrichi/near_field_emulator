@@ -149,7 +149,7 @@ def run(conf):
                 wavelength = conf.data.wavelength
                 print(f"Wavelength: {wavelength}")
                 # print all the keys in sample
-                print(f"Sample keys: {sample.keys()}")
+                print(sample.keys(), flush=True)
                 vol = torch.from_numpy(sample[wavelength][1])  # shape is [2,166,166,63]
                                                          #          [real/im,xdim,ydim,num_slices]
 
