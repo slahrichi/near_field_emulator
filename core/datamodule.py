@@ -12,6 +12,7 @@ from pytorch_lightning import LightningDataModule
 from torch.utils.data import Dataset, DataLoader, Subset
 import pickle
 import torch
+from tqdm import tqdm
 
 #--------------------------------
 # Import: Custom Python Libraries
@@ -232,7 +233,11 @@ def load_pickle_data(train_path, valid_path, save_path, arch='mlp'):
         is_train = parent_dir == 'train'
         current_tag = 1 if is_train else 0
         
-        for current_file in os.listdir(path): # loop through pickle files
+        for current_file in tqdm(os.listdir(path),
+                                desc="Compiling data - {}".format(path),
+                                ncols=80,
+                                file=sys.stdout,
+                                mininterval=1.0): # loop through pickle files
             if current_file.endswith(".pkl"):
                 current_file_path = os.path.join(path, current_file)
                 tag.append(current_tag) # train or valid sample

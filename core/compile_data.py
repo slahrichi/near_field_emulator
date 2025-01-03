@@ -21,7 +21,6 @@ def run(conf):
     """
     #logging.basicConfig(level=logging.DEBUG)
     seed_everything(1337)
-    logging.basicConfig(level=logging.DEBUG)
 
     # for accessing the preprocessed data
     if conf.deployment == 0:  # we are using local compute

@@ -127,7 +127,11 @@ def run(conf):
     with os.scandir(path_volumes) as entries:
 
         
-        for entry in tqdm(entries):
+        for entry in tqdm(entries,
+                          desc="Processing samples",
+                          ncols=80,
+                          file=sys.stdout,
+                          mininterval=1.0):
 
             if entry.name.endswith(".pkl") and entry.name not in exclude:
 
@@ -147,9 +151,6 @@ def run(conf):
 
                 # just going to look at the y component of specified wavelength
                 wavelength = conf.data.wavelength
-                print(f"Wavelength: {wavelength}")
-                # print all the keys in sample
-                print(sample.keys(), flush=True)
                 vol = torch.from_numpy(sample[wavelength][1])  # shape is [2,166,166,63]
                                                          #          [real/im,xdim,ydim,num_slices]
 

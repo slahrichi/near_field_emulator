@@ -133,6 +133,13 @@ class DataConfig(BaseModel):
     buffer: bool = True
     wavelength: float
     
+    @field_validator("wavelength", mode="before")
+    def validate_wavelength(cls, value):
+        possibilities = [2.88, 1.65, 1.55, 1.3, 1.06]
+        if value not in possibilities:
+            raise ValueError(f"Wavelength must be one of {possibilities}")
+        return value
+    
 class PhysicsConfig(BaseModel):
     Nx_metaAtom: int
     Ny_metaAtom: int
