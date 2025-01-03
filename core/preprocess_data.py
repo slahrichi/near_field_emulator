@@ -26,6 +26,7 @@ import torch
 import sys
 import glob
 import subprocess
+from tqdm import tqdm
 
 #--------------------------------
 # Import: Custom Python Libraries
@@ -43,7 +44,8 @@ def create_folder(folder_path):
 
     else:
 
-        print(f"folder at {folder_path} already exists.") 
+        #print(f"folder at {folder_path} already exists.") 
+        pass
 
 # Our paths are deployment-dependent. This method takes in the params we loaded from configs/params.yaml
 # and determines if we are deploying locally or using kubernetes. It returns the correct paths based on
@@ -93,9 +95,11 @@ def separate_datasets(folder_path):
     create_folder(os.path.join(folder_path,"train"))
     create_folder(os.path.join(folder_path,"valid"))
 
-    for i, sample in enumerate(samples): 
+    num_samples = len(samples)
+    train_size = int(num_samples * 0.8)  # Calculate 80% of total samples
 
-        if i < train_percent:
+    for i, sample in enumerate(samples): 
+        if i < train_size:
             destination = os.path.join(folder_path,"train")
         else:
             destination = os.path.join(folder_path,"valid")
@@ -123,7 +127,7 @@ def run(conf):
     with os.scandir(path_volumes) as entries:
 
         
-        for entry in entries:
+        for entry in tqdm(entries):
 
             if entry.name.endswith(".pkl") and entry.name not in exclude:
 
@@ -143,8 +147,9 @@ def run(conf):
 
                 # just going to look at the y component of specified wavelength
                 wavelength = conf.data.wavelength
-                print(f"Looking at wavelength {wavelength}")
-                print(sample.keys())
+                print(f"Wavelength: {wavelength}")
+                # print all the keys in sample
+                print(f"Sample keys: {sample.keys()}")
                 vol = torch.from_numpy(sample[wavelength][1])  # shape is [2,166,166,63]
                                                          #          [real/im,xdim,ydim,num_slices]
 
@@ -153,12 +158,12 @@ def run(conf):
                 filename = str(idx).zfill(4) + ".pkl"
                 filepath = os.path.join(path_output,filename)
    
-                print(f"{filename},    {filepath}") 
+                #print(f"{filename},    {filepath}") 
                 data = {'LPA phases': phases, 'data': vol }
                 create_folder(path_output)
 
                 with open(filepath,"wb") as f:
                     pickle.dump(data, f)
-                    print(f"{filename} dumped to {filepath}", flush=True)
+                    #print(f"{filename} dumped to {filepath}", flush=True)
     
     separate_datasets(path_output)

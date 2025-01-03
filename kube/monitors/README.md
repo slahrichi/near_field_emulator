@@ -15,7 +15,7 @@ kubectl exec -it ethan-monitor-results -- /bin/bash
 ```
 python3 -m http.server 8080
 ```
-5. Forward the pod port to your local machine
+5. Open a new terminal window and forward the pod port to your local machine:
 ```
 kubectl port-forward ethan-monitor-results 8080:8080
 ```
