@@ -32,8 +32,8 @@ spec:
           volumeMounts: 
             - name: nfe-data
               mountPath: /develop/data/preprocessed_data
-            - name: 
-              mountPath: 
+            - name: dft-volumes
+              mountPath: /develop/data/nfe-data/volumes
             - name: ssh-key
               mountPath: "/root/.ssh"
               readOnly: true
@@ -42,9 +42,9 @@ spec:
         - name: nfe-data  # this is where preprocessed pickle files are
           persistentVolumeClaim:
             claimName: nfe-data
-        - name: 
+        - name: dft-volumes
           persistentVolumeClaim:
-            claimName: 
+            claimName: dft-volumes
         - name: ssh-key
           secret:
             secretName: github-ssh-key

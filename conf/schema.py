@@ -117,9 +117,9 @@ class PathsConfig(BaseModel):
         #    raise ValueError(f"Train directory {model.train} does not exist")
         #if not os.path.exists(model.valid):
         #    raise ValueError(f"Valid directory {model.valid} does not exist")
-        if not os.path.exists(model.results):
+        '''if not os.path.exists(model.results):
             raise ValueError(f"Results directory {model.results} does not exist")
-        '''if not os.path.exists(model.volumes):
+        if not os.path.exists(model.volumes):
             raise ValueError(f"Volumes directory {model.volumes} does not exist")
         if not os.path.exists(model.library):
             raise ValueError(f"Library file {model.library} does not exist")

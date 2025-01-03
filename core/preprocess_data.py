@@ -62,8 +62,8 @@ def get_paths(conf):
         
     elif conf.deployment == 1: # we are launching kubernetes jobs
 
-        path_volumes = conf.kube.compile_job.paths.data.volumes
-        path_output = conf.kube.compile_job.paths.data.preprocessed_data
+        path_volumes = conf.kube.data_job.paths.data.volumes
+        path_output = conf.kube.data_job.paths.data.preprocessed_data
 
     return library, path_volumes, path_output
 

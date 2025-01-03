@@ -27,6 +27,8 @@ def run(conf):
                      'num_mem_req' : str(conf.kube.data_job['num_mem_req']),
                      'pvc_preprocessed' : conf.kube.pvc_preprocessed,
                      'preprocessed_path' : conf.kube.data_job['paths']['data']['preprocessed_data'],
+                     'pvc_volumes' : conf.kube.pvc_volumes,
+                     'volumes_path' : conf.kube.data_job['paths']['data']['volumes'],
                      'path_image' : conf.kube.image
                     }
 
