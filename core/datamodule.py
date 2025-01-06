@@ -68,22 +68,15 @@ class NF_Datamodule(LightningDataModule):
 
     # TODO: Getting a bit messy, consider abstraction/subclassing
     def setup(self, stage: Optional[str] = None):
+        datapath = self.get_datapath()
+        data = torch.load(datapath)
         if self.model_type == 'autoencoder': # pretraining
-            data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
             self.dataset = format_ae_data(data, self.conf)
         elif self.model_type == 'mlp' or self.model_type == 'cvnn':
-            if self.conf.data.buffer:
-                data = torch.load(os.path.join(self.path_data, 'dataset.pt'))
-            else:
-                data = torch.load(os.path.join(self.path_data, 'dataset_nobuffer.pt'))
             if self.conf.model.interpolate_fields: # interpolate fields to lower resolution
                 data = interpolate_fields(data)
             self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size, buffer=self.conf.data.buffer)
         else: # time series models
-            if self.model_type == 'modelstm': # using an encoded representation
-                data = torch.load(os.path.join(self.path_data, f"dataset_{self.conf.model.modelstm.method}.pt"))
-            else: # regular dataset
-                data = torch.load(os.path.join(self.path_data, f"dataset.pt"))
             self.dataset = format_temporal_data(data, self.conf)
         # create a map of indices for OG train/valid split - default for when we don't use crossval
         for i in range(len(data['tag'])):
@@ -91,7 +84,17 @@ class NF_Datamodule(LightningDataModule):
                 self.index_map['valid'].append(i)
             else:
                 self.index_map['train'].append(i)
-            
+                
+    def get_datapath(self):
+        """Based on params, return the correct dataset we'll be using"""
+        if not self.conf.data.buffer:
+            return os.path.join(self.path_data, 'dataset_nobuffer.pt')
+        elif self.conf.model.arch == 'modelstm':
+            return os.path.join(self.path_data, f"dataset_{self.conf.model.modelstm.method}.pt")
+        else:
+            wv = str(self.conf.data.wavelength).replace('.', '')
+            return os.path.join(self.path_data, f'dataset_{wv}.pt')
+        
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
         self.train = Subset(self.dataset, train_idx)

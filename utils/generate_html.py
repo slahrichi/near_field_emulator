@@ -93,12 +93,14 @@ def generate_html_content(base_path, model_type, io_mode, spacing_mode, channel)
     for model_type in model_types:
         model_dir_path = os.path.join(base_path, model_type)
         if not os.path.exists(model_dir_path):
+            print(f"Model type directory '{model_dir_path}' not found.")
             continue
 
         for io in io_modes:
             for spacing in spacing_modes:
                 subdir_path = os.path.join(model_dir_path, io, spacing)
                 if not os.path.exists(subdir_path):
+                    print(f"Subdirectory '{subdir_path}' not found.")
                     continue
 
             html_content += f"<h2>{model_type.upper()} - {io.replace('_', ' ').title()} - {spacing.title()}</h2>"
@@ -111,6 +113,7 @@ def generate_html_content(base_path, model_type, io_mode, spacing_mode, channel)
                 model_id = get_model_id(params_path)
 
                 if not os.path.exists(model_path):
+                    print(f"Model path '{model_path}' not found.")
                     continue
 
                 # Gather the ground truth and predicted GIF paths
@@ -134,7 +137,7 @@ def generate_html_content(base_path, model_type, io_mode, spacing_mode, channel)
                     </div>
                     """.format(ground_truth=ground_truth_file, predicted=predicted_file)
 
-                html_content += "</div>"
+            html_content += "</div>"
 
     return html_content
 
