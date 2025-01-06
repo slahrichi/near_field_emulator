@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 0
+directive: 4
 deployment: 1
 
 #--------------------------------
@@ -245,7 +245,7 @@ data:
     n_cpus: 5
     n_folds: 3
     buffer: True
-    wavelength: 1.3
+    wavelength: 2.88
 
 #--------------------------------
 #       Kube Params

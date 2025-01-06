@@ -11,10 +11,10 @@ spec:
       resources:
         limits:
           memory: 32G
-          cpu: 2
+          cpu: 8
         requests:
           memory: 32G
-          cpu: 2
+          cpu: 8
       volumeMounts:
         - name: nfe-data
           mountPath: /develop/data/preprocessed_data
