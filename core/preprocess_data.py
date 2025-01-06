@@ -151,15 +151,8 @@ def run(conf):
 
                 # just going to look at the y component of specified wavelength
                 wavelength = conf.data.wavelength
-                print(f"sample keys: {sample.keys()}")
-                try:
-                    vol = torch.from_numpy(sample[wavelength][1])  # shape is [2,166,166,63]
+                vol = torch.from_numpy(sample[wavelength][1])  # shape is [2,166,166,63]
                                                          #          [real/im,xdim,ydim,num_slices]
-                except:
-                    print(f"sample keys: {sample.keys()}")
-                    print(f"wavelength: {wavelength}")
-                    print(f"sample[wavelength]: {sample[wavelength]}")
-                    raise
 
                 # preprocessed_data has pkl files with phase_vol and amp_vol. -- NOT amp and vol - real and im kept separate
 

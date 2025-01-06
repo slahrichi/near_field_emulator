@@ -135,7 +135,7 @@ class DataConfig(BaseModel):
     
     @field_validator("wavelength", mode="before")
     def validate_wavelength(cls, value):
-        possibilities = [2.88, 1.65, 1.55, 1.3, 1.06]
+        possibilities = [2.881, 1.65, 1.55, 1.3, 1.06]
         if value not in possibilities:
             raise ValueError(f"Wavelength must be one of {possibilities}")
         return value
