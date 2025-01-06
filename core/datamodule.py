@@ -88,12 +88,12 @@ class NF_Datamodule(LightningDataModule):
     def get_datapath(self):
         """Based on params, return the correct dataset we'll be using"""
         if not self.conf.data.buffer:
-            return os.path.join(self.path_data, 'dataset_nobuffer.pt')
+            return os.path.join(self.path_data, 'preprocessed_data', 'dataset_nobuffer.pt')
         elif self.conf.model.arch == 'modelstm':
-            return os.path.join(self.path_data, f"dataset_{self.conf.model.modelstm.method}.pt")
+            return os.path.join(self.path_data, 'preprocessed_data', f"dataset_{self.conf.model.modelstm.method}.pt")
         else:
             wv = str(self.conf.data.wavelength).replace('.', '')
-            return os.path.join(self.path_data, f'dataset_{wv}.pt')
+            return os.path.join(self.path_data, 'preprocessed_data', f'dataset_{wv}.pt')
         
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
