@@ -76,7 +76,7 @@ def get_model_id(params_file_path):
     """
     if os.path.exists(params_file_path):
         with open(params_file_path, 'r') as f:
-            params = yaml.safe_load(f)
+            params = yaml.load(f, Loader=yaml.UnsafeLoader)
             model_dict = params.get("model", {})
             return model_dict.get("model_id", "Unknown Model ID")
     return "Unknown Model ID"
