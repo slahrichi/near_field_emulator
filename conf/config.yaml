@@ -245,7 +245,7 @@ data:
     n_cpus: 5
     n_folds: 3
     buffer: True
-    wavelength: 2.88
+    wavelength: 1.06
 
 #--------------------------------
 #       Kube Params
