@@ -44,7 +44,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 2
-    model_id: 'wavelen155_test'
+    model_id: 'wavelen13_test'
 
     # General Model Parameters
 
