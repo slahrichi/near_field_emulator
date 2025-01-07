@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1
 
 #--------------------------------
@@ -44,7 +44,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 6
-    model_id: 'optimal_k_baseline_30'
+    model_id: 'relaxed'
 
     # General Model Parameters
 
@@ -160,8 +160,8 @@ model:
     # - spacing_mode: 'sequential' or 'distributed'
     # - autoreg: autoregressive mode or teacher forcing - M2M only
 
-    seq_len: 30
-    io_mode: 'many_to_many'
+    seq_len: 15
+    io_mode: 'one_to_many'
     spacing_mode: 'sequential'
     autoreg: True
 
@@ -185,8 +185,8 @@ trainer:
     cross_validation: False
 
     # early stopping settings
-    patience: 15
-    min_delta: 0.0001
+    patience: 30
+    min_delta: 0.00001
 
 #--------------------------------
 #       All paths
