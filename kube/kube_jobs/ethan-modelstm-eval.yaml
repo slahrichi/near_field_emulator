@@ -22,7 +22,7 @@ spec:
           args: ["set -x &&
                   mkdir -p /root/.ssh &&
                   git clone git@github.com:Kovaleski-Research-Lab/near_field_emulator.git &&
-                  python3 /develop/code/near_field_emulator/main.py --config /develop/code/near_field_emulator/config.yaml"]
+                  python3 /develop/code/near_field_emulator/main.py --config /develop/code/near_field_emulator/conf/config.yaml"]
           resources:
             limits:
               memory: 100Gi 
@@ -33,7 +33,7 @@ spec:
               cpu: 16
               nvidia.com/a100: 1
           volumeMounts:
-            - name: preprocessed-data
+            - name: nfe-data
               mountPath: /develop/data/preprocessed_data
             - name: training-results
               mountPath: /develop/results
@@ -44,9 +44,9 @@ spec:
               readOnly: true
 
       volumes:
-        - name: preprocessed-data
+        - name: nfe-data
           persistentVolumeClaim:
-            claimName: preprocessed-data
+            claimName: nfe-data
         - name: training-results
           persistentVolumeClaim:
             claimName: training-results
