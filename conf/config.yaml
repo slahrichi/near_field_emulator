@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1
 
 #--------------------------------
@@ -161,7 +161,7 @@ model:
     # - autoreg: autoregressive mode or teacher forcing - M2M only
 
     seq_len: 30
-    io_mode: 'one_to_many'
+    io_mode: 'many_to_many'
     spacing_mode: 'sequential'
     autoreg: True
 
