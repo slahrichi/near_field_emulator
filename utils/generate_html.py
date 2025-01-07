@@ -117,8 +117,8 @@ def generate_html_content(base_path, model_type, io_mode, spacing_mode, channel)
                     continue
 
                 # Gather the ground truth and predicted GIF paths
-                ground_truth_file = os.path.join(model_path, f"sample_0_{channel}_groundtruth_valid.gif")
-                predicted_file = os.path.join(model_path, f"sample_0_{channel}_prediction_valid.gif")
+                ground_truth_file = os.path.join(model_path, f"valid_sample_0_{channel}_groundtruth.gif")
+                predicted_file = os.path.join(model_path, f"valid_sample_0_{channel}_prediction.gif")
 
                 if os.path.exists(ground_truth_file) and os.path.exists(predicted_file):
                     html_content += f"<div class='model-card'>"

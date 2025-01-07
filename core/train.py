@@ -22,7 +22,7 @@ from pytorch_lightning.plugins.environments import SLURMEnvironment
 #--------------------------------
 sys.path.append('../')
 from core import datamodule, custom_logger
-from utils import model_loader
+from utils import model_loader, mapping
 from conf.schema import load_config
 
 # debugging
@@ -319,7 +319,8 @@ def run(conf):
     
     # Dump config for future reference
     os.makedirs(conf.paths.results, exist_ok=True)
-    yaml.dump(conf, open(os.path.join(conf.paths.results, 'params.yaml'), 'w'))
+    conf_dict = mapping.to_plain_dict(conf) # escape python object structure
+    yaml.dump(conf_dict, open(os.path.join(conf.paths.results, 'params.yaml'), 'w'))
     
     # run training
     if(conf.trainer.cross_validation):

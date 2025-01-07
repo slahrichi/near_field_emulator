@@ -8,6 +8,8 @@ spec:
       image: docker.io/kovaleskilab/ml_basic:v4  
       stdin: True
       tty: True
+      command: ["/bin/sh", "-c"]
+      args: ["git clone https://github.com/Kovaleski-Research-Lab/near_field_emulator.git && tail -f /dev/null"]
       resources:
         limits:
           memory: 32G

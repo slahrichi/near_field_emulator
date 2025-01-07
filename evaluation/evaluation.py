@@ -759,7 +759,7 @@ def animate_fields(test_results, dataset, sample_idx=0, seq_len=5, save_dir=None
                                 frames=seq_len,
                                 interval=250)
     pred_phase_anim = viz.animate_fields(pred_phase, "Predicted Phase", 
-                                save_path=os.path.join(flipbooks_dir, f"{dataset}_sample_{sample_idx}_phase_prediction_{dataset}.gif"), 
+                                save_path=os.path.join(flipbooks_dir, f"{dataset}_sample_{sample_idx}_phase_prediction.gif"), 
                                 cmap='twilight_shifted',
                                 frames=seq_len,
                                 interval=250)

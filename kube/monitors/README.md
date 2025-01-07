@@ -10,8 +10,13 @@ kubectl apply -f /path/to/nfe-monitor.yaml
 ```
 kubectl exec -it ethan-nfe-monitor -- /bin/bash
 ```
-3. Optionally navigate to desired subdirectory /develop/results/ etc etc
-4. Start an http server in the pod:
+3. You'll likely enter in at `/develop/code`. Regardless, you need to navigate to root /:
+```
+cd
+cd /
+```
+
+4. Start an http server in the pod from /:
 ```
 python3 -m http.server 8080
 ```

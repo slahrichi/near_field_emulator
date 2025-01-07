@@ -70,3 +70,15 @@ def polar_to_cartesian(mag, phase):
     real = torch.real(complex)
     imag = torch.imag(complex)
     return real, imag
+
+def to_plain_dict(obj):
+    """Recursively convert Python objects with __dict__ into plain dictionaries."""
+    """For saving Pydantic config back to a base YAML file"""
+    if isinstance(obj, dict):
+        return {k: to_plain_dict(v) for k, v in obj.items()}
+    elif hasattr(obj, '__dict__'):
+        return {k: to_plain_dict(v) for k, v in vars(obj).items()}
+    elif isinstance(obj, list):
+        return [to_plain_dict(v) for v in obj]
+    else:
+        return obj

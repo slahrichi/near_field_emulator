@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1
 
 #--------------------------------
@@ -44,7 +44,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 2
-    model_id: 'wavelen165_test'
+    model_id: 'wavelen2881_test'
 
     # General Model Parameters
 
@@ -245,7 +245,7 @@ data:
     n_cpus: 5
     n_folds: 3
     buffer: True
-    wavelength: 1.65
+    wavelength: 2.881
 
 #--------------------------------
 #       Kube Params
