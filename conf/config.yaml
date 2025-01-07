@@ -98,7 +98,7 @@ model:
 
     # Mode-LSTM Parameters - LSTM but data has already been encoded
     # - i_dims: input dimensionality - depends on the encoding method
-    # ----> svd: spatial * top_k * 2
+    # ----> svd: spatial * k (optimal) * 2
     # ----> random: any perfect square
     # - spatial: spatial size of the input
     # - w0: beam waist parameter (laguerre-gaussian)
@@ -108,7 +108,7 @@ model:
 
     modelstm:
         num_layers: 1
-        i_dims: 20
+        i_dims: 6 
         h_dims: 64
         spatial: 166
         w0: 1.0
