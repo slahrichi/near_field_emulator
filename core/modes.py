@@ -4,44 +4,6 @@ from tqdm import tqdm
 from scipy.special import genlaguerre
 import os
 import matplotlib.pyplot as plt
-
-'''def svd(x, params):
-    """
-    Computes the Singular Value Decomposition on the input data
-    
-    Args:
-        x (tensor): Full dataset tensor of size [samples, r/i, xdim, ydim, slices]
-        params (dict): configuration parameters
-    """
-    k = params['top_k'] # top k singular values
-    # construct the output tensor
-    samples, r_i, xdim, ydim, slices = x.size()
-    x_svd = torch.zeros(samples, r_i, 1, k, slices)
-    
-    # Compute SVD
-    for i in tqdm(range(samples), desc='Processing Samples'):
-        for j in range(slices):
-            # selecting the matrix of a single slice of a single sample in r and i
-            real = x[i, 0, :, :, j] # [166, 166]
-            imag = x[i, 1, :, :, j] # [166, 166]
-            
-            # perform SVD on each channel separately 
-            u_real, s_real, vh_real = torch.linalg.svd(real, full_matrices=False)
-            
-            u_imag, s_imag, vh_imag = torch.linalg.svd(imag, full_matrices=False)
-            
-
-            #plot_scree(s_real)
-            #plot_scree(s_imag)
-            
-            real_emb = s_real[:k].reshape(1, k)
-            imag_emb = s_imag[:k].reshape(1, k)
-        
-            # store results accordingly in output tensor
-            x_svd[i, 0, :, :, j] = real_emb
-            x_svd[i, 1, :, :, j] = imag_emb
-            
-    return x_svd'''
     
 def svd(x, params):
     """
@@ -106,78 +68,6 @@ def svd(x, params):
             x_svd[i, c, 0, :, :] = topk_v  # Broadcasting the same topk_v across channels
     
     return x_svd
-    
-'''def svd(x, params):
-    """
-    Computes a global Singular Value Decomposition (SVD)-based dimensionality reduction on the entire dataset.
-    Instead of performing per-sample and per-slice SVD, this approach flattens all spatial + channel dimensions,
-    concatenates all samples and temporal slices, and performs one global SVD. This yields a set of top principal
-    components that represent the spatial+channel patterns. Each individual frame is then projected onto these
-    components, producing a lower-dimensional representation suitable for feeding into an LSTM.
-
-    Args:
-        x (tensor): Full dataset tensor of size [samples, r_i, xdim, ydim, slices]
-                    where typically r_i=2, xdim=166, ydim=166, slices=63.
-        params (dict): configuration parameters with 'top_k' indicating how many principal components to keep.
-
-    Returns:
-        x_svd (tensor): Reduced dataset tensor of size [samples, slices, k]
-                        This can be used directly as input to an LSTM (batch, time, features).
-    """
-    import torch
-    from tqdm import tqdm
-
-    # Extract parameters
-    k = params['top_k']  # number of principal components to keep
-
-    # Original dimensions
-    samples, r_i, xdim, ydim, slices = x.size()
-    # Flatten spatial and channel dimensions: r_i * xdim * ydim
-    # For r_i=2, xdim=166, ydim=166, this results in 2*166*166 = 55112 features per frame
-    spatial_feat_dim = r_i * xdim * ydim
-
-    # Reshape the data to [samples * slices, spatial_feat_dim]
-    # Each frame (across channels and spatial dims) becomes one row
-    # We'll move slices into a separate dimension to make a large matrix:
-    # x: [samples, r_i, xdim, ydim, slices]
-    # transpose to [samples, slices, r_i, xdim, ydim] for convenience (not mandatory):
-    x_trans = x.permute(0, 4, 1, 2, 3)  # [samples, slices, r_i, xdim, ydim]
-
-    # Flatten the last three dimensions (r_i, xdim, ydim) to a single vector:
-    # final shape: [samples, slices, spatial_feat_dim]
-    x_flat = x_trans.reshape(samples, slices, spatial_feat_dim)
-
-    # Create the big matrix M by merging samples and time:
-    # M: [samples * slices, spatial_feat_dim]
-    M = x_flat.reshape(samples * slices, spatial_feat_dim)
-
-    # Perform SVD on M
-    # M = U * S * Vh
-    # U: (samples*slices, samples*slices or spatial_feat_dim)
-    # S: (min(samples*slices, spatial_feat_dim))
-    # Vh: (min(samples*slices, spatial_feat_dim), spatial_feat_dim)
-    # We want principal components from Vh
-    U, S, Vh = torch.linalg.svd(M, full_matrices=False)  # Vh shape: [rank, spatial_feat_dim]
-
-    # Select top k principal components
-    # Vh: [rank, spatial_feat_dim]
-    # We take the top k rows of Vh (top-k singular vectors)
-    # Shape of Vh[:k, :] is [k, spatial_feat_dim]
-    # For projection, we want V_k in shape [spatial_feat_dim, k]
-    V_k = Vh[:k, :].T  # Now V_k: [spatial_feat_dim, k]
-
-    # Project the original frames M onto these top k components
-    # M: [samples*slices, spatial_feat_dim]
-    # V_k: [spatial_feat_dim, k]
-    # M_reduced: [samples*slices, k]
-    M_reduced = M @ V_k
-
-    # Reshape back into [samples, slices, k]
-    x_svd = M_reduced.reshape(samples, slices, k)
-    x_svd = x_svd.permute(0, 2, 1)
-    k_root = int(math.sqrt(k/2))
-    x_svd = x_svd.reshape(samples, 2, k_root, k_root, slices)
-    return x_svd'''
 
 def plot_scree(singular_values):
     plt.plot(singular_values.cpu().numpy(), marker='o')
