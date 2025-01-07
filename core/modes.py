@@ -295,7 +295,7 @@ def run(config):
     encoded_data = encode_modes(full_data, config)
     
     # construct appropriate save path
-    save_path = os.path.join(datasets_path, f"dataset__{config.model.modelstm.method}.pt")
+    save_path = os.path.join(datasets_path, f"dataset_{config.model.modelstm.method}.pt")
     if os.path.exists(save_path):
         raise FileExistsError(f"Output file {save_path} already exists!")
     
