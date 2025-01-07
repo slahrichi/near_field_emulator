@@ -16,7 +16,7 @@ spec:
       containers:
         - name: ethan-data-job
           image: docker.io/kovaleskilab/ml_basic:v4
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
 
           args: ["set -x &&
