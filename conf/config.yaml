@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 5
 deployment: 1
 
 #--------------------------------
@@ -101,7 +101,6 @@ model:
     # ----> svd: spatial * top_k * 2
     # ----> random: any perfect square
     # - spatial: spatial size of the input
-    # - top_k: number of modes to encode
     # - w0: beam waist parameter (laguerre-gaussian)
     # - p_max: radial index max (laguerre-gaussian)
     # - l_max: azimuthal index max (laguerre-gaussian)
@@ -112,7 +111,6 @@ model:
         i_dims: 20
         h_dims: 64
         spatial: 166
-        top_k: 10
         w0: 1.0
         p_max: 39
         l_max: 20

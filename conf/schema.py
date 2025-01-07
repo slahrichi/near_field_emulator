@@ -35,7 +35,6 @@ class ModesConfig(BaseModel):
     i_dims: int
     h_dims: int
     spatial: int
-    top_k: int
     w0: float
     p_max: int
     l_max: int

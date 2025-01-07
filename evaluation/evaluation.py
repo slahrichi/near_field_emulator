@@ -133,12 +133,11 @@ def get_model_identifier(conf):
                 f'kernel_size: {kernel_size}, padding: {padding}')
     elif model_type == 'modelstm':
         method = conf.model.modelstm.method
-        top_k = conf.model.modelstm.top_k
         lstm_num_layers = conf.model.modelstm.num_layers
         lstm_i_dims = conf.model.modelstm.i_dims
         lstm_h_dims = conf.model.modelstm.h_dims
         seq_len = conf.model.seq_len
-        return (f'{title} - encoding: {method}, top_k: {top_k}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
+        return (f'{title} - encoding: {method}, lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
                 f'batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, '
                 f'h_dims: {lstm_h_dims}, seq_len: {seq_len}')
     elif model_type == 'autoencoder':

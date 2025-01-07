@@ -5,26 +5,18 @@ from scipy.special import genlaguerre
 import os
 import matplotlib.pyplot as plt
     
-def svd(x, params):
+def svd(x, config):
     """
     Computes the Singular Value Decomposition on the entire sequence for each sample.
     
     Args:
         x (torch.Tensor): Full dataset tensor of size [samples, r/i, xdim, ydim, slices]
-        params (dict): Configuration parameters, must include 'top_k'
+        config: Configuration parameters
     
     Returns:
         torch.Tensor: SVD-transformed tensor of size [samples, r_i, 1, k, slices]
     """
-    k = params['top_k']  # Top k singular vectors to retain
     samples, r_i, xdim, ydim, slices = x.size()
-    
-    # Initialize the output tensor with the desired shape
-    # [samples, r_i, 1, k, slices]
-    x_svd = torch.zeros(
-        samples, r_i, 1, k, slices, 
-        device=x.device, dtype=x.dtype
-    )
     
     # Iterate over each sample
     for i in tqdm(range(samples), desc='Processing Samples'):
@@ -52,6 +44,17 @@ def svd(x, params):
             # Handle SVD convergence issues, e.g., assign zeros or skip
             continue
         
+        if i == 0:
+            # Find the optimal k that captures 95% of the energy
+            k = find_optimal_k_svd(s, threshold=0.95)
+            print(f"Optimal k was found to be: {k}")
+            # Initialize the output tensor with the desired shape
+            # [samples, r_i, 1, k, slices]
+            x_svd = torch.zeros(
+                samples, r_i, 1, k, slices, 
+                device=x.device, dtype=x.dtype
+            )
+            
         # Extract the top k right singular vectors
         # vh has shape [63, 63], so vh[:k, :] has shape [k, 63]
         topk_v = vh[:k, :]  # Shape: [k, 63]
@@ -69,26 +72,40 @@ def svd(x, params):
     
     return x_svd
 
-def plot_scree(singular_values):
-    plt.plot(singular_values.cpu().numpy(), marker='o')
-    plt.xlabel('Index')
-    plt.ylabel('Singular Value')
-    plt.title('Scree Plot')
-    plt.grid()
-    plt.show()
+def find_optimal_k_svd(s, threshold=0.95):
+    """
+    Find the smallest k such that the top k singular values
+    capture at least `threshold` fraction of the total energy.
+    """    
+    # Compute the total energy
+    total_energy = (s ** 2).sum()  # sum of squares of singular values
+    
+    # Compute the cumulative energy ratio
+    cumulative_energy = torch.cumsum(s**2, dim=0)
+    energy_ratio = cumulative_energy / total_energy
+    
+    # Find the smallest k for which energy_ratio[k-1] >= threshold
+    # (k-1 because PyTorch indexing is 0-based)
+    ks = torch.where(energy_ratio >= threshold)[0]
+    if len(ks) == 0:
+        # Means even if we take all singular values, we don't reach threshold
+        k_opt = len(s)
+    else:
+        k_opt = ks[0].item() + 1  # +1 to turn index into count
+    
+    return k_opt
 
-
-def random_proj(x, params):
+def random_proj(x, config):
     """
     Computes a random projection/Johnson Lindenstrauss for the data.
     For simplicity, we create a random projection matrix to reduce ydim to k
     
     Args:
         x (tensor): Full dataset tensor of size [samples, r/i, xdim, ydim, slices]
-        params (dict): configuration parameters
+        config: configuration parameters
     """
     # i_dims is our latent dimensionality
-    k = params['i_dims']
+    k = config.model.modelstm.i_dims
     samples, r_i, xdim, ydim, slices = x.size()
     d = xdim * ydim
     
@@ -102,7 +119,7 @@ def random_proj(x, params):
                        device=x.device, dtype=x.dtype)
     
     # reproducibility
-    torch.manual_seed(params['seed'])
+    torch.manual_seed(config.model.modelstm.seed)
     
     # create a random projection matrix [d, k]
     w = torch.randn(d, k, device=x.device, dtype=x.dtype) / math.sqrt(k)
@@ -178,18 +195,18 @@ def generate_gl_modes(xdim, ydim, k, w0, p_max, l_max, device, dtype):
     modes = torch.stack(modes_list, dim=0)
     return modes
 
-def gauss_laguerre_proj(x, params):
+def gauss_laguerre_proj(x, config):
     """
     Project the input field onto Gaussian-Laguerre modes.
 
     Args:
         x (tensor): [samples, r_i, xdim, ydim, slices]
-        params (dict): includes 'i_dims', 'top_k', 'w0', 'p_max', 'l_max'
+        config: configuration parameters
     """
-    k = params['i_dims']
-    w0 = params['w0']
-    p_max = params['p_max']
-    l_max = params['l_max']
+    k = config.model.modelstm.i_dims
+    w0 = config.model.modelstm.w0
+    p_max = config.model.modelstm.p_max
+    l_max = config.model.modelstm.l_max
     
     samples, r_i, xdim, ydim, slices = x.size()
     
@@ -230,38 +247,38 @@ def gauss_laguerre_proj(x, params):
             
     return x_lg
     
-def fourier_modes(x, params):
+def fourier_modes(x, config):
     """
     Encoding fourier modes on the input data
     
     Args:
         x (tensor): Full dataset tensor of size [samples, r/i, xdim, ydim, slices]
-        params (dict): configuration parameters
+        config: configuration parameters
     """
     pass
 
-def encode_modes(data, params):
+def encode_modes(data, config):
     """Takes the input formatted dataset and applies a specified modal decomposition
 
     Args:
         data (tensor): the dataset
-        params (dict): mode encoding parameters
+        config: mode encoding parameters
         
     Returns:
         dataset (WaveModel_Dataset): formatted dataset with encoded data
     """
     near_fields = data['near_fields'].clone()
     
-    method = params['method']
+    method = config.model.modelstm.method
     
     if method == 'svd': # encoding singular value decomposition
-        encoded_fields = svd(near_fields, params)
+        encoded_fields = svd(near_fields, config)
     elif method == 'random': # random projection / Johnson-Lindenstrauss
-        encoded_fields = random_proj(near_fields, params)
+        encoded_fields = random_proj(near_fields, config)
     elif method == 'gauss': # gauss-laguerre modes
-        encoded_fields = gauss_laguerre_proj(near_fields, params)
+        encoded_fields = gauss_laguerre_proj(near_fields, config)
     elif method == 'fourier': # a fourier encoding
-        encoded_fields = fourier_modes(near_fields, params)
+        encoded_fields = fourier_modes(near_fields, config)
     else:
         raise NotImplementedError(f"Mode encoding method '{method}' not recognized.")
     
@@ -270,15 +287,15 @@ def encode_modes(data, params):
     
     return data
 
-def run(params):
-    datasets_path = os.path.join(params['path_root'], params['path_data'])
+def run(config):
+    datasets_path = os.path.join(config.paths.data, 'preprocessed_data')
     # grab the original preprocessed data
-    full_data = torch.load(os.path.join(datasets_path, 'dataset.pt'))
+    full_data = torch.load(os.path.join(datasets_path, f'dataset_155.pt'))
     # encode accordingly
-    encoded_data = encode_modes(full_data, params['modelstm'])
+    encoded_data = encode_modes(full_data, config)
     
     # construct appropriate save path
-    save_path = os.path.join(datasets_path, f"dataset_{params['modelstm']['method']}.pt")
+    save_path = os.path.join(datasets_path, f"dataset__{config.model.modelstm.method}.pt")
     if os.path.exists(save_path):
         raise FileExistsError(f"Output file {save_path} already exists!")
     
