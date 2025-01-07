@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1
 
 #--------------------------------
@@ -44,7 +44,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 6
-    model_id: 'relaxed'
+    model_id: 'relaxed_v2'
 
     # General Model Parameters
 
@@ -185,8 +185,8 @@ trainer:
     cross_validation: False
 
     # early stopping settings
-    patience: 30
-    min_delta: 0.00001
+    patience: 50
+    min_delta: 0.000001
 
 #--------------------------------
 #       All paths
