@@ -112,11 +112,11 @@ class PathsConfig(BaseModel):
             raise ValueError(f"Root directory {model.root} does not exist")
         if not os.path.exists(model.data):
             raise ValueError(f"Data directory {model.data} does not exist")
-        #if not os.path.exists(model.train):
-        #    raise ValueError(f"Train directory {model.train} does not exist")
-        #if not os.path.exists(model.valid):
-        #    raise ValueError(f"Valid directory {model.valid} does not exist")
-        '''if not os.path.exists(model.results):
+        '''if not os.path.exists(model.train):
+            raise ValueError(f"Train directory {model.train} does not exist")
+        if not os.path.exists(model.valid):
+            raise ValueError(f"Valid directory {model.valid} does not exist")
+        if not os.path.exists(model.results):
             raise ValueError(f"Results directory {model.results} does not exist")
         if not os.path.exists(model.volumes):
             raise ValueError(f"Volumes directory {model.volumes} does not exist")
@@ -131,7 +131,7 @@ class DataConfig(BaseModel):
     n_folds: int
     buffer: bool = True
     wavelength: float
-    
+    transfer_eval: bool = False
     @field_validator("wavelength", mode="before")
     def validate_wavelength(cls, value):
         possibilities = [2.881, 1.65, 1.55, 1.3, 1.06]

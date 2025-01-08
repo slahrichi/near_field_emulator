@@ -35,7 +35,7 @@ class Writer:
             self.path_train = os.path.join(self.path, "train_info", f"fold{self.fold_idx+1}")
             self.path_valid = os.path.join(self.path, "valid_info", f"fold{self.fold_idx+1}")
         else:
-            self.path_metrics = os.path.join(self.path, "loss.csv")
+            self.path_metrics = os.path.join(self.path, self.name)
             self.path_train = os.path.join(self.path, "train_info")
             self.path_valid = os.path.join(self.path, "valid_info")
 

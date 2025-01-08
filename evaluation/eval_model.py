@@ -16,23 +16,29 @@ import utils.model_loader as model_loader
 from core import datamodule, custom_logger, train
 from conf.schema import load_config
 
-def plotting(conf, test_results, results_dir, fold_num=None):
+def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
     """
     The generation of a variety of plots and performance metrics
     """
+    # plot training and validation loss from recorded loss.csv once
+    if not os.path.exists(os.path.join(conf.paths.results, "loss_plots", "loss.pdf")):
+        os.makedirs(os.path.join(conf.paths.results, "loss_plots"), exist_ok=True)
+        print("Created directory: loss_plots")
+        print("\nGenerating loss plots...")
+        eval.plot_loss(conf, save_fig=True)
+        
     # Create subdirectories for different types of results
-    loss_dir = os.path.join(results_dir, "loss_plots")
+    if transfer: # need to separate results if evaluating on all wavelengths
+        wl = str(conf.data.wavelength).replace('.', '')
+        results_dir = os.path.join(results_dir, f"eval_wl{wl}")
+        os.makedirs(results_dir, exist_ok=True)
     metrics_dir = os.path.join(results_dir, "performance_metrics")
     dft_dir = os.path.join(results_dir, "dft_plots")
     flipbook_dir = os.path.join(results_dir, "flipbooks")
     
-    for directory in [loss_dir, metrics_dir, dft_dir, flipbook_dir]:
+    for directory in [metrics_dir, dft_dir, flipbook_dir]:
         os.makedirs(directory, exist_ok=True)
         print(f"Created directory: {directory}")
-    
-    # plot training and validation loss
-    print("\nGenerating loss plots...")
-    eval.plot_loss(conf, save_fig=True, save_dir=results_dir)
 
     # determine model type
     model_type = conf.model.arch
@@ -66,13 +72,24 @@ def plotting(conf, test_results, results_dir, fold_num=None):
     
     print(f"\nEvaluation complete. All results saved to: {results_dir}")
 
-def run(conf):
+def run(conf, wavelengths=None):
     # use current params to get results directory
     results_dir = conf.paths.results
     
     # setup new parameter manager based on saved parameters
     saved_conf = conf
-       
+    
+    # determine if we're evaluating on all wavelengths
+    transfer_eval = saved_conf.data.transfer_eval and saved_conf.model.arch not in ['mlp', 'cvnn', 'modelstm']
+    
+    # evaluate performance on all wavelengths if transfer_eval is True
+    if transfer_eval:
+        if wavelengths is None:
+            wavelengths = [2.881, 1.65, 1.55, 1.3, 1.06]
+        wavelength = wavelengths[0]
+        saved_conf.data.wavelength = wavelength
+        wavelengths.pop(0)
+        
     # Load model checkpoint
     model_path = os.path.join(results_dir, 'model.ckpt')
     model_instance = model_loader.select_model(saved_conf.model)
@@ -126,7 +143,12 @@ def run(conf):
     trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
     
     # evaluate
-    plotting(saved_conf, model_instance.test_results, results_dir)
+    plotting(saved_conf, model_instance.test_results, 
+             results_dir, transfer=transfer_eval)
+    
+    # recur for other wavelengths if necessary until all are evaluated
+    if transfer_eval and len(wavelengths) > 0:
+        run(saved_conf, wavelengths)
     
     
     

@@ -83,13 +83,15 @@ def get_all_results(folder_path, n_folds, resub=False):
         
 def save_eval_item(save_dir, eval_item, file_name, type):
     """Save metrics or plot(s) to a specified file."""
-    if 'metrics' in type:
+    if 'metrics' in type or type == 'evo':
         save_path = os.path.join(save_dir, "performance_metrics")
     elif type == 'loss':
         save_path = os.path.join(save_dir, "loss_plots")
     elif type == 'dft':
         save_path = os.path.join(save_dir, "dft_plots")
-    os.makedirs(save_path, exist_ok=True)
+    else:
+        return NotADirectoryError
+    #os.makedirs(save_path, exist_ok=True)
     save_path = os.path.join(save_path, file_name)
     std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
     if 'metrics' in type:
@@ -165,8 +167,9 @@ def clean_loss_df(df):
     df = df.sort_index()
     return df
 
-def plot_loss(conf, min_list=[None, None], max_list=[None, None], save_fig=False, save_dir=None):
+def plot_loss(conf, min_list=[None, None], max_list=[None, None], save_fig=False):
     model_identifier = get_model_identifier(conf)
+    save_dir = conf.paths.results
     
     if conf.trainer.cross_validation:
         losses_path = os.path.join(save_dir, "losses")
@@ -459,7 +462,7 @@ def plot_mse_evolution(mse_means, mse_stds=None, title="MSE Across Slices", save
         if not save_dir:
             raise ValueError("Please specify a save directory")
         file_name = f'mse_evolution.pdf'
-        save_eval_item(save_dir, fig, file_name, 'loss')
+        save_eval_item(save_dir, fig, file_name, 'evo')
     else:
         plt.show()
 
