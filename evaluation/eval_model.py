@@ -121,7 +121,7 @@ def run(conf):
     trainer = train.configure_trainer(saved_conf, logger, checkpoint_callback, early_stopping, progress_bar)
     
     if transfer_eval:
-        wavelengths = [2.881, 1.65, 1.55, 1.3, 1.06]
+        wavelengths = [1.65, 1.55, 1.3, 1.06]
         saved_conf.data.wavelength = wavelengths[0]
     else:
         wavelengths = [saved_conf.data.wavelength]
