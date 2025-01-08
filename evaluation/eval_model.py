@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.model_selection import KFold
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, TQDMProgressBar, EarlyStopping
+import gc
 
 sys.path.append('../')
 import evaluation.evaluation as eval
@@ -30,7 +31,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
     # Create subdirectories for different types of results
     if transfer: # need to separate results if evaluating on all wavelengths
         wl = str(conf.data.wavelength).replace('.', '')
-        results_dir = os.path.join(results_dir, f"eval_wl{wl}")
+        results_dir = os.path.join(results_dir, f"eval_{wl}")
         os.makedirs(results_dir, exist_ok=True)
     metrics_dir = os.path.join(results_dir, "performance_metrics")
     dft_dir = os.path.join(results_dir, "dft_plots")
@@ -72,7 +73,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
     
     print(f"\nEvaluation complete. All results saved to: {results_dir}")
 
-def run(conf, wavelengths=None):
+def run(conf, wavelengths=None, model_instance=None):
     # use current params to get results directory
     results_dir = conf.paths.results
     
@@ -91,9 +92,10 @@ def run(conf, wavelengths=None):
         wavelengths.pop(0)
         
     # Load model checkpoint
-    model_path = os.path.join(results_dir, 'model.ckpt')
-    model_instance = model_loader.select_model(saved_conf.model)
-    model_instance.load_state_dict(torch.load(model_path)['state_dict'])
+    if model_instance is None:
+        model_path = os.path.join(results_dir, 'model.ckpt')
+        model_instance = model_loader.select_model(saved_conf.model)
+        model_instance.load_state_dict(torch.load(model_path)['state_dict'])
     
     # init datamodule
     data_module = datamodule.select_data(saved_conf)
@@ -148,7 +150,12 @@ def run(conf, wavelengths=None):
     
     # recur for other wavelengths if necessary until all are evaluated
     if transfer_eval and len(wavelengths) > 0:
-        run(saved_conf, wavelengths)
+        # remove the old dataset from memory
+        del data_module
+        gc.collect()
+        torch.cuda.empty_cache()
+        # run the next wavelength
+        run(saved_conf, wavelengths, model_instance)
     
     
     
