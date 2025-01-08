@@ -79,9 +79,6 @@ def run(conf):
     
     # setup new parameter manager based on saved parameters
     saved_conf = conf
-    
-    # determine if we're evaluating on all wavelengths
-    transfer_eval = saved_conf.data.transfer_eval and saved_conf.model.arch not in ['mlp', 'cvnn', 'modelstm']
         
     # Load model checkpoint
     model_path = os.path.join(results_dir, 'model.ckpt')
@@ -120,41 +117,30 @@ def run(conf):
     # setup the trainer
     trainer = train.configure_trainer(saved_conf, logger, checkpoint_callback, early_stopping, progress_bar)
     
+    # determine if we're evaluating on a different wavelength
+    transfer_eval = saved_conf.data.eval_wavelength != saved_conf.data.wavelength
     if transfer_eval:
-        wavelengths = [1.65, 1.55, 1.3, 1.06]
-        saved_conf.data.wavelength = wavelengths[0]
-    else:
-        wavelengths = [saved_conf.data.wavelength]
+        saved_conf.data.wavelength = saved_conf.data.eval_wavelength
     
-    while len(wavelengths) > 0:
-        # init datamodule
-        data_module = datamodule.select_data(saved_conf)
-        data_module.prepare_data()
-        data_module.setup(stage='fit')
-        
-        if (saved_conf.trainer.cross_validation):
-            with open(os.path.join(results_dir, "split_info.yaml"), 'r') as f:
-                split_info = yaml.safe_load(f)
-            train_idx = split_info["train_idx"]
-            val_idx = split_info["val_idx"]
-            data_module.setup_fold(train_idx, val_idx)
-        else: # cross validation was not conducted
-            data_module.setup_og()
-        
-        # perform testing
-        trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
-        
-        # evaluate
-        plotting(saved_conf, model_instance.test_results, 
-                results_dir, transfer=transfer_eval)
-        
-        wavelengths.pop(0)
-        
-        # clean up memory
-        del data_module
-        gc.collect()
-        torch.cuda.empty_cache()
-        # print memory usage
-        print(f"Memory usage: {torch.cuda.memory_summary(device=None, abbreviated=False)}")
+    # init datamodule
+    data_module = datamodule.select_data(saved_conf)
+    data_module.prepare_data()
+    data_module.setup(stage='fit')
+    
+    if (saved_conf.trainer.cross_validation):
+        with open(os.path.join(results_dir, "split_info.yaml"), 'r') as f:
+            split_info = yaml.safe_load(f)
+        train_idx = split_info["train_idx"]
+        val_idx = split_info["val_idx"]
+        data_module.setup_fold(train_idx, val_idx)
+    else: # cross validation was not conducted
+        data_module.setup_og()
+    
+    # perform testing
+    trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
+    
+    # evaluate
+    plotting(saved_conf, model_instance.test_results, 
+            results_dir, transfer=transfer_eval)
     
     
