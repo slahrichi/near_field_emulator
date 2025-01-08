@@ -73,7 +73,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
     
     print(f"\nEvaluation complete. All results saved to: {results_dir}")
 
-def run(conf, wavelengths=None, model_instance=None):
+def run(conf):
     # use current params to get results directory
     results_dir = conf.paths.results
     
@@ -82,34 +82,11 @@ def run(conf, wavelengths=None, model_instance=None):
     
     # determine if we're evaluating on all wavelengths
     transfer_eval = saved_conf.data.transfer_eval and saved_conf.model.arch not in ['mlp', 'cvnn', 'modelstm']
-    
-    # evaluate performance on all wavelengths if transfer_eval is True
-    if transfer_eval:
-        if wavelengths is None:
-            wavelengths = [2.881, 1.65, 1.55, 1.3, 1.06]
-        wavelength = wavelengths[0]
-        saved_conf.data.wavelength = wavelength
-        wavelengths.pop(0)
         
     # Load model checkpoint
-    if model_instance is None:
-        model_path = os.path.join(results_dir, 'model.ckpt')
-        model_instance = model_loader.select_model(saved_conf.model)
-        model_instance.load_state_dict(torch.load(model_path)['state_dict'])
-    
-    # init datamodule
-    data_module = datamodule.select_data(saved_conf)
-    data_module.prepare_data()
-    data_module.setup(stage='fit')
-    
-    if (saved_conf.trainer.cross_validation):
-        with open(os.path.join(results_dir, "split_info.yaml"), 'r') as f:
-            split_info = yaml.safe_load(f)
-        train_idx = split_info["train_idx"]
-        val_idx = split_info["val_idx"]
-        data_module.setup_fold(train_idx, val_idx)
-    else: # cross validation was not conducted
-        data_module.setup_og()
+    model_path = os.path.join(results_dir, 'model.ckpt')
+    model_instance = model_loader.select_model(saved_conf.model)
+    model_instance.load_state_dict(torch.load(model_path)['state_dict'])
 
     # empty logger so as not to mess with loss.csv
     logger = None
@@ -140,22 +117,44 @@ def run(conf, wavelengths=None, model_instance=None):
     model_instance.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
                                     'valid': {'nf_pred': [], 'nf_truth': []}}
     
-    # setup the Trainer and perform testing
+    # setup the trainer
     trainer = train.configure_trainer(saved_conf, logger, checkpoint_callback, early_stopping, progress_bar)
-    trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
     
-    # evaluate
-    plotting(saved_conf, model_instance.test_results, 
-             results_dir, transfer=transfer_eval)
+    if transfer_eval:
+        wavelengths = [2.881, 1.65, 1.55, 1.3, 1.06]
+        saved_conf.data.wavelength = wavelengths[0]
+    else:
+        wavelengths = [saved_conf.data.wavelength]
     
-    # recur for other wavelengths if necessary until all are evaluated
-    if transfer_eval and len(wavelengths) > 0:
-        # remove the old dataset from memory
+    while len(wavelengths) > 0:
+        # init datamodule
+        data_module = datamodule.select_data(saved_conf)
+        data_module.prepare_data()
+        data_module.setup(stage='fit')
+        
+        if (saved_conf.trainer.cross_validation):
+            with open(os.path.join(results_dir, "split_info.yaml"), 'r') as f:
+                split_info = yaml.safe_load(f)
+            train_idx = split_info["train_idx"]
+            val_idx = split_info["val_idx"]
+            data_module.setup_fold(train_idx, val_idx)
+        else: # cross validation was not conducted
+            data_module.setup_og()
+        
+        # perform testing
+        trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
+        
+        # evaluate
+        plotting(saved_conf, model_instance.test_results, 
+                results_dir, transfer=transfer_eval)
+        
+        wavelengths.pop(0)
+        
+        # clean up memory
         del data_module
         gc.collect()
         torch.cuda.empty_cache()
-        # run the next wavelength
-        run(saved_conf, wavelengths, model_instance)
-    
+        # print memory usage
+        print(f"Memory usage: {torch.cuda.memory_summary(device=None, abbreviated=False)}")
     
     
