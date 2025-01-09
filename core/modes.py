@@ -394,7 +394,7 @@ def encode_modes(data, config):
     method = config.model.modelstm.method
     
     if method == 'svd': # encoding singular value decomposition
-        encoded_fields, full_svd_params = svd(near_fields, config)
+        encoded_fields, full_svd_params = encode_svd(near_fields)
         data['full_svd_params'] = full_svd_params
     elif method == 'random': # random projection / Johnson-Lindenstrauss
         encoded_fields = random_proj(near_fields, config)
