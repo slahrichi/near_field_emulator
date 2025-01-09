@@ -103,11 +103,66 @@ def svd(field):
 
     # 3) Find optimal k
     k_opt = find_optimal_k_svd(S, threshold=0.95)
-    print(f"Optimal k was found to be: {k_opt}")
+    
+    # 4) store the full SVD params
+    full_svd_params = {
+        'U': U,
+        'S': S,
+        'Vh': Vh
+    }
 
-    # 4) Return the top-k singular values
+    # 5) Return the top-k singular values
     top_k_s = S[:k_opt]  # shape (k,)
-    return top_k_s
+    return top_k_s, full_svd_params
+
+def encode_svd(x):
+    samples, r_i, xdim, ydim, slices = x.size()
+
+    # 1) Prepare nested lists for storing results
+    #    - top_k_s_list[i][c][j] will be a 1D tensor with the top singular values for that slice
+    #    - svd_params_list[i][c][j] will be the dictionary of {U, S, Vh} for that slice
+    top_k_s_list = [[[None for _ in range(slices)] for _ in range(r_i)] for _ in range(samples)]
+    svd_params_list = [[[None for _ in range(slices)] for _ in range(r_i)] for _ in range(samples)]
+    
+    # We'll also keep a flat list of top_k_s lengths to find min_k across all slices
+    all_top_k_lengths = []
+    
+    # 2) Iterate over each sample, channel, and slice
+    for i in tqdm(range(samples), desc='Processing Samples'):
+        for c in range(r_i):
+            for j in range(slices):
+                # Extract the 2D matrix [xdim, ydim]
+                slice_2d = x[i, c, :, :, j]
+                
+                # 3) Call the base SVD function
+                single_top_k_s, single_svd_params = svd(slice_2d)
+                
+                top_k_s_list[i][c][j] = single_top_k_s
+                svd_params_list[i][c][j] = single_svd_params
+                all_top_k_lengths.append(len(single_top_k_s))
+
+    # 4) Find the global minimum k across all slices
+    min_k = min(all_top_k_lengths) if len(all_top_k_lengths) > 0 else 0
+    print(f"Minimum k across all slices: {min_k}")
+
+    # 5) Now we build a 4D tensor for the top-k singular values: [samples, r_i, min_k, slices]
+    #    We'll truncate each slice's singular values to min_k.
+    top_k_s = torch.zeros((samples, r_i, min_k, slices), dtype=x.dtype, device=x.device)
+
+    # Fill in that 4D tensor
+    for i in range(samples):
+        for c in range(r_i):
+            for j in range(slices):
+                # each top_k_s_list[i][c][j] is a 1D tensor of shape [k_current]
+                # we slice out the first min_k entries
+                truncated = top_k_s_list[i][c][j][:min_k]
+                top_k_s[i, c, :, j] = truncated
+                
+    # to be respectful of LSTM process, we need a dummy dim 2
+    top_k_s = top_k_s.unsqueeze(2) # [samples, r_i, 1, min_k, slices]
+
+    return top_k_s, svd_params_list
+
 
 # I'm at: need a wrapper function to do this for each channel, slice, sample
 # need to unify k across all somehow
@@ -136,19 +191,31 @@ def find_optimal_k_svd(s, threshold=0.95):
     
     return k_opt
 
-def reconstruct_svd(z, full_svd_params):
+def reconstruct_svd(top_k_s, svd_params):
     """
     Reconstructs the original data from the SVD decomposition.
     """
-    U_k = full_svd_params['U_k']
-    output = torch.zeros(2, 166, 166, z.shape[-1])
-    
-    for slice in range(z.shape[-1]):
-        z_kdim = z[:, slice] # shape [k]
-        slice_flat = U_k @ z_kdim
-        output[:, :, :, slice] = slice_flat.reshape(2, 166, 166)
-    
-    return output
+    U = svd_params['U']   # [166, 166]
+    S = svd_params['S']   # [166]
+    Vh = svd_params['Vh'] # [166, 166]
+
+    # Number of components we are reconstructing with
+    k = top_k_s.shape[0]
+
+    # U_k: left singular vectors corresponding to top k singular values
+    U_k = U[:, :k]  # [166, k]
+
+    # Construct diagonal matrix from top_k_s
+    # shape: (k, k)
+    S_k = torch.diag(top_k_s)
+
+    # Vh_k: right singular vectors corresponding to top k singular values
+    Vh_k = Vh[:k, :] # [k, 166]
+
+    # Approximate reconstruction: M_approx = U_k @ S_k @ Vh_k
+    M_approx = U_k @ S_k @ Vh_k  # [166, 166]
+
+    return M_approx
 
 def random_proj(x, config):
     """

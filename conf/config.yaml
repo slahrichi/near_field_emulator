@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 5
 deployment: 1
 
 #--------------------------------
@@ -43,8 +43,8 @@ model:
         # - 8: Autoencoder - Used in conjunction with arch 4, 5
     # - model_id: model identifier / name
 
-    arch: 0
-    model_id: 'sanity_check_jan'
+    arch: 6
+    model_id: 'svd-mode-encoding'
 
     # General Model Parameters
 
