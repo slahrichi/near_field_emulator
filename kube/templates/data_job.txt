@@ -16,7 +16,7 @@ spec:
       containers:
         - name: {{job_name}}
           image: {{path_image}}
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           command: ["/bin/sh", "-c"]
 
           args: ["set -x &&

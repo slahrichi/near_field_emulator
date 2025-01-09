@@ -80,128 +80,38 @@ import matplotlib.pyplot as plt
     
     return x_svd, full_svd_params'''
     
-def svd(x, config):
+def svd(field):
     """
-    GLOBAL SVD approach:
-      - x has shape [samples, r_i, xdim, ydim, slices].
-      - Flatten all samples & slices into one big matrix => do SVD => pick top k.
-      - Return (x_svd, global_svd_params) so you can project/invert later.
-
-    Returns:
-      x_svd: shape [samples, r_i, 1, k, slices]
-      global_svd_params: dict with 'U_k' and 'S_k' 
-                         (and possibly the full 'U','S','Vh' if you want).
-    """
-    device = x.device
-    dtype = x.dtype
-
-    samples, r_i, xdim, ydim, num_slices = x.shape
-    spatial_dim = r_i * xdim * ydim  # e.g. 2 * 166 * 166 if r_i=2
-
-    # 1) Build the "mega-matrix"
-    # We'll stack all slices from all samples along columns.
-    # shape => [spatial_dim, (samples * num_slices)]
-    # Each column is ONE slice from ONE sample, flattened in space.
-    mega_list = []
-    for i in tqdm(range(samples), desc='Collecting slices'):
-        # shape for sample i => [r_i, xdim, ydim, num_slices]
-        # Flatten each slice => [spatial_dim], then stack across slices => [spatial_dim, num_slices]
-        sample_data = x[i].reshape(r_i * xdim * ydim, num_slices)
-        mega_list.append(sample_data)
-    # Now we have 'samples' arrays of shape [spatial_dim, num_slices].
-    # Concatenate along dimension=1 => total columns = samples * num_slices
-    mega_matrix = torch.cat(mega_list, dim=1).to(device)  # shape [spatial_dim, samples*num_slices]
-
-    # 2) SVD on mega_matrix
-    # Let's do full_matrices=False for efficiency.
-    #   U: [spatial_dim, rank], S: [rank], Vh: [rank, samples*num_slices]
-    print("Performing global SVD on mega_matrix of shape:", mega_matrix.shape)
-    U, S, Vh = torch.linalg.svd(mega_matrix, full_matrices=False)
-
-    # 3) Choose k
-    k = find_optimal_k_svd(S, threshold=0.95)
-    print(f"Optimal k for {0.95*100:.0f}% energy is: {k}")
-
-    # Let's define top-k versions
-    U_k = U[:, :k]  # shape [spatial_dim, k]
-    S_k = S[:k]     # shape [k]
-    # If you want, you can store Vh_k = Vh[:k, :] but for *projection of slices*, you only need U_k, S_k.
-    # Because to get "slice in k-dim" = (U_k^T * diag(S_k))^-1 * ...
-    # Actually, simpler is to define a direct transform for "slice -> k-dim" below.
-
-    # 4) "Project" each slice in x to get x_svd 
-    #    For each slice => flatten => multiply by U_k^T (and S_k if you want rank-k approx).
-    #    We often do: z = U_k^T * x_slice => shape [k], ignoring S for a pure subspace basis (like PCA).
-    #    Or we do z = diag(S_k) * U_k^T * x_slice if we want an SVD-based scaling. 
-    # Typically for dimensionality reduction, we do "z = U_k^T * x_slice" (like PCA).
-    # We'll keep it simpler: "z = U_k^T * x_slice".
-    # Then reconstruct: x_slice_approx = U_k * z.
-
-    # We'll store x_svd in shape [samples, r_i, 1, k, slices],
-    # to match existing usage. Each slice is a length-k vector.
-    x_svd = torch.zeros(samples, r_i, 1, k, num_slices, device=device, dtype=dtype)
-
-    # We want a function for "project slice -> k-dim"
-    # flatten: shape [spatial_dim], z = U_k^T @ slice_vec => shape [k]
-    def project_slice(slice_data_flat):
-        # slice_data_flat: shape [spatial_dim]
-        # z = U_k^T @ slice_data_flat
-        return U_k.T @ slice_data_flat
-
-    idx_sample = 0
-    for i in tqdm(range(samples), desc='Projecting slices to k-dim'):
-        # shape => [r_i, xdim, ydim, num_slices] => flatten in space => [spatial_dim, num_slices]
-        sample_data_2d = x[i].reshape(spatial_dim, num_slices)  # [spatial_dim, num_slices]
-        
-        # For each slice, project
-        # result => [k, num_slices]
-        z = project_slice(sample_data_2d)  # but we must do it slice by slice
-        # Actually, we can do matrix multiply: z = U_k^T @ sample_data_2d
-        # shape => [k, num_slices]
-        z = U_k.T @ sample_data_2d
-        
-        # Now we have z: shape [k, num_slices]
-        # We want to store it in x_svd[i, r_i, 1, k, slices], but r_i=2 is along dimension=1.
-        # However, we already merged r_i into "spatial_dim". 
-        # So typically you'd have 1 "channel" dimension if r_i=2 is folded into the flattening.
-        # Let's just store it all in x_svd[i, 0, 0, :, :] for now if r_i=2 was collapsed.
-        
-        # If you want to keep 'r_i' dimension purely for consistency, we can do:
-        # x_svd[i, :, 0, :, :] => shape [r_i, k, slices].
-        # But we actually only have 1 "flattened" channel. 
-        # We'll do:
-        for c in range(r_i):
-            # c-th channel slice_data => we need to pick out the c-th portion from the flatten
-            # Actually, it's simpler to say "We won't separate c inside x_svd," but let's do it for clarity:
-            # The portion of 'z' that corresponds to channel c is z_c = z for c's subrange in spatial_dim.
-            # This is complicated if we don't do it at the big SVD step differently.
-            # 
-            # ***In the simpler approach***: We treat the entire (r_i * xdim * ydim) as one channel. 
-            # We'll just store the same z into x_svd[i, c], but that would be duplicating. 
-            # Typically you'd keep a single k-dim representation for the entire slice (both channels).
-            # 
-            # Let's do a simpler approach: x_svd[i, 0, 0, :, :] = z. 
-            # i.e. no separate real/imag channel dimension. 
-            pass
-
-        # For demonstration, let's just store z in the first channel dimension
-        # shape => [1, k, num_slices], but we have x_svd shape => [samples, r_i, 1, k, num_slices]
-        # We'll store the same z in each channel to fill it up, 
-        # or you can decide you want r_i=1 from now on, because we merged them anyway.
-        # 
-        # We'll do the "lowest friction" approach: replicate z across c in r_i.
-        for c in range(r_i):
-            x_svd[i, c, 0, :, :] = z
+    Perform SVD on a [166,166] tensor, find the optimal k that
+    captures at least 'threshold' fraction of the energy, and return
+    the top-k singular values as a 1D tensor of shape (k,).
     
-    # 5) Save the relevant params to reconstruct later
-    global_svd_params = {
-        'U_k': U_k,     # shape [spatial_dim, k]
-        'S': S,         # full singular values if you want
-        'k': k,
-        # possibly store 'Vh': Vh if you want full reconstruction. Usually for "project" we only need U_k.
-    }
+    Args:
+        field (torch.Tensor): Shape [166,166].
+        threshold (float): Fraction of energy to retain.
+    
+    Returns:
+        torch.Tensor: The top-k singular values, shape (k,).
+    """
+    # 1) Ensure the input is [166,166]
+    assert field.shape == (166, 166), \
+        f"Expected shape (166,166), got {field.shape}"
+    
+    # 2) SVD
+    #    U: [166,166], S: [166], V^T: [166,166]
+    U, S, Vh = torch.linalg.svd(field, full_matrices=False)
 
-    return x_svd, global_svd_params
+    # 3) Find optimal k
+    k_opt = find_optimal_k_svd(S, threshold=0.95)
+    print(f"Optimal k was found to be: {k_opt}")
+
+    # 4) Return the top-k singular values
+    top_k_s = S[:k_opt]  # shape (k,)
+    return top_k_s
+
+# I'm at: need a wrapper function to do this for each channel, slice, sample
+# need to unify k across all somehow
+# need to also return the full SVD params
 
 def find_optimal_k_svd(s, threshold=0.95):
     """
