@@ -9,8 +9,8 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 5
-deployment: 1
+directive: 0
+deployment: 0
 
 #--------------------------------
 #       General Params
@@ -43,8 +43,8 @@ model:
         # - 8: Autoencoder - Used in conjunction with arch 4, 5
     # - model_id: model identifier / name
 
-    arch: 6
-    model_id: 'svd-mode-encoding'
+    arch: 0
+    model_id: 'train_full'
 
     # General Model Parameters
 
@@ -169,8 +169,8 @@ model:
 #       Training Params
 #--------------------------------
 trainer:
-    batch_size: 8
-    num_epochs: 2 # maximum
+    batch_size: 16
+    num_epochs: 100 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
@@ -238,12 +238,14 @@ data:
     # - n_cpus: number of cpus
     # - n_folds: number of folds for cross val
     # - buffer: True/False - whether to use buffer dataset or old U-Net data (no buffer)
+    # - subset: False/int - False to use all data, (int) N to use subset of N samples
     # - wavelength: wavelength to use for preprocessing
     # ---> [2.881, 1.65, 1.55, 1.3, or 1.06]
     # - eval_wavelength: wavelength to use for evaluation
     n_cpus: 5
     n_folds: 3
     buffer: True
+    subset: False
     wavelength: 1.55
     eval_wavelength: 1.55
 

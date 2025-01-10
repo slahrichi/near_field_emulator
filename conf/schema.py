@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Union, Dict, Any, Literal
 from pydantic import BaseModel, field_validator, model_validator, ValidationError
 import os
 import yaml
@@ -130,6 +130,7 @@ class DataConfig(BaseModel):
     n_cpus: int
     n_folds: int
     buffer: bool = True
+    subset: Optional[Union[bool, int]] = False
     wavelength: float
     eval_wavelength: float
     

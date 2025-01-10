@@ -70,6 +70,8 @@ class NF_Datamodule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         datapath = self.get_datapath()
         data = torch.load(datapath)
+        if self.conf.data.subset:
+            data = self.subset_data(data)
         if self.model_type == 'autoencoder': # pretraining
             self.dataset = format_ae_data(data, self.conf)
         elif self.model_type == 'mlp' or self.model_type == 'cvnn':
@@ -85,6 +87,15 @@ class NF_Datamodule(LightningDataModule):
             else:
                 self.index_map['train'].append(i)
                 
+    def subset_data(self, data):
+        N = self.conf.data.subset
+        total_samples = len(data[next(iter(data))])
+        assert N <= total_samples, f"Subset size {N} exceeds dataset size {total_samples}"
+        subset_indices = torch.randperm(total_samples)[:N]
+        subset_dict = {key: value[subset_indices] for key, value in data.items()}
+        logging.debug("NF_DataModule | Using {} out of {} available training samples".format(N, total_samples))
+        return subset_dict
+
     def get_datapath(self):
         """Based on params, return the correct dataset we'll be using"""
         if not self.conf.data.buffer:
@@ -92,8 +103,8 @@ class NF_Datamodule(LightningDataModule):
         elif self.conf.model.arch == 'modelstm':
             return os.path.join(self.path_data, 'preprocessed_data', f"dataset_{self.conf.model.modelstm.method}.pt")
         else:
-            wv = str(self.conf.data.wavelength).replace('.', '')
-            return os.path.join(self.path_data, 'preprocessed_data', f'dataset_{wv}.pt')
+            #wv = str(self.conf.data.wavelength).replace('.', '')
+            return os.path.join(self.path_data, 'preprocessed_data', f'dataset.pt')
         
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
