@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1   
 
 #--------------------------------
@@ -44,7 +44,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 0
-    model_id: 'train_full'
+    model_id: 'train_full_bottleneck'
 
     # General Model Parameters
 
@@ -70,11 +70,11 @@ model:
     # - patch_size: patch height/width for patch wise or distributed subset
 
     mlp_real:
-        layers: [64, 512]
+        layers: [64, 256, 32]
         activation: 'relu'
 
     mlp_imag:
-        layers: [64, 512]
+        layers: [64, 256, 32]
         activation: 'relu'
 
     cvnn:
