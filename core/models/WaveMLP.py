@@ -47,6 +47,8 @@ class WaveMLP(LightningModule):
             self.strat = 'patch'
         elif self.conf.mlp_strategy == 2:
             self.strat = 'distributed'
+        elif self.conf.mlp_strategy == 3:
+            self.strat = 'all_slices'
         else:
             raise ValueError("Approach not recognized.")
         
@@ -78,7 +80,15 @@ class WaveMLP(LightningModule):
                 # build MLPs
                 self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
                 self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
-            
+
+        elif self.strat == "all_slices": # all_slices
+            self.output_size = 166 * 166 * 63 
+            if self.name == 'cvnn':
+                self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+            else:
+                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
+                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+
         else:
             # Build full MLPs
             self.output_size = 166 * 166
@@ -192,6 +202,15 @@ class WaveMLP(LightningModule):
                 # Reshape to patch_size x patch_size
                 real_output = real_output.view(-1, self.patch_size, self.patch_size)
                 imag_output = imag_output.view(-1, self.patch_size, self.patch_size)
+            elif self.strat == "all_slices":
+                # Full approach
+                real_output = self.mlp_real(radii)
+                imag_output = self.mlp_imag(radii)
+                # Reshape to all slices size
+                real_output = real_output.view(-1, 166, 166, 63)
+                imag_output = imag_output.view(-1, 166, 166, 63)
+                return real_output, imag_output
+
             else:
                 # Full approach
                 real_output = self.mlp_real(radii)
@@ -271,21 +290,45 @@ class WaveMLP(LightningModule):
             loss = torch.mean(loss)  # Aggregating the loss'''
         elif choice == 'psnr':
             # Peak Signal-to-Noise Ratio
-            preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
             fn = PeakSignalNoiseRatio(data_range=1.0).to(self.device)
-            psnr_value = fn(preds, labels)
+            if self.strat != "all_slices":
+                preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
+                psnr_value = fn(preds, labels)
+            else:   
+                psnr_values = []
+                # Iterate over the 63 slices; 
+                # TODO: alternative is to simply treat the slices as the channel dim, and do preds = preds.permute(0, 3, 1, 2) 
+                for i in range(preds.shape[-1]):
+                    pred_channel = preds[..., i]  # Shape [num_samples, 166, 166]
+                    label_channel = labels[..., i]  # Shape [num_samples, 166, 166]
+                    psnr_value_i = fn(pred_channel.unsqueeze(1), label_channel.unsqueeze(1))
+                    psnr_values.append(psnr_value_i)
+                # Average PSNR over slices
+                psnr_value = torch.mean(torch.stack(psnr_values))
             loss = -psnr_value # minimize negative psnr
         elif choice == 'ssim':
             # Structural Similarity Index
             if preds.size(-1) < 11 or preds.size(-2) < 11:
                 loss = 0 # if the size is too small, SSIM is not defined
             else:
-                preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
                 torch.use_deterministic_algorithms(True, warn_only=True)
                 with torch.backends.cudnn.flags(enabled=False):
                     fn = StructuralSimilarityIndexMeasure(data_range=1.0).to(self.device)
+                if self.strat != "all_slices":
+                    preds, labels = preds.unsqueeze(1), labels.unsqueeze(1)  # channel dim
                     ssim_value = fn(preds, labels)
-                    loss = -ssim_value  # SSIM is a similarity metric
+                else:   
+                    ssim_values = []
+                    # Iterate over the 63 slices
+                    for i in range(preds.shape[-1]):
+                        pred_channel = preds[..., i]  # Shape [num_samples, 166, 166]
+                        label_channel = labels[..., i]  # Shape [num_samples, 166, 166]
+                        ssim_value_i = fn(pred_channel.unsqueeze(1), label_channel.unsqueeze(1))
+                        ssim_values.append(ssim_value_i)
+                    # Average SSIM over slices
+                    ssim_value = torch.mean(torch.stack(ssim_values))
+
+                loss = -ssim_value  # SSIM is a similarity metric
         else:
             raise ValueError(f"Unsupported loss function: {choice}")
             

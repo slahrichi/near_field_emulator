@@ -131,6 +131,7 @@ class DataConfig(BaseModel):
     n_folds: int
     buffer: bool = True
     subset: Optional[Union[bool, int]] = False
+    all_slices: bool = False
     wavelength: float
     eval_wavelength: float
     

@@ -482,6 +482,7 @@ def plot_dft_fields(test_results, resub=False,
     def plot_single_set(results, title, format, save_path, sample_idx):
         if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
             # extract and convert to tensors
+            print(f"results['nf_truth'].shape: {results['nf_truth'].shape}")
             truth_real = torch.from_numpy(results['nf_truth'][sample_idx, 0, :, :])
             truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, 1, :, :])
             pred_real = torch.from_numpy(results['nf_pred'][sample_idx, 0, :, :])

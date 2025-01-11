@@ -9,8 +9,8 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
-deployment: 1   
+directive: 0
+deployment: 0   
 
 #--------------------------------
 #       General Params
@@ -65,23 +65,23 @@ model:
     # - ***separate MLPs for real and imaginary parts, or a single CVNN***
     # - layers: Hidden layer neuron counts, len(layers) = number of hidden layers
     # - activation: Activation function for hidden layers
-    # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset
+    # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset; 3: all_slices
     # - num_design_conf: number of design configurations (usually 3x3: 9)
     # - patch_size: patch height/width for patch wise or distributed subset
 
     mlp_real:
-        layers: [64, 512]
+        layers: [64, 256, 32]
         activation: 'relu'
 
     mlp_imag:
-        layers: [64, 512]
+        layers: [64, 256, 32]
         activation: 'relu'
 
     cvnn:
         layers: [64, 512]
         activation: 'complexrelu'
 
-    mlp_strategy: 0
+    mlp_strategy: 3
     patch_size: 3
     num_design_conf: 9
     interpolate_fields: False
@@ -170,7 +170,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 16
-    num_epochs: 100 # maximum
+    num_epochs: 3 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
@@ -239,6 +239,7 @@ data:
     # - n_folds: number of folds for cross val
     # - buffer: True/False - whether to use buffer dataset or old U-Net data (no buffer)
     # - subset: False/int - False to use all data, (int) N to use subset of N samples
+    # - all_slices: True/False - whether to load all slices (not just the last one) 
     # - wavelength: wavelength to use for preprocessing
     # ---> [2.881, 1.65, 1.55, 1.3, or 1.06]
     # - eval_wavelength: wavelength to use for evaluation
@@ -246,6 +247,7 @@ data:
     n_folds: 3
     buffer: True
     subset: False
+    all_slices: True
     wavelength: 1.55
     eval_wavelength: 1.55
 

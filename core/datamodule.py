@@ -22,7 +22,7 @@ from core import curvature
 from utils import mapping
 
 # debugging
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 class NF_Datamodule(LightningDataModule):
     def __init__(self, conf, transform = None):
@@ -171,7 +171,7 @@ class WaveMLP_Dataset(Dataset):
         return len(self.near_fields)
 
     def __getitem__(self, idx):
-        near_field = self.near_fields[idx] # [2, 166, 166]
+        near_field = self.near_fields[idx] # [2, 166, 166] or [2, 166, 166, 63] if self.approach == 3
         radius = self.radii[idx].float() # [9]
         
         if self.approach == 2:
@@ -204,9 +204,16 @@ class WaveMLP_Dataset(Dataset):
             self.near_fields = torch.cat((mag, phase), dim=1) # [num_samples, r/i, 166, 166]
         else: # using newer dataset (dataset.pt), simulated for time series models
             temp_nf_1550 = self.data['near_fields'] # [num_samples, 2, 166, 166, 63]
-            # grab the final slice
-            self.near_fields = temp_nf_1550[:, :, :, :, -1] # [num_samples, 2, 166, 166]
-            
+            if self.approach == 3:
+                # loading all slices
+                self.near_fields = temp_nf_1550 # [num_samples, 2, 166, 166, 63]
+                logging.debug(f"WaveMLP_Dataset | format_data: grabbing all slices; near_fields shape: {self.near_fields.shape}")
+            else:
+                # grab the final slice
+                self.near_fields = temp_nf_1550[:, :, :, :, -1] # [num_samples, 2, 166, 166]
+                logging.debug(f"WaveMLP_Dataset | format_data: grabbing last slice; near_fields shape: {self.near_fields.shape}")
+                
+
 class WaveModel_Dataset(Dataset):
     """
     Dataset for the time series models associated with emulating wave propagation.
