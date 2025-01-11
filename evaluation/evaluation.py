@@ -482,11 +482,22 @@ def plot_dft_fields(test_results, resub=False,
     def plot_single_set(results, title, format, save_path, sample_idx):
         if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
             # extract and convert to tensors
-            print(f"results['nf_truth'].shape: {results['nf_truth'].shape}")
-            truth_real = torch.from_numpy(results['nf_truth'][sample_idx, 0, :, :])
-            truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, 1, :, :])
-            pred_real = torch.from_numpy(results['nf_pred'][sample_idx, 0, :, :])
-            pred_imag = torch.from_numpy(results['nf_pred'][sample_idx, 1, :, :])
+            def slice_data(data, sample_idx, channel_idx):
+                """
+                Slice input data based on dimensions. Assuming data is either 4D or 5D.
+                """
+                if data.ndim == 5:
+                    # TODO: Plotting "sample_idx_th" slice out of 63. Can later add param to plot a specific slice, multiple ones, or some average.
+                    return data[sample_idx, channel_idx, :, :, 0]
+                elif data.ndim == 4:
+                    return data[sample_idx, channel_idx, :, :]
+                else:
+                    raise ValueError(f"Unexpected data dimensions: {data.ndim}. Expected 4D or 5D.")
+
+            truth_real = torch.from_numpy(slice_data(results['nf_truth'], sample_idx, 0))
+            truth_imag = torch.from_numpy(slice_data(results['nf_truth'], sample_idx, 1))
+            pred_real = torch.from_numpy(slice_data(results['nf_pred'], sample_idx, 0))
+            pred_imag = torch.from_numpy(slice_data(results['nf_pred'], sample_idx, 1))
 
             # determine which coordinate format to plot
             if format == 'polar':
