@@ -66,7 +66,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
                                   arch=model_type, fold_num=fold_num)
     
     # visualize performance with animation
-    if model_type != 'autoencoder' and model_type != 'mlp':
+    if model_type not in ['autoencoder', 'cvnn', 'mlp'] or conf.model.mlp_strategy != 3:
         print("\nGenerating field animations...")
         eval.animate_fields(test_results, dataset='valid', 
                             seq_len=conf.model.seq_len, save_dir=results_dir)
