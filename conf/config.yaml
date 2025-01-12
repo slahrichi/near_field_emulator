@@ -170,7 +170,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 16
-    num_epochs: 3 # maximum
+    num_epochs: 100 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
