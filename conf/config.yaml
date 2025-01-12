@@ -10,7 +10,7 @@
 # - 1: kubernetes
 
 directive: 0
-deployment: 0   
+deployment: 1   
 
 #--------------------------------
 #       General Params
@@ -44,7 +44,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 0
-    model_id: 'train_full_bottleneck'
+    model_id: 'train_all_slices'
 
     # General Model Parameters
 
@@ -170,7 +170,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 16
-    num_epochs: 3 # maximum
+    num_epochs: 100 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
