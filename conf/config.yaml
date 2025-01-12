@@ -43,8 +43,8 @@ model:
         # - 8: Autoencoder - Used in conjunction with arch 4, 5
     # - model_id: model identifier / name
 
-    arch: 0
-    model_id: 'train_all_slices'
+    arch: 1
+    model_id: 'train_cvnn'
 
     # General Model Parameters
 
@@ -81,7 +81,7 @@ model:
         layers: [64, 512]
         activation: 'complexrelu'
 
-    mlp_strategy: 3
+    mlp_strategy: 0
     patch_size: 3
     num_design_conf: 9
     interpolate_fields: False
@@ -170,7 +170,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 16
-    num_epochs: 100 # maximum
+    num_epochs: 3 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
@@ -247,7 +247,7 @@ data:
     n_folds: 3
     buffer: True
     subset: False
-    all_slices: True
+    all_slices: False
     wavelength: 1.55
     eval_wavelength: 1.55
 

@@ -22,7 +22,7 @@ from core import curvature
 from utils import mapping
 
 # debugging
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 class NF_Datamodule(LightningDataModule):
     def __init__(self, conf, transform = None):
