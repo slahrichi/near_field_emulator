@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1   
 
 #--------------------------------
@@ -43,8 +43,8 @@ model:
         # - 8: Autoencoder - Used in conjunction with arch 4, 5
     # - model_id: model identifier / name
 
-    arch: 0
-    model_id: 'train_all_slices'
+    arch: 1
+    model_id: 'train_inverse'
 
     # General Model Parameters
 
@@ -65,7 +65,7 @@ model:
     # - ***separate MLPs for real and imaginary parts, or a single CVNN***
     # - layers: Hidden layer neuron counts, len(layers) = number of hidden layers
     # - activation: Activation function for hidden layers
-    # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset; 3: all_slices
+    # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset; 3: all_slices; 4: inverse (cvnn only)
     # - num_design_conf: number of design configurations (usually 3x3: 9)
     # - patch_size: patch height/width for patch wise or distributed subset
 
@@ -78,12 +78,12 @@ model:
         activation: 'relu'
 
     cvnn:
-        layers: [64, 512]
+        layers: [512, 64] # inverse
         activation: 'complexrelu'
 
-    mlp_strategy: 3
+    mlp_strategy: 4 # inverse 
     patch_size: 3
-    num_design_conf: 9
+    num_design_conf: 27556 # inverse: 166*166 
     interpolate_fields: False
 
     # LSTM Parameters

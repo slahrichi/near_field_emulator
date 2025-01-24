@@ -49,6 +49,8 @@ class WaveMLP(LightningModule):
             self.strat = 'distributed'
         elif self.conf.mlp_strategy == 3:
             self.strat = 'all_slices'
+        elif self.conf.mlp_strategy == 4:
+            self.strat = "inverse"
         else:
             raise ValueError("Approach not recognized.")
         
@@ -89,6 +91,12 @@ class WaveMLP(LightningModule):
                 self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
                 self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
 
+        elif self.strat == "inverse": # inverse (geometry --> radii)
+            self.output_size = 9
+            if self.name == "cvnn":
+                self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+            else:
+                raise ValueError("Inverse model not supported with multiple MLPs yet")
         else:
             # Build full MLPs
             self.output_size = 166 * 166
@@ -101,9 +109,12 @@ class WaveMLP(LightningModule):
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
-        self.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
-                             'valid': {'nf_pred': [], 'nf_truth': []}}
-        
+        if self.strat != "inverse":    
+            self.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
+                                'valid': {'nf_pred': [], 'nf_truth': []}}
+        else:
+            self.test_results = {'train': {'radii_pred': [], 'radii_truth': []},
+                                'valid': {'radii_pred': [], 'radii_truth': []}}
         # Initialize metrics
         self.train_psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.train_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
@@ -142,85 +153,97 @@ class WaveMLP(LightningModule):
         else:
             raise ValueError(f"Unsupported activation function: {activation_name}")
         
-    def forward(self, radii):
-        if self.name == 'cvnn':
-            # Convert radii to complex numbers
-            radii_complex = torch.complex(radii, torch.zeros_like(radii))
-            if self.strat == 'patch':
-                # Patch approach with complex MLPs
-                batch_size = radii.size(0)
-                patches = []
-                for i in range(self.num_patches):
-                    patch = self.cvnn[i](radii_complex)
-                    patch = patch.view(batch_size, self.patch_size, self.patch_size)
-                    patches.append(patch)
-                # Assemble patches
-                output = self.assemble_patches(patches, batch_size)
-                # Crop to original size if necessary
-                output = output[:, :, :166, :166]
-            elif self.strat == 'distributed':
-                # Distributed subset approach
-                output = self.cvnn(radii_complex)
-                output = output.view(-1, self.patch_size, self.patch_size)
-            else:
-                # Full approach
-                #print(f"radii_complex: {radii_complex.shape}")
-                output = self.cvnn(radii_complex)
-                output = output.view(-1, 166, 166)
-                return output
+    def forward(self, input):
+        if self.strat != "inverse":
+            # Forward model: radii -> near_fields
+            radii = input    
+            if self.name == 'cvnn':
+                # Convert radii to complex numbers
+                radii_complex = torch.complex(radii, torch.zeros_like(radii))
+                if self.strat == 'patch':
+                    # Patch approach with complex MLPs
+                    batch_size = radii.size(0)
+                    patches = []
+                    for i in range(self.num_patches):
+                        patch = self.cvnn[i](radii_complex)
+                        patch = patch.view(batch_size, self.patch_size, self.patch_size)
+                        patches.append(patch)
+                    # Assemble patches
+                    output = self.assemble_patches(patches, batch_size)
+                    # Crop to original size if necessary
+                    output = output[:, :, :166, :166]
+                elif self.strat == 'distributed':
+                    # Distributed subset approach
+                    output = self.cvnn(radii_complex)
+                    output = output.view(-1, self.patch_size, self.patch_size)
+                else:
+                    # Full approach
+                    #print(f"radii_complex: {radii_complex.shape}")
+                    output = self.cvnn(radii_complex)
+                    output = output.view(-1, 166, 166)
+                    return output
+        
+            else:   
+                # Original real-valued MLPs
+                if self.strat == 'patch':
+                    # Patch approach
+                    batch_size = radii.size(0)
+                    real_patches = []
+                    imag_patches = []
+
+                    for i in range(self.num_patches):
+                        # Real part
+                        real_patch = self.mlp_real[i](radii)
+                        real_patch = real_patch.view(batch_size, self.patch_size, self.patch_size)
+                        real_patches.append(real_patch)
+
+                        # Imaginary part
+                        imag_patch = self.mlp_imag[i](radii)
+                        imag_patch = imag_patch.view(batch_size, self.patch_size, self.patch_size)
+                        imag_patches.append(imag_patch)
+
+                    # Assemble patches
+                    real_output = self.assemble_patches(real_patches, batch_size)
+                    imag_output = self.assemble_patches(imag_patches, batch_size)
+
+                    # Crop to original size if necessary
+                    real_output = real_output[:, :166, :166]
+                    imag_output = imag_output[:, :166, :166]
+                elif self.strat == 'distributed':
+                    # Distributed subset approach
+                    real_output = self.mlp_real(radii)
+                    imag_output = self.mlp_imag(radii)
+                    # Reshape to patch_size x patch_size
+                    real_output = real_output.view(-1, self.patch_size, self.patch_size)
+                    imag_output = imag_output.view(-1, self.patch_size, self.patch_size)
+                elif self.strat == "all_slices":
+                    # Full approach
+                    real_output = self.mlp_real(radii)
+                    imag_output = self.mlp_imag(radii)
+                    # Reshape to all slices size
+                    real_output = real_output.view(-1, 166, 166, 63)
+                    imag_output = imag_output.view(-1, 166, 166, 63)
+                    return real_output, imag_output
+
+                else:
+                    # Full approach
+                    real_output = self.mlp_real(radii)
+                    imag_output = self.mlp_imag(radii)
+                    # Reshape to image size
+                    real_output = real_output.view(-1, 166, 166)
+                    imag_output = imag_output.view(-1, 166, 166)
+
+                    return real_output, imag_output
         
         else:
-            # Original real-valued MLPs
-            if self.strat == 'patch':
-                # Patch approach
-                batch_size = radii.size(0)
-                real_patches = []
-                imag_patches = []
+            # Inverse model: near_fields -> radii
+            near_fields = input
+            near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+            near_fields_flat = near_fields_complex.view(near_fields_complex.size(0), -1)
+            output = self.cvnn(near_fields_flat)
+            output.view(-1, 9)
+            return output
 
-                for i in range(self.num_patches):
-                    # Real part
-                    real_patch = self.mlp_real[i](radii)
-                    real_patch = real_patch.view(batch_size, self.patch_size, self.patch_size)
-                    real_patches.append(real_patch)
-
-                    # Imaginary part
-                    imag_patch = self.mlp_imag[i](radii)
-                    imag_patch = imag_patch.view(batch_size, self.patch_size, self.patch_size)
-                    imag_patches.append(imag_patch)
-
-                # Assemble patches
-                real_output = self.assemble_patches(real_patches, batch_size)
-                imag_output = self.assemble_patches(imag_patches, batch_size)
-
-                # Crop to original size if necessary
-                real_output = real_output[:, :166, :166]
-                imag_output = imag_output[:, :166, :166]
-            elif self.strat == 'distributed':
-                # Distributed subset approach
-                real_output = self.mlp_real(radii)
-                imag_output = self.mlp_imag(radii)
-                # Reshape to patch_size x patch_size
-                real_output = real_output.view(-1, self.patch_size, self.patch_size)
-                imag_output = imag_output.view(-1, self.patch_size, self.patch_size)
-            elif self.strat == "all_slices":
-                # Full approach
-                real_output = self.mlp_real(radii)
-                imag_output = self.mlp_imag(radii)
-                # Reshape to all slices size
-                real_output = real_output.view(-1, 166, 166, 63)
-                imag_output = imag_output.view(-1, 166, 166, 63)
-                return real_output, imag_output
-
-            else:
-                # Full approach
-                real_output = self.mlp_real(radii)
-                imag_output = self.mlp_imag(radii)
-                # Reshape to image size
-                real_output = real_output.view(-1, 166, 166)
-                imag_output = imag_output.view(-1, 166, 166)
-
-                return real_output, imag_output
-        
     def assemble_patches(self, patches, batch_size):
         # reshape patches into grid
         patches_per_row = self.num_patches_width
@@ -335,55 +358,86 @@ class WaveMLP(LightningModule):
         return loss
     
     def objective(self, batch, predictions):
-        near_fields, radii = batch
+        if self.strat != "inverse":  
+            near_fields, radii = batch
 
-        if self.name == 'cvnn':
-            labels = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
-            labels_real = labels.real
-            labels_imag = labels.imag
-            preds_real = predictions.real
-            preds_imag = predictions.imag
-        else:
-            preds_real, preds_imag = predictions
-            labels_real = near_fields[:, 0, :, :]
-            labels_imag = near_fields[:, 1, :, :]
-        
-        # Near-field loss: compute separately for real and imaginary components
-        near_field_loss_real = self.compute_loss(preds_real, labels_real, choice=self.loss_func)
-        near_field_loss_imag = self.compute_loss(preds_imag, labels_imag, choice=self.loss_func)
-        near_field_loss = near_field_loss_real + near_field_loss_imag
-        
-        # compute other metrics for logging besides specified loss function
-        choices = {
-            'mse': None,
-            #'emd': None,
-            'ssim': None,
-            'psnr': None
-        }
-        
-        for key in choices:
-            if key != self.loss_func:
-                # ignoring emd for now - geomloss library has issues
-                '''if key == 'emd':
-                    # Reshape tensors to (batch_size, num_pixels, 1)
-                    pred_real_reshaped = pred_real.view(pred_real.size(0), -1, 1)
-                    real_near_fields_reshaped = real_near_fields.view(real_near_fields.size(0), -1, 1)
-                    pred_imag_reshaped = pred_imag.view(pred_imag.size(0), -1, 1)
-                    imag_near_fields_reshaped = imag_near_fields.view(imag_near_fields.size(0), -1, 1)
+            if self.name == 'cvnn':
+                labels = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+                labels_real = labels.real
+                labels_imag = labels.imag
+                preds_real = predictions.real
+                preds_imag = predictions.imag
+            else:
+                preds_real, preds_imag = predictions
+                labels_real = near_fields[:, 0, :, :]
+                labels_imag = near_fields[:, 1, :, :]
+            
+            # Near-field loss: compute separately for real and imaginary components
+            near_field_loss_real = self.compute_loss(preds_real, labels_real, choice=self.loss_func)
+            near_field_loss_imag = self.compute_loss(preds_imag, labels_imag, choice=self.loss_func)
+            near_field_loss = near_field_loss_real + near_field_loss_imag
 
-                    loss_real = self.compute_loss(pred_real_reshaped, real_near_fields_reshaped, choice=key)
-                    loss_imag = self.compute_loss(pred_imag_reshaped, imag_near_fields_reshaped, choice=key)
-                else:'''
-                loss_real = self.compute_loss(preds_real, labels_real, choice=key)
-                loss_imag = self.compute_loss(preds_imag, labels_imag, choice=key)
-                loss = loss_real + loss_imag
-                choices[key] = loss
-        
-        return {"loss": near_field_loss, **choices}
+            # compute other metrics for logging besides specified loss function
+            choices = {
+                'mse': None,
+                #'emd': None,
+                'ssim': None,
+                'psnr': None
+            }
+            
+            for key in choices:
+                if key != self.loss_func:
+                    # ignoring emd for now - geomloss library has issues
+                    '''if key == 'emd':
+                        # Reshape tensors to (batch_size, num_pixels, 1)
+                        pred_real_reshaped = pred_real.view(pred_real.size(0), -1, 1)
+                        real_near_fields_reshaped = real_near_fields.view(real_near_fields.size(0), -1, 1)
+                        pred_imag_reshaped = pred_imag.view(pred_imag.size(0), -1, 1)
+                        imag_near_fields_reshaped = imag_near_fields.view(imag_near_fields.size(0), -1, 1)
+
+                        loss_real = self.compute_loss(pred_real_reshaped, real_near_fields_reshaped, choice=key)
+                        loss_imag = self.compute_loss(pred_imag_reshaped, imag_near_fields_reshaped, choice=key)
+                    else:'''
+                    loss_real = self.compute_loss(preds_real, labels_real, choice=key)
+                    loss_imag = self.compute_loss(preds_imag, labels_imag, choice=key)
+                    loss = loss_real + loss_imag
+                    choices[key] = loss
+            
+            return {"loss": near_field_loss, **choices}
     
+        else:
+            radii, near_fields = batch
+            if self.name == 'cvnn':
+                labels = radii  
+                preds = predictions.real
+                radii_loss = self.compute_loss(preds, labels, choice=self.loss_func)
+            else:
+                raise ValueError("Only CVNN handled for inverse!")
+            
+             # compute other metrics for logging besides specified loss function
+            choices = {
+                'mse': None,
+                #'emd': None,
+                'ssim': None,
+                'psnr': None
+            }
+            for key in choices:
+                if key != self.loss_func:
+                    loss = self.compute_loss(preds, labels, choice=key)
+                    choices[key] = loss
+            return {"loss": radii_loss, **choices}
+
+
+        
+
+
     def shared_step(self, batch, batch_idx):
-        near_fields, radii = batch
-        preds = self.forward(radii)
+        if self.strat == "inverse":
+            radii, near_fields = batch
+            preds = self.forward(near_fields)
+        else:
+            near_fields, radii = batch
+            preds = self.forward(radii)
         return preds
     
     def training_step(self, batch, batch_idx):
@@ -429,38 +483,60 @@ class WaveMLP(LightningModule):
         self.organize_testing(preds, batch, batch_idx, dataloader_idx)
         
     def organize_testing(self, predictions, batch, batch_idx, dataloader_idx):
-        near_fields, radii = batch
+        if self.strat != "inverse":      
+            near_fields, radii = batch
+            
+            if self.name == 'cvnn':
+                labels = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+                labels_real = labels.real
+                labels_imag = labels.imag
+                preds_real = predictions.real
+                preds_imag = predictions.imag
+            else:
+                preds_real, preds_imag = predictions
+                labels_real = near_fields[:, 0, :, :]
+                labels_imag = near_fields[:, 1, :, :]
+            
+            # collect preds and ground truths
+            preds_combined = torch.stack([preds_real, preds_imag], dim=1).cpu().numpy()
+            truths_combined = torch.stack([labels_real, labels_imag], dim=1).cpu().numpy()
+            
+            # Store predictions and ground truths for analysis after testing
+            if dataloader_idx == 0:  # val dataloader
+                self.test_results['valid']['nf_pred'].append(preds_combined)
+                self.test_results['valid']['nf_truth'].append(truths_combined)
+            elif dataloader_idx == 1:  # train dataloader
+                self.test_results['train']['nf_pred'].append(preds_combined)
+                self.test_results['train']['nf_truth'].append(truths_combined)
+            else:
+                raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
         
-        if self.name == 'cvnn':
-            labels = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
-            labels_real = labels.real
-            labels_imag = labels.imag
-            preds_real = predictions.real
-            preds_imag = predictions.imag
         else:
-            preds_real, preds_imag = predictions
-            labels_real = near_fields[:, 0, :, :]
-            labels_imag = near_fields[:, 1, :, :]
-        
-        # collect preds and ground truths
-        preds_combined = torch.stack([preds_real, preds_imag], dim=1).cpu().numpy()
-        truths_combined = torch.stack([labels_real, labels_imag], dim=1).cpu().numpy()
-        
-        # Store predictions and ground truths for analysis after testing
-        if dataloader_idx == 0:  # val dataloader
-            self.test_results['valid']['nf_pred'].append(preds_combined)
-            self.test_results['valid']['nf_truth'].append(truths_combined)
-        elif dataloader_idx == 1:  # train dataloader
-            self.test_results['train']['nf_pred'].append(preds_combined)
-            self.test_results['train']['nf_truth'].append(truths_combined)
-        else:
-            raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
-        
+            radii, near_fields = batch
+            if self.name == 'cvnn':
+                # Saving real part of the prediction only; double check that imaginary part can be disregarded
+                preds_real = predictions.real
+                # Store predictions and ground truths for analysis after testing
+                if dataloader_idx == 0:  # val dataloader
+                    self.test_results['valid']['radii_pred'].append(preds_real)
+                    self.test_results['valid']['radii_truth'].append(radii)
+                elif dataloader_idx == 1:  # train dataloader
+                    self.test_results['train']['radii_pred'].append(preds_real)
+                    self.test_results['train']['radii_truth'].append(radii)
+                else:
+                    raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
+            else:
+                raise ValueError("Testing for inverse only available for CVNN.")
+
     def on_test_end(self):
         # Concatenate results from all batches
         for mode in ['train', 'valid']:
-            self.test_results[mode]['nf_pred'] = np.concatenate(self.test_results[mode]['nf_pred'], axis=0)
-            self.test_results[mode]['nf_truth'] = np.concatenate(self.test_results[mode]['nf_truth'], axis=0)
+            if self.strat != "inverse":
+                out = 'nf'
+            else:
+                out = 'radii'
+            self.test_results[mode][f'{out}_pred'] = np.concatenate(self.test_results[mode][f'{out}_pred'], axis=0)
+            self.test_results[mode][f'{out}_truth'] = np.concatenate(self.test_results[mode][f'{out}_truth'], axis=0)
 
             # Log results for the current fold
             '''name = "results"

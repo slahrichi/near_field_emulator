@@ -182,6 +182,10 @@ class WaveMLP_Dataset(Dataset):
             near_field = near_field.reshape(2, self.patch_size, self.patch_size)
         if self.transform:   
             near_field = self.transform(near_field)
+
+        if self.approach == 4: # inverse 
+            logging.debug(f"WaveMLP_Dataset | Returning dataset for inverse training.")
+            return radius, near_field
         
         logging.debug(f"WaveMLP_Dataset | near_field shape: {near_field.shape}")
         

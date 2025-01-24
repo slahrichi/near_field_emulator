@@ -34,10 +34,11 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         results_dir = os.path.join(results_dir, f"eval_{wl}")
         os.makedirs(results_dir, exist_ok=True)
     metrics_dir = os.path.join(results_dir, "performance_metrics")
-    dft_dir = os.path.join(results_dir, "dft_plots")
+    output_subdir = "dft_plots" if conf.model.mlp_strategy != 4 else "radii_plots"
+    output_dir = os.path.join(results_dir, output_subdir)
     flipbook_dir = os.path.join(results_dir, "flipbooks")
-    
-    for directory in [metrics_dir, dft_dir, flipbook_dir]:
+    directories = [metrics_dir, output_dir, flipbook_dir]
+    for directory in directories:
         os.makedirs(directory, exist_ok=True)
         print(f"Created directory: {directory}")
 
@@ -51,22 +52,23 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         eval.metrics(test_results, dataset='train', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
         eval.metrics(test_results, dataset='valid', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
     
-    # visualize performance with DFT fields
-    print("\nGenerating DFT field plots...")
-    eval.plot_dft_fields(test_results, resub=True, sample_idx=10, save_fig=True, 
-                         save_dir=results_dir, arch=model_type, format='polar',
-                         fold_num=fold_num)
-    if model_type == 'mlp':
+    if conf.model.mlp_strategy != 4:    
+        # visualize performance with DFT fields
+        print("\nGenerating DFT field plots...")
         eval.plot_dft_fields(test_results, resub=True, sample_idx=10, save_fig=True, 
-                             save_dir=results_dir, arch=model_type, format='cartesian',
-                             fold_num=fold_num)
+                            save_dir=results_dir, arch=model_type, format='polar',
+                            fold_num=fold_num)
+        if model_type == 'mlp':
+            eval.plot_dft_fields(test_results, resub=True, sample_idx=10, save_fig=True, 
+                                save_dir=results_dir, arch=model_type, format='cartesian',
+                                fold_num=fold_num)
     #if model_type == 'lstm' or model_type == 'convlstm':
-    eval.plot_absolute_difference(test_results, resub=True, sample_idx=10, 
+    eval.plot_absolute_difference(conf, test_results, resub=True, sample_idx=10, 
                                   save_fig=True, save_dir=results_dir,
                                   arch=model_type, fold_num=fold_num)
     
     # visualize performance with animation
-    if model_type not in ['autoencoder', 'cvnn', 'mlp'] or conf.model.mlp_strategy != 3:
+    if model_type not in ['autoencoder', 'cvnn', 'mlp'] or conf.model.mlp_strategy != 4:
         print("\nGenerating field animations...")
         eval.animate_fields(test_results, dataset='valid', 
                             seq_len=conf.model.seq_len, save_dir=results_dir)
@@ -111,8 +113,9 @@ def run(conf):
     progress_bar = train.CustomProgressBar()
     
     # ensure test results are empty so we can populate them
-    model_instance.test_results = {'train': {'nf_pred': [], 'nf_truth': []},
-                                    'valid': {'nf_pred': [], 'nf_truth': []}}
+    for mode in ['train', 'valid']:
+        for key in model_instance.test_results[mode].keys():
+            model_instance.test_results[mode][key] =  []
     
     # setup the trainer
     trainer = train.configure_trainer(saved_conf, logger, checkpoint_callback, early_stopping, progress_bar)

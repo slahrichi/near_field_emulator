@@ -74,8 +74,8 @@ def get_all_results(folder_path, n_folds, resub=False):
         losses = load_losses(fold_num, folder_path)
 
         fold_results.append({
-            'train': train_results,    # Contains 'nf_truth' and 'nf_pred' for training
-            'valid': valid_results,    # Contains 'nf_truth' and 'nf_pred' for validation
+            'train': train_results,    # Contains 'nf_truth' and 'nf_pred' for training or 'radii_truth' and 'radii_pred' if inverse
+            'valid': valid_results,    # Contains 'nf_truth' and 'nf_pred' for validation or 'radii_truth' and 'radii_pred' if inverse
             'losses': losses           # Contains 'epoch', 'train_loss', and 'val_loss'
         })
 
@@ -89,6 +89,8 @@ def save_eval_item(save_dir, eval_item, file_name, type):
         save_path = os.path.join(save_dir, "loss_plots")
     elif type == 'dft':
         save_path = os.path.join(save_dir, "dft_plots")
+    elif type == "radii":
+        save_path = os.path.join(save_dir, "radii_plots")
     else:
         return NotADirectoryError
     #os.makedirs(save_path, exist_ok=True)
@@ -343,10 +345,12 @@ def metrics(test_results, fold_idx=None, dataset='valid',
     """Print metrics for a specific fold and dataset (train or valid)."""
     if dataset not in test_results:
         raise ValueError(f"Dataset '{dataset}' not found in test_results.")
-
-    truth = test_results[dataset]['nf_truth']
-    pred = test_results[dataset]['nf_pred']
-    
+    try:    
+        truth = test_results[dataset]['nf_truth']
+        pred = test_results[dataset]['nf_pred']
+    except KeyError:
+        truth = test_results[dataset]['radii_truth']
+        pred = test_results[dataset]['radii_pred']
     std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
 
     metrics = calculate_metrics(truth, pred)
@@ -641,12 +645,13 @@ def plot_dft_fields(test_results, resub=False,
         plot_single_set(test_results['train'], f"{title} - Random Training Sample - {format}", format, save_dir, sample_idx)
     plot_single_set(test_results['valid'], f"{title} - Random Validation Sample - {format}", format, save_dir, sample_idx)
     
-def plot_absolute_difference(test_results, resub=False, sample_idx=0, 
+def plot_absolute_difference(conf, test_results, resub=False, sample_idx=0, 
                              save_fig=False, save_dir=None, arch='mlp', fold_num=None):
     """
     Plot a sequence of absolute difference between predicted and ground truth fields
     
     Args:
+        conf: config file containing model parameters
         test_results (list): List of dictionaries containing train and valid results
         resub (bool): Whether to plot a random training sample instead of a random validation sample
         sample_idx (int): Index of sample to plot
@@ -658,70 +663,84 @@ def plot_absolute_difference(test_results, resub=False, sample_idx=0,
     """
     def plot_single_set(results, title, sample_idx):
         abs_diff = calculate_absolute_difference(results, sample_idx)
-        
-        if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
-            # Extract real and imaginary differences
-            real_diff = abs_diff[0, :, :]
-            imag_diff = abs_diff[1, :, :]
+        if conf.model.mlp_strategy != 4:
+            if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
+                # Extract real and imaginary differences
+                real_diff = abs_diff[0, :, :]
+                imag_diff = abs_diff[1, :, :]
+                
+                # Convert to magnitude and phase differences
+                #mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
+                
+                # Create a single column plot
+                fig, ax = plt.subplots(2, 1, figsize=(6, 12))
+                fig.suptitle(title, fontsize=16)
+                
+                # Plot magnitude difference
+                im_mag = ax[0].imshow(real_diff, cmap='magma')
+                ax[0].set_title('Real Difference')
+                ax[0].axis('off')
+                
+                # Plot phase difference
+                im_phase = ax[1].imshow(imag_diff, cmap='magma')
+                ax[1].set_title('Imaginary Difference')
+                ax[1].axis('off')
+                
+                # Add colorbars
+                fig.colorbar(im_mag, ax=ax[0], orientation='vertical', fraction=0.046, pad=0.04)
+                fig.colorbar(im_phase, ax=ax[1], orientation='vertical', fraction=0.046, pad=0.04)
             
-            # Convert to magnitude and phase differences
-            #mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
-            
+            else:
+                # Extract real and imaginary differences
+                real_diff = abs_diff[:, 0, :, :]
+                imag_diff = abs_diff[:, 1, :, :]
+                
+                # Convert to magnitude and phase differences
+                mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
+                
+                seq_len = mag_diff.shape[0]
+                
+                # Create figure with space for colorbar
+                fig = plt.figure(figsize=(4*seq_len, 9))
+                gs = fig.add_gridspec(3, seq_len, height_ratios=[1, 1, 0.1])
+                
+                axs_top = [fig.add_subplot(gs[0, i]) for i in range(seq_len)]
+                axs_bottom = [fig.add_subplot(gs[1, i]) for i in range(seq_len)]
+                cax = fig.add_subplot(gs[2, :])
+                
+                fig.suptitle(title, fontsize=16)
+                
+                for t in range(seq_len):
+                    im_mag = axs_top[t].imshow(mag_diff[t], cmap='magma')
+                    axs_top[t].axis('off')
+                    axs_top[t].set_title(f't={t+1}')
+                    
+                    im_phase = axs_bottom[t].imshow(phase_diff[t], cmap='magma')
+                    axs_bottom[t].axis('off')
+                
+                # Add single colorbar at the bottom
+                cbar = plt.colorbar(im_mag, cax=cax, orientation='horizontal')
+                cbar.set_label('Absolute Difference')
+
+        else:
             # Create a single column plot
             fig, ax = plt.subplots(2, 1, figsize=(6, 12))
             fig.suptitle(title, fontsize=16)
             
             # Plot magnitude difference
-            im_mag = ax[0].imshow(real_diff, cmap='magma')
+            im_mag = ax[0].imshow(abs_diff, cmap='magma')
             ax[0].set_title('Real Difference')
             ax[0].axis('off')
-            
-            # Plot phase difference
-            im_phase = ax[1].imshow(imag_diff, cmap='magma')
-            ax[1].set_title('Imaginary Difference')
-            ax[1].axis('off')
-            
-            # Add colorbars
-            fig.colorbar(im_mag, ax=ax[0], orientation='vertical', fraction=0.046, pad=0.04)
-            fig.colorbar(im_phase, ax=ax[1], orientation='vertical', fraction=0.046, pad=0.04)
-        
-        else:
-            # Extract real and imaginary differences
-            real_diff = abs_diff[:, 0, :, :]
-            imag_diff = abs_diff[:, 1, :, :]
-            
-            # Convert to magnitude and phase differences
-            mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
-            
-            seq_len = mag_diff.shape[0]
-            
-            # Create figure with space for colorbar
-            fig = plt.figure(figsize=(4*seq_len, 9))
-            gs = fig.add_gridspec(3, seq_len, height_ratios=[1, 1, 0.1])
-            
-            axs_top = [fig.add_subplot(gs[0, i]) for i in range(seq_len)]
-            axs_bottom = [fig.add_subplot(gs[1, i]) for i in range(seq_len)]
-            cax = fig.add_subplot(gs[2, :])
-            
-            fig.suptitle(title, fontsize=16)
-            
-            for t in range(seq_len):
-                im_mag = axs_top[t].imshow(mag_diff[t], cmap='magma')
-                axs_top[t].axis('off')
-                axs_top[t].set_title(f't={t+1}')
-                
-                im_phase = axs_bottom[t].imshow(phase_diff[t], cmap='magma')
-                axs_bottom[t].axis('off')
-            
-            # Add single colorbar at the bottom
-            cbar = plt.colorbar(im_mag, cax=cax, orientation='horizontal')
-            cbar.set_label('Absolute Difference')
-        
+
         if save_fig:
-            if not save_dir:
-                raise ValueError("Please specify a save directory")
-            file_name = f'abs_diff_{title}.pdf'
-            save_eval_item(save_dir, fig, file_name, 'dft')
+                    if not save_dir:
+                        raise ValueError("Please specify a save directory")
+                    file_name = f'abs_diff_{title}.pdf'
+                    if conf.model.mlp_strategy != 4:
+                        save_eval_item(save_dir, fig, file_name, 'dft')
+                    else:
+                        save_eval_item(save_dir, fig, file_name, 'radii')
+
         else:
             plt.show()
 
@@ -735,8 +754,12 @@ def plot_absolute_difference(test_results, resub=False, sample_idx=0,
 
 def calculate_absolute_difference(results, sample_idx=0):
     """Generate absolute difference data for a given sample"""
-    truth = torch.from_numpy(results['nf_truth'][sample_idx, :])
-    pred = torch.from_numpy(results['nf_pred'][sample_idx, :])
+    try:    
+        truth = torch.from_numpy(results['nf_truth'][sample_idx, :])
+        pred = torch.from_numpy(results['nf_pred'][sample_idx, :])
+    except KeyError:
+        truth = torch.from_numpy(results['radii_truth'])
+        pred = torch.from_numpy(results['radii_pred'])
     return torch.abs(truth - pred)
     
 def animate_fields(test_results, dataset, sample_idx=0, seq_len=5, save_dir=None): 
