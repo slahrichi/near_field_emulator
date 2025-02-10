@@ -183,8 +183,7 @@ class WaveInverseMLP(LightningModule):
         
             # compute other metrics for logging besides specified loss function
         choices = {
-            'mse': None,
-            'resim': None
+            'mse': None
         }
         for key in choices:
             if key != self.loss_func:
