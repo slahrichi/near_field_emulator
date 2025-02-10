@@ -168,6 +168,7 @@ class WaveInverseMLP(LightningModule):
         forward_conf = load_config(config_path)
         model = WaveMLP(model_config=forward_conf.model)
         model.load_state_dict(torch.load(checkpoint_path)['state_dict'])
+        model.to(self.device)
         model.eval()
 
         return model
