@@ -312,18 +312,18 @@ def train_with_cross_validation(conf, data_module):
 def run(conf):
     logging.debug("train.py() | running training")
 
+    # Dump config for future reference
+    os.makedirs(conf.paths.results, exist_ok=True)
+    #os.makedirs(os.path.join(conf.paths.results, conf.model.arch, f"model_{conf.model.model_id}"), exist_ok=True)
     # Initialize: The datamodule
     data_module = datamodule.select_data(conf)
     data_module.prepare_data()
     data_module.setup(stage='fit')
-    
-    # Dump config for future reference
-    os.makedirs(conf.paths.results, exist_ok=True)
-    conf_dict = mapping.to_plain_dict(conf) # escape python object structure
-    yaml.dump(conf_dict, open(os.path.join(conf.paths.results, 'params.yaml'), 'w'))
-    
+     
     # run training
     if(conf.trainer.cross_validation):
         train_with_cross_validation(conf, data_module)
     else: # run once
         train_once(conf, data_module)
+    shutil.copy('/develop/code/near_field_emulator/conf/config.yaml', os.path.join(conf.paths.results, 'params.yaml'))
+    

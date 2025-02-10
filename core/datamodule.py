@@ -38,9 +38,10 @@ class NF_Datamodule(LightningDataModule):
         self.n_folds = conf.data.n_folds
         self.mlp_strategy = conf.model.mlp_strategy
         self.patch_size = conf.model.patch_size
+        self.arch = conf.model.arch
+
         self.path_data = conf.paths.data
         logging.debug("datamodule.py - Setting path_data to {}".format(self.path_data))
-        
         self.batch_size = conf.trainer.batch_size
         self.transform = transform #TODO
         self.index_map = {
@@ -74,10 +75,10 @@ class NF_Datamodule(LightningDataModule):
             data = self.subset_data(data)
         if self.model_type == 'autoencoder': # pretraining
             self.dataset = format_ae_data(data, self.conf)
-        elif self.model_type == 'mlp' or self.model_type == 'cvnn':
+        elif self.model_type in ['mlp', 'cvnn', 'inverse']:
             if self.conf.model.interpolate_fields: # interpolate fields to lower resolution
                 data = interpolate_fields(data)
-            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size, buffer=self.conf.data.buffer)
+            self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size, buffer=self.conf.data.buffer, arch=self.arch)
         else: # time series models
             self.dataset = format_temporal_data(data, self.conf)
         # create a map of indices for OG train/valid split - default for when we don't use crossval
@@ -143,7 +144,7 @@ class WaveMLP_Dataset(Dataset):
     """
     Dataset for the MLP models associated with mapping design conf to fields.
     """
-    def __init__(self, data, transform, approach=0, patch_size=1, buffer=True):
+    def __init__(self, data, transform, approach=0, patch_size=1, buffer=True, arch=None):
         logging.debug("datamodule.py - Initializing WaveMLP_Dataset")
         self.transform = transform
         logging.debug("NF_Dataset | Setting transform to {}".format(self.transform))
@@ -151,6 +152,7 @@ class WaveMLP_Dataset(Dataset):
         self.patch_size = patch_size
         self.data = data
         self.is_buffer = buffer
+        self.arch = arch
         # setup data accordingly
         self.format_data()
         
@@ -181,15 +183,13 @@ class WaveMLP_Dataset(Dataset):
             near_field = near_field[:, x_indices, y_indices]
             near_field = near_field.reshape(2, self.patch_size, self.patch_size)
         if self.transform:   
-            near_field = self.transform(near_field)
-
-        if self.approach == 4: # inverse 
-            logging.debug(f"WaveMLP_Dataset | Returning dataset for inverse training.")
-            return radius, near_field
-        
+            near_field = self.transform(near_field)        
         logging.debug(f"WaveMLP_Dataset | near_field shape: {near_field.shape}")
-        
-        return near_field, radius
+        if self.arch == "inverse":
+            logging.debug(f"WaveMLP_Dataset | Inverse arch; returning near_field as input; shape: {near_field.shape}")
+            return near_field, radius
+
+        return radius, near_field
     
     def format_data(self):
         self.radii = self.data['radii']

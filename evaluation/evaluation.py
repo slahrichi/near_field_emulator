@@ -663,7 +663,7 @@ def plot_absolute_difference(conf, test_results, resub=False, sample_idx=0,
     """
     def plot_single_set(results, title, sample_idx):
         abs_diff = calculate_absolute_difference(results, sample_idx)
-        if conf.model.mlp_strategy != 4:
+        if conf.model.arch != "inverse":
             if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
                 # Extract real and imaginary differences
                 real_diff = abs_diff[0, :, :]
@@ -736,7 +736,7 @@ def plot_absolute_difference(conf, test_results, resub=False, sample_idx=0,
                     if not save_dir:
                         raise ValueError("Please specify a save directory")
                     file_name = f'abs_diff_{title}.pdf'
-                    if conf.model.mlp_strategy != 4:
+                    if conf.model.arch != "inverse":
                         save_eval_item(save_dir, fig, file_name, 'dft')
                     else:
                         save_eval_item(save_dir, fig, file_name, 'radii')

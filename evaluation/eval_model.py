@@ -34,7 +34,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         results_dir = os.path.join(results_dir, f"eval_{wl}")
         os.makedirs(results_dir, exist_ok=True)
     metrics_dir = os.path.join(results_dir, "performance_metrics")
-    output_subdir = "dft_plots" if conf.model.mlp_strategy != 4 else "radii_plots"
+    output_subdir = "dft_plots" if conf.model.arch != "inverse" else "radii_plots"
     output_dir = os.path.join(results_dir, output_subdir)
     flipbook_dir = os.path.join(results_dir, "flipbooks")
     directories = [metrics_dir, output_dir, flipbook_dir]
@@ -52,7 +52,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         eval.metrics(test_results, dataset='train', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
         eval.metrics(test_results, dataset='valid', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
     
-    if conf.model.mlp_strategy != 4:    
+    if conf.model.arch != "inverse":    
         # visualize performance with DFT fields
         print("\nGenerating DFT field plots...")
         eval.plot_dft_fields(test_results, resub=True, sample_idx=10, save_fig=True, 
@@ -68,7 +68,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
                                   arch=model_type, fold_num=fold_num)
     
     # visualize performance with animation
-    if model_type not in ['autoencoder', 'cvnn', 'mlp'] or conf.model.mlp_strategy != 4:
+    if model_type not in ['autoencoder', 'cvnn', 'mlp'] or conf.model.arch != "inverse":
         print("\nGenerating field animations...")
         eval.animate_fields(test_results, dataset='valid', 
                             seq_len=conf.model.seq_len, save_dir=results_dir)

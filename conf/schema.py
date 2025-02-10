@@ -65,6 +65,8 @@ class ModelConfig(BaseModel):
     io_mode: str = "one_to_many"
     autoreg: bool = True
     spacing_mode: str = "sequential"
+    forward_ckpt_path: str = ""
+    forward_config_path: str = ""
     
     @field_validator("arch", mode="before")
     def validate_arch(cls, value):
@@ -203,7 +205,7 @@ class MainConfig(BaseModel):
         # need specific path for good categorization in results
         if main.model.arch == 'modelstm': # further categorize by mode encoding method
             main.paths.results = os.path.join(main.paths.results, main.model.arch, main.model.modelstm.method, main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
-        elif main.model.arch == 'mlp' or main.model.arch == 'cvnn':
+        elif main.model.arch in ['mlp','cvnn','inverse']:
             main.paths.results = os.path.join(main.paths.results, main.model.arch, f"model_{main.model.model_id}")
         else:
             main.paths.results = os.path.join(main.paths.results, main.model.arch, main.model.io_mode, main.model.spacing_mode, f"model_{main.model.model_id}")
@@ -224,7 +226,8 @@ def get_model_type(arch: int) -> str:
         5: "ae-convlstm",
         6: "modelstm",
         7: "diffusion",
-        8: "autoencoder"
+        8: "autoencoder",
+        9: "inverse"
     }
     return model_types.get(arch, ValueError("Model type not recognized"))
 

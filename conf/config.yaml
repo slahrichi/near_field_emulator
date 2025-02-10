@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1   
 
 #--------------------------------
@@ -41,10 +41,12 @@ model:
         # - 7: diffusion - img2video diffuser model
     # *** Learning a reconstrutible latent representation of the fields ***
         # - 8: Autoencoder - Used in conjunction with arch 4, 5
+    # *** Learning a mapping from DFT fields to design parameters ***
+        # - 9: Inverse - simple swap of x and y or Tandem (if objective_function set to resim)
     # - model_id: model identifier / name
 
     arch: 1
-    model_id: 'train_inverse'
+    model_id: 'forward-v2'
 
     # General Model Parameters
 
@@ -53,6 +55,9 @@ model:
     lr_scheduler: 'CosineAnnealingLR'
     load_checkpoint: False
     objective_function: 'mse'
+    #objective_function: "resim"
+    #forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
+    #forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
 
     # multi-criteria loss
     mcl_params:
@@ -78,12 +83,14 @@ model:
         activation: 'relu'
 
     cvnn:
-        layers: [512, 64] # inverse
+        layers: [64, 512] # forward
+        #layers: [512, 64] # inverse
         activation: 'complexrelu'
 
-    mlp_strategy: 4 # inverse 
+    mlp_strategy: 0
     patch_size: 3
-    num_design_conf: 27556 # inverse: 166*166 
+    num_design_conf: 9 # radii
+    #num_design_conf: 27556 # inverse: 166*166*2
     interpolate_fields: False
 
     # LSTM Parameters
@@ -170,7 +177,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 16
-    num_epochs: 100 # maximum
+    num_epochs: 2 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]

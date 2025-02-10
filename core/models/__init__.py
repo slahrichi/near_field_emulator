@@ -5,6 +5,7 @@ from .WaveAELSTM import WaveAELSTM
 from .WaveAEConvLSTM import WaveAEConvLSTM
 from .WaveDiffusion import WaveDiffusion
 from .WaveMLP import WaveMLP
+from .WaveInverseMLP import WaveInverseMLP
 from .autoencoder import Autoencoder
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "WaveAELSTM",
     "WaveAEConvLSTM",
     "WaveDiffusion",
-    "WaveMLP"
+    "WaveMLP",
+    "WaveInverseMLP"
 ]
