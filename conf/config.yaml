@@ -70,7 +70,7 @@ model:
     # - ***separate MLPs for real and imaginary parts, or a single CVNN***
     # - layers: Hidden layer neuron counts, len(layers) = number of hidden layers
     # - activation: Activation function for hidden layers
-    # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset; 3: all_slices; 4: inverse (cvnn only)
+    # - mlp_strategy: 0: full, 1: patch-wise 2: distributed subset; 3: all_slices
     # - num_design_conf: number of design configurations (usually 3x3: 9)
     # - patch_size: patch height/width for patch wise or distributed subset
 
