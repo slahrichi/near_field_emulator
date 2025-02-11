@@ -463,10 +463,14 @@ class WaveMLP(LightningModule):
         # Concatenate results from all batches
         for mode in ['train', 'valid']:
             out = 'nf'
-            for tensor in self.test_results[mode][f'{out}_pred']:
-                print(type(tensor))
-            self.test_results[mode][f'{out}_pred'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_pred']], axis=0)
-            self.test_results[mode][f'{out}_truth'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_truth']], axis=0)
+            self.test_results[mode][f'{out}_pred'] = np.concatenate([
+            tensor.cpu().detach().numpy() if isinstance(tensor, torch.Tensor) else tensor
+            for tensor in self.test_results[mode][f'{out}_pred']], axis=0)
+            
+            self.test_results[mode][f'{out}_truth'] = np.concatenate([
+            tensor.cpu().detach().numpy() if isinstance(tensor, torch.Tensor) else tensor
+            for tensor in self.test_results[mode][f'{out}_truth']], axis=0)
+            
             # Log results for the current fold
             '''name = "results"
             self.logger.experiment.log_results(
