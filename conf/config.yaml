@@ -45,8 +45,8 @@ model:
         # - 9: Inverse - simple swap of x and y or Tandem (if objective_function set to resim)
     # - model_id: model identifier / name
 
-    arch: 1
-    model_id: 'forward-v2'
+    arch: 9
+    model_id: 'inverse-v2'
 
     # General Model Parameters
 
@@ -83,14 +83,14 @@ model:
         activation: 'relu'
 
     cvnn:
-        layers: [64, 512] # forward
-        #layers: [512, 64] # inverse
+        #layers: [64, 512] # forward
+        layers: [512, 64] # inverse
         activation: 'complexrelu'
 
     mlp_strategy: 0
     patch_size: 3
-    num_design_conf: 9 # radii
-    #num_design_conf: 27556 # inverse: 166*166*2
+    #num_design_conf: 9 # radii
+    num_design_conf: 27556 # inverse: 166*166*2
     interpolate_fields: False
 
     # LSTM Parameters
