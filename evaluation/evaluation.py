@@ -293,12 +293,13 @@ def calculate_metrics(truth, pred, truth_resim, pred_resim):
     truth_torch = torch.tensor(truth) if not isinstance(truth, torch.Tensor) else truth
     pred_torch  = torch.tensor(pred)  if not isinstance(pred, torch.Tensor)  else pred
 
-    truth_resim = np.array(truth_resim)
-    pred_resim = np.array(pred_resim)
+
+    truth_resim_all = np.concatenate(truth_resim, axis=0)
+    pred_resim_all = np.concatenate(pred_resim, axis=0)
 
     mae = np.mean(np.abs(truth - pred))
     rmse = np.sqrt(np.mean((truth - pred) ** 2))
-    resim = np.sqrt(np.mean((truth_resim - pred_resim) ** 2))  
+    resim = np.sqrt(np.mean((truth_resim_all - pred_resim_all) ** 2))  
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
