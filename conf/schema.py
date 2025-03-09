@@ -67,6 +67,8 @@ class ModelConfig(BaseModel):
     spacing_mode: str = "sequential"
     forward_ckpt_path: str = ""
     forward_config_path: str = ""
+    na_iters: int = 50
+    radii_bounds: tuple = (0.0, 1.0)
     
     @field_validator("arch", mode="before")
     def validate_arch(cls, value):
