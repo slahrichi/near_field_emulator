@@ -285,7 +285,7 @@ def plot_loss(conf, min_list=[None, None], max_list=[None, None], save_fig=False
         else:
             plt.show()
 
-def calculate_metrics(truth, pred):
+def calculate_metrics(truth, pred, truth_resim, pred_resim):
     """
     Calculate various metrics between ground truth and predictions.
     Also compute MSE at each slice if it's a 5D shape (N, T, R, X, Y).
@@ -293,8 +293,12 @@ def calculate_metrics(truth, pred):
     truth_torch = torch.tensor(truth) if not isinstance(truth, torch.Tensor) else truth
     pred_torch  = torch.tensor(pred)  if not isinstance(pred, torch.Tensor)  else pred
 
+    truth_resim = np.array(truth_resim)
+    pred_resim = np.array(pred_resim)
+
     mae = np.mean(np.abs(truth - pred))
     rmse = np.sqrt(np.mean((truth - pred) ** 2))
+    resim = np.sqrt(np.mean((truth_resim - pred_resim) ** 2))  
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
@@ -328,6 +332,7 @@ def calculate_metrics(truth, pred):
     out = {
         'MAE': mae,
         'RMSE': rmse,
+        'Resim': resim,
         'Correlation': correlation,
         'PSNR': psnr.item(),
         'SSIM': ssim.item()
@@ -351,9 +356,11 @@ def metrics(test_results, fold_idx=None, dataset='valid',
     except KeyError:
         truth = test_results[dataset]['radii_truth']
         pred = test_results[dataset]['radii_pred']
+        truth_resim = test_results[dataset]['field_truth']
+        pred_resim = test_results[dataset]['field_resim']
     std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
 
-    metrics = calculate_metrics(truth, pred)
+    metrics = calculate_metrics(truth, pred, truth_resim, pred_resim)
     print(f"Metrics for {dataset.capitalize()} Dataset:")
     for metric, value in metrics.items():
         if metric in std_metrics:

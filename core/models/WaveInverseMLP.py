@@ -60,8 +60,8 @@ class WaveInverseMLP(LightningModule):
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
-        self.test_results = {'train': {'radii_pred': [], 'radii_truth': []},
-                            'valid': {'radii_pred': [], 'radii_truth': []}}
+        self.test_results = {'train': {'radii_pred': [], 'radii_truth': [], 'field_resim': [], 'field_truth': []},
+                            'valid': {'radii_pred': [], 'radii_truth': [],  'field_resim': [], 'field_truth': []}}
          
     def build_mlp(self, input_size, mlp_conf):
         layers = []
@@ -184,7 +184,8 @@ class WaveInverseMLP(LightningModule):
         
             # compute other metrics for logging besides specified loss function
         choices = {
-            'mse': None
+            'mse': None,
+            'resim': None
         }
         for key in choices:
             if key != self.loss_func:
@@ -242,13 +243,29 @@ class WaveInverseMLP(LightningModule):
         if self.name == 'inverse':
             # Saving real part of the prediction only; double check that imaginary part can be disregarded
             preds_real = predictions.real
+
+            # Compute resimulated fields
+            fwd = self.load_forward(self.forward_ckpt_path, self.forward_config_path)
+            field_resim = fwd(preds_real) # check if CVNN takes real only
+            field_truth = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+            field_real = field_truth.real
+            field_imag = field_truth.imag
+            field_resim_real = field_resim.real
+            field_resim_imag = field_resim.imag
+            resim_combined = torch.stack([field_resim_real, field_resim_imag], dim=1).cpu().numpy()
+            field_combined = torch.stack([field_real, field_imag], dim=1).cpu().numpy()
+
             # Store predictions and ground truths for analysis after testing
             if dataloader_idx == 0:  # val dataloader
                 self.test_results['valid']['radii_pred'].append(preds_real)
                 self.test_results['valid']['radii_truth'].append(radii)
+                self.test_results['valid']['field_resim'].append(resim_combined)
+                self.test_results['valid']['field_truth'].append(field_combined)
             elif dataloader_idx == 1:  # train dataloader
                 self.test_results['train']['radii_pred'].append(preds_real)
                 self.test_results['train']['radii_truth'].append(radii)
+                self.test_results['train']['field_resim'].append(resim_combined)
+                self.test_results['train']['field_truth'].append(field_combined)
             else:
                 raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
         else:
