@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1   
 
 #--------------------------------
@@ -190,7 +190,7 @@ trainer:
     # - cross_validation: True/False - whether to perform cross-validation
     # ---> if False, then a 5-fold 80/20 split is used
 
-    include_testing: False
+    include_testing: True
     cross_validation: False
 
     # early stopping settings
