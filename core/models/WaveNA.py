@@ -16,6 +16,7 @@ from tqdm import tqdm
 from .CVNN import ComplexReLU, ModReLU, ComplexLinearFinal
 from .WaveMLP import WaveMLP
 from conf.schema import load_config
+import evaluation.evaluation as eval
 
 sys.path.append("../")
 
@@ -173,7 +174,9 @@ class WaveNA(LightningModule):
             out = 'radii'
             self.test_results[mode][f'{out}_pred'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_pred']], axis=0)
             self.test_results[mode][f'{out}_truth'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_truth']], axis=0)
-            # Log results for the current fold
+        eval.metrics(test_results, dataset='train', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
+        eval.metrics(test_results, dataset='valid', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
+# Log results for the current fold
             '''name = "results"
             self.logger.experiment.log_results(
                 results=self.test_results[mode],
