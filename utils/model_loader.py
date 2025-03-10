@@ -25,6 +25,8 @@ def select_model(model_config, fold_idx=None):
         network = Autoencoder(model_config, fold_idx)
     elif model_type == 'mlp' or model_type == 'cvnn':
         network = WaveMLP(model_config, fold_idx)
+    elif model_type == 'NA':
+        network = WaveNA(model_config, fold_idx)
     elif model_type == 'inverse':
         network = WaveInverseMLP(model_config, fold_idx)
     # mode lstm is just the lstm but on epre-encoded data

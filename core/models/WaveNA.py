@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.optim as optim
 from pytorch_lightning import LightningModule
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
-
+from tqdm import tqdm
 #--------------------------------
 # Import: Custom Python Libraries
 #--------------------------------
@@ -40,14 +40,12 @@ class WaveNA(LightningModule):
         self.forward_model = self.load_forward(self.forward_ckpt_path, self.forward_config_path)
         for param in self.forward_model.parameters():
             param.requires_grad = False
-        self.forward_model.eval()
-
-
+        self.automatic_optimization = False
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
-        self.test_results = {'train': {'radii_pred': [], 'radii_truth': []},
-                            'valid': {'radii_pred': [], 'radii_truth': []}}
+        self.test_results = {'train': {'radii_pred': [], 'radii_truth': [], 'field_resim': [], 'field_truth': []},
+                            'valid': {'radii_pred': [], 'radii_truth': [],  'field_resim': [], 'field_truth': []}}
     
     
     def load_forward(self, checkpoint_path, config_path):
@@ -56,87 +54,73 @@ class WaveNA(LightningModule):
         model.load_state_dict(torch.load(checkpoint_path, map_location=self.device)['state_dict'])
         model.to(self.device)
         model.eval()
-
         return model
             
     def forward(self, input):
         # Inverse model: near_fields -> radii
-        near_fields = input
+        pred_near_fields = self.forward_model(input)
+        # x now holds the design parameters optimized to produce near fields similar to target.
+        return pred_near_fields
+    
+    def optimize_design(self, near_fields):
         batch_size = near_fields.shape[0]
         x = torch.rand((batch_size, self.num_design_conf), device=self.device, requires_grad=True)
-        
-        optimizer = optim.Adam([x], lr=self.inner_lr)
+        inner_optimizer = torch.optim.Adam([x], lr=self.learning_rate)
         loss_fn = nn.MSELoss()
 
-        for i in range(self.na_iters):
-            optimizer.zero_grad()
-            # Get predicted near fields from the forward model given current design parameters x.
+        for i in tqdm(range(self.na_iters)):
+            inner_optimizer.zero_grad()
+            # Forward pass through the frozen model (this now computes gradients w.r.t. x)
             pred_near_fields = self.forward_model(x)
-            # Compute loss between the predicted and target near fields.
-            loss = loss_fn(pred_near_fields, near_fields)
+            pred_near_fields.requires_grad_(True)
+            fwd_pred_real = pred_near_fields.real
+            fwd_pred_imag = pred_near_fields.imag
+            fwd_pred_real.requires_grad_(True)
+            fwd_pred_imag.requires_grad_(True)
+            near_fields_real = near_fields[0, :, :]
+            near_fields_imag = near_fields[1, :, :]
+            near_fields_real.requires_grad_(True)
+            near_fields_imag.requires_grad_(True)
+            loss_real = loss_fn(fwd_pred_real, near_fields_real)
+            loss_imag = loss_fn(fwd_pred_imag, near_fields_imag)
+            loss = loss_real + loss_imag
+            loss.requires_grad_(True)
             loss.backward()
-            optimizer.step()
-
-            # Enforce bounds on x
-            x.data.clamp_(self.design_bounds[0], self.design_bounds[1])
-
-            if i % 100 == 0:
-                self.log("na_inner_loss", loss, prog_bar=True)
-                
-        # x now holds the design parameters optimized to produce near fields similar to target.
+            inner_optimizer.step()
+            if i % 100 == 0:  # Log for first sample in batch
+                self.log(f"na_inner_loss", loss, on_step=True)
+                print(f"Iter {i}, Loss: {loss}")
         return x
-    
+
+
     def training_step(self, batch, batch_idx):
         near_fields, radii = batch
-        preds = self.forward(near_fields)
-        preds = preds.to(torch.float32).contiguous()
+        optimized_design = self.optimize_design(near_fields)
+        optimized_design = optimized_design.to(torch.float32).contiguous()
         radii = radii.to(torch.float32).contiguous()
         fn = torch.nn.MSELoss()
-        loss = fn(preds, radii)
+        loss = fn(optimized_design, radii)
         # log metrics
         self.log("train_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)        
-        return {'loss': loss, 'output': preds, 'target': batch}
+        return None
 
     def validation_step(self, batch, batch_idx):
         near_fields, radii = batch
-        preds = self.forward(near_fields)
-        preds = preds.to(torch.float32).contiguous()
+        optimized_design = self.optimize_design(near_fields)
+        optimized_design = optimized_design.to(torch.float32).contiguous()
         radii = radii.to(torch.float32).contiguous()
         fn = torch.nn.MSELoss()
-        loss = fn(preds, radii)
+        loss = fn(optimized_design, radii)
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
-        return {'loss': loss, 'output': preds, 'target': batch}
+        return None
     
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         near_fields, radii = batch
-        preds = self.forward(near_fields)
-        self.organize_testing(preds, batch, batch_idx, dataloader_idx)
+        optimized_design = self.optimize_design(near_fields)
+        self.organize_testing(optimized_design, batch, batch_idx, dataloader_idx)
         
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        # setup specified scheduler
-        if self.lr_scheduler == 'ReduceLROnPlateau':
-            choice = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min',
-                                                                    factor=0.5, patience=5, 
-                                                                    min_lr=1e-6, threshold=0.001, 
-                                                                    cooldown=2)
-        elif self.lr_scheduler == 'CosineAnnealingLR':
-            choice = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
-                                                                T_max=100,
-                                                                eta_min=1e-6)
-        elif self.lr_scheduler == 'None':
-            return optimizer
-        else:
-            raise ValueError(f"Unsupported LR scheduler: {self.lr_scheduler}")
-        
-        scheduler = {
-            'scheduler': choice,
-            'interval': 'epoch',
-            'monitor': 'val_loss',
-            'frequency': 1
-        }
-
-        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
+        return None
     
     def get_activation_function(self, activation_name):
         if activation_name == 'relu':
@@ -156,20 +140,32 @@ class WaveNA(LightningModule):
 
     def organize_testing(self, predictions, batch, batch_idx, dataloader_idx):
         near_fields, radii = batch
-        if self.name == 'inverse':
-            # Saving real part of the prediction only; double check that imaginary part can be disregarded
-            preds_real = predictions.real
-            # Store predictions and ground truths for analysis after testing
-            if dataloader_idx == 0:  # val dataloader
-                self.test_results['valid']['radii_pred'].append(preds_real)
-                self.test_results['valid']['radii_truth'].append(radii)
-            elif dataloader_idx == 1:  # train dataloader
-                self.test_results['train']['radii_pred'].append(preds_real)
-                self.test_results['train']['radii_truth'].append(radii)
-            else:
-                raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
+        # Saving real part of the prediction only; double check that imaginary part can be disregarded
+        preds_real = predictions.real
+        # Compute resimulated fields
+        fwd = self.load_forward(self.forward_ckpt_path, self.forward_config_path)
+        field_resim = fwd(preds_real) # check if CVNN takes real only
+        field_truth = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+        field_real = field_truth.real
+        field_imag = field_truth.imag
+        field_resim_real = field_resim.real
+        field_resim_imag = field_resim.imag
+        resim_combined = torch.stack([field_resim_real, field_resim_imag], dim=1).cpu().numpy()
+        field_combined = torch.stack([field_real, field_imag], dim=1).cpu().numpy()
+
+        # Store predictions and ground truths for analysis after testing
+        if dataloader_idx == 0:  # val dataloader
+            self.test_results['valid']['radii_pred'].append(preds_real)
+            self.test_results['valid']['radii_truth'].append(radii)
+            self.test_results['valid']['field_resim'].append(resim_combined)
+            self.test_results['valid']['field_truth'].append(field_combined)
+        elif dataloader_idx == 1:  # train dataloader
+            self.test_results['train']['radii_pred'].append(preds_real)
+            self.test_results['train']['radii_truth'].append(radii)
+            self.test_results['train']['field_resim'].append(resim_combined)
+            self.test_results['train']['field_truth'].append(field_combined)
         else:
-            raise ValueError("Testing for inverse only available for CVNN.")
+            raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
 
     def on_test_end(self):
         # Concatenate results from all batches

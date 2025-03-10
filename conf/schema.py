@@ -229,7 +229,8 @@ def get_model_type(arch: int) -> str:
         6: "modelstm",
         7: "diffusion",
         8: "autoencoder",
-        9: "inverse"
+        9: "inverse",
+        10: "NA"
     }
     return model_types.get(arch, ValueError("Model type not recognized"))
 

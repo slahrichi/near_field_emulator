@@ -221,9 +221,10 @@ def train_once(conf, data_module):
         trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
     else:
         base_path = os.path.dirname(best_model_path)
-        # remove train_info and valid_info dirs from base_path #TODO: cleaner to have this in logger
-        shutil.rmtree(os.path.join(base_path, 'train_info'))
-        shutil.rmtree(os.path.join(base_path, 'valid_info'))
+        if os.path.exists(os.path.join(base_path, 'train_info')):
+            # remove train_info and valid_info dirs from base_path #TODO: cleaner to have this in logger
+            shutil.rmtree(os.path.join(base_path, 'train_info'))
+            shutil.rmtree(os.path.join(base_path, 'valid_info'))
 
 
 def train_with_cross_validation(conf, data_module):

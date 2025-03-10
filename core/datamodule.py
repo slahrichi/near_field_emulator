@@ -75,7 +75,7 @@ class NF_Datamodule(LightningDataModule):
             data = self.subset_data(data)
         if self.model_type == 'autoencoder': # pretraining
             self.dataset = format_ae_data(data, self.conf)
-        elif self.model_type in ['mlp', 'cvnn', 'inverse']:
+        elif self.model_type in ['mlp', 'cvnn', 'inverse', 'NA']:
             if self.conf.model.interpolate_fields: # interpolate fields to lower resolution
                 data = interpolate_fields(data)
             self.dataset = WaveMLP_Dataset(data, self.transform, self.mlp_strategy, self.patch_size, buffer=self.conf.data.buffer, arch=self.arch)
@@ -185,7 +185,7 @@ class WaveMLP_Dataset(Dataset):
         if self.transform:   
             near_field = self.transform(near_field)        
         logging.debug(f"WaveMLP_Dataset | near_field shape: {near_field.shape}")
-        if self.arch == "inverse":
+        if self.arch in ["inverse", 'NA']:
             logging.debug(f"WaveMLP_Dataset | Inverse arch; returning near_field as input; shape: {near_field.shape}")
             return near_field, radius
 
