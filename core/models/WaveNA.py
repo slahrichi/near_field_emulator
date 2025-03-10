@@ -82,9 +82,6 @@ class WaveNA(LightningModule):
             near_fields_real.requires_grad_(True)
             near_fields_imag.requires_grad_(True)
             loss_real = loss_fn(fwd_pred_real, near_fields_real)
-            print(f"fwd_pred_real shape: {fwd_pred_real.shape}")
-            print(f"near_fields_real shape: {near_fields_real.shape}")
-
             loss_imag = loss_fn(fwd_pred_imag, near_fields_imag)
             loss = loss_real + loss_imag
             loss.requires_grad_(True)
