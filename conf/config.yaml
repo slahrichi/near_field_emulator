@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 0
+directive: 1
 deployment: 1   
 
 #--------------------------------
@@ -43,10 +43,11 @@ model:
         # - 8: Autoencoder - Used in conjunction with arch 4, 5
     # *** Learning a mapping from DFT fields to design parameters ***
         # - 9: Inverse - simple swap of x and y or Tandem (if objective_function set to resim)
+        # - 10: Neural Adjoint 
     # - model_id: model identifier / name
 
     arch: 9
-    model_id: 'tandem-v3'
+    model_id: 'inverse-v3'
 
     # General Model Parameters
 
@@ -54,8 +55,8 @@ model:
     learning_rate: 1.e-3
     lr_scheduler: 'CosineAnnealingLR'
     load_checkpoint: False
-    #objective_function: 'mse'
-    objective_function: "resim" 
+    objective_function: 'mse'
+    #objective_function: "resim" 
     forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
     forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
     na_iters: 500
