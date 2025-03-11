@@ -19,6 +19,7 @@ from conf.schema import load_config
 import evaluation.evaluation as eval
 
 sys.path.append("../")
+torch.set_float32_matmul_precision('high')  
 
 class WaveNA(LightningModule):
     """Radii Prediction Model  
@@ -42,6 +43,7 @@ class WaveNA(LightningModule):
         for param in self.forward_model.parameters():
             param.requires_grad = False
         self.automatic_optimization = False
+        self.K = 20
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
@@ -65,8 +67,11 @@ class WaveNA(LightningModule):
     
     def optimize_design(self, near_fields):
         batch_size = near_fields.shape[0]
-        x = torch.rand((batch_size, self.num_design_conf), device=self.device, requires_grad=True)
+        K = self.K
+        near_fields_repeated = near_fields.repeat(K, 1, 1, 1)
+        x = torch.rand((K*batch_size, self.num_design_conf), device=self.device, requires_grad=True)
         inner_optimizer = torch.optim.Adam([x], lr=self.learning_rate)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(inner_optimizer, T_max=self.na_iters)
         loss_fn = nn.MSELoss()
 
         for i in tqdm(range(self.na_iters)):
@@ -88,12 +93,30 @@ class WaveNA(LightningModule):
             loss.requires_grad_(True)
             loss.backward()
             inner_optimizer.step()
+            scheduler.step()
+            # TODO: N_ITERS 2x what's needed to go down
+            # TODO: Initialize multiple X guesses
+            # TODO: ADD LEARNING RATE SCHEDULE
             if i % 100 == 0:  # Log for first sample in batch
                 self.log(f"na_inner_loss", loss, on_step=True)
                 print(f"Iter {i}, Loss: {loss}")
-        return x
-
-
+        
+        x_optimized = x.view(K, batch_size, self.num_design_conf)
+        x_optimized_flat = x_optimized.view(K * batch_size, self.num_design_conf)
+        pred_near_fields = self.forward_model(x_optimized_flat)
+        pred_real = pred_near_fields.real.view(K, batch_size, *pred_near_fields.shape[1:])
+        pred_imag = pred_near_fields.imag.view(K, batch_size, *pred_near_fields.shape[1:])
+        near_fields_real = near_fields[:, 0, :, :].unsqueeze(0).repeat(K, 1, 1, 1)
+        near_fields_imag = near_fields[:, 1, :, :].unsqueeze(0).repeat(K, 1, 1, 1)
+        mse_real = torch.mean((pred_real - near_fields_real) ** 2, dim=[2, 3])
+        mse_imag = torch.mean((pred_imag - near_fields_imag) ** 2, dim=[2, 3])
+        mse_total = mse_real + mse_imag  # Shape: (K, batch_size)
+        min_indices = torch.argmin(mse_total, dim=0)  # Shape: (batch_size,)
+        batch_indices = torch.arange(batch_size)
+        best_x = x_optimized[min_indices, batch_indices, :]  # Shape: (batch_size, num_design_conf)
+        
+        return best_x
+        
     def training_step(self, batch, batch_idx):
         near_fields, radii = batch
         optimized_design = self.optimize_design(near_fields)
@@ -174,13 +197,5 @@ class WaveNA(LightningModule):
             out = 'radii'
             self.test_results[mode][f'{out}_pred'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_pred']], axis=0)
             self.test_results[mode][f'{out}_truth'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_truth']], axis=0)
-        eval.metrics(test_results, dataset='train', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
-        eval.metrics(test_results, dataset='valid', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
-# Log results for the current fold
-            '''name = "results"
-            self.logger.experiment.log_results(
-                results=self.test_results[mode],
-                epoch=None,
-                mode=mode,
-                name=name
-            )'''
+        eval.metrics(self.test_results, dataset='train', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
+        eval.metrics(self.test_results, dataset='valid', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
