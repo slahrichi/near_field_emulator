@@ -31,7 +31,7 @@ class WaveNA(LightningModule):
         self.conf = model_config
         self.learning_rate = self.conf.learning_rate
         self.na_iters = self.conf.na_iters
-        self.K = self.conf.k
+        self.K = self.conf.K
 #        self.lr_scheduler = self.conf.lr_scheduler
         self.loss_func = self.conf.objective_function
         self.fold_idx = fold_idx
