@@ -59,8 +59,8 @@ model:
     #objective_function: "resim" 
     forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
     forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
-    na_iters: 1000
-    K: 1000
+    na_iters: 10000
+    K: 200
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
     # multi-criteria loss
     mcl_params:
