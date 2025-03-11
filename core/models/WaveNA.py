@@ -31,6 +31,7 @@ class WaveNA(LightningModule):
         self.conf = model_config
         self.learning_rate = self.conf.learning_rate
         self.na_iters = self.conf.na_iters
+        self.K = self.conf.k
 #        self.lr_scheduler = self.conf.lr_scheduler
         self.loss_func = self.conf.objective_function
         self.fold_idx = fold_idx
@@ -43,7 +44,7 @@ class WaveNA(LightningModule):
         for param in self.forward_model.parameters():
             param.requires_grad = False
         self.automatic_optimization = False
-        self.K = 20
+        
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
@@ -197,5 +198,5 @@ class WaveNA(LightningModule):
             out = 'radii'
             self.test_results[mode][f'{out}_pred'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_pred']], axis=0)
             self.test_results[mode][f'{out}_truth'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_truth']], axis=0)
-        eval.metrics(self.test_results, dataset='train', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
-        eval.metrics(self.test_results, dataset='valid', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
+        eval.metrics(self.test_results, dataset='train', save_fig=False, save_dir='results/meep_meep/', plot_mse=False)
+        eval.metrics(self.test_results, dataset='valid', save_fig=False, save_dir='results/meep_meep/', plot_mse=False)

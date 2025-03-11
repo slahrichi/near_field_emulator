@@ -60,6 +60,7 @@ model:
     forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
     forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
     na_iters: 1000
+    K: 1000
     radii_bounds: [75, 250] # check units! these are in nm
     # multi-criteria loss
     mcl_params:
