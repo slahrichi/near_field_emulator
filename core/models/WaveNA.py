@@ -83,7 +83,7 @@ class WaveNA(LightningModule):
 
         relu = torch.nn.ReLU()
         bdy_loss_all = relu(torch.abs(x - self.radii_mean) - 0.5 * self.radii_range)
-        bdy_loss = torch.sum(bdy_loss_all) * 10
+        bdy_loss = torch.sum(bdy_loss_all) * 0.10
         total_loss = mse_loss + bdy_loss
         total_loss.requires_grad_(True)
         return total_loss    
