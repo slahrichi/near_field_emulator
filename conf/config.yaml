@@ -59,8 +59,8 @@ model:
     #objective_function: "resim" 
     forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
     forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
-    na_iters: 10000
-    K: 200
+    na_iters: 100
+    K: 10
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
     # multi-criteria loss
     mcl_params:
@@ -186,6 +186,7 @@ trainer:
     gpu_config: [True, [0]]
     valid_rate: 1
     load_checkpoint: False
+
 
     # - include_testing: True/Falsee - whether to test right after training
     # - cross_validation: True/False - whether to perform cross-validation

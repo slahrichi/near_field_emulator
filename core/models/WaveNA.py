@@ -206,5 +206,5 @@ class WaveNA(LightningModule):
             out = 'radii'
             self.test_results[mode][f'{out}_pred'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_pred']], axis=0)
             self.test_results[mode][f'{out}_truth'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in self.test_results[mode][f'{out}_truth']], axis=0)
-        eval.metrics(self.test_results, dataset='train', save_fig=False, save_dir='results/meep_meep/', plot_mse=False)
-        eval.metrics(self.test_results, dataset='valid', save_fig=False, save_dir='results/meep_meep/', plot_mse=False)
+        eval.metrics(self.test_results, dataset='train', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
+        eval.metrics(self.test_results, dataset='valid', save_fig=True, save_dir='results/meep_meep/', plot_mse=False)
