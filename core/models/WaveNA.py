@@ -46,8 +46,8 @@ class WaveNA(LightningModule):
         self.automatic_optimization = False
         self.radii_lower_bound = torch.tensor([self.radii_bounds[0]] * self.num_design_conf, device=self.device, dtype=torch.float32)
         self.radii_upper_bound = torch.tensor([self.radii_bounds[1]] * self.num_design_conf, device=self.device, dtype=torch.float32)
-        self.radii_range = self.radii_upper_bound - self.radii_lower_bound
-        self.radii_mean = (self.radii_lower_bound + self.radii_upper_bound) / 2
+        self.register_buffer('radii_range', self.radii_upper_bound - self.radii_lower_bound)
+        self.register_buffer('radii_mean', (self.radii_lower_bound + self.radii_upper_bound) / 2)
             
         self.save_hyperparameters()
         
