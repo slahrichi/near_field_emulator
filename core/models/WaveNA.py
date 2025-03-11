@@ -44,7 +44,11 @@ class WaveNA(LightningModule):
         for param in self.forward_model.parameters():
             param.requires_grad = False
         self.automatic_optimization = False
-        
+        self.radii_lower_bound = torch.tensor([self.radii_bounds[0]] * self.num_design_conf, device=self.device, dtype=torch.float32)
+        self.radii_upper_bound = torch.tensor([self.radii_bounds[1]] * self.num_design_conf, device=self.device, dtype=torch.float32)
+        self.radii_range = self.radii_upper_bound - self.radii_lower_bound
+        self.radii_mean = (self.radii_lower_bound + self.radii_upper_bound) / 2
+            
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
@@ -66,6 +70,27 @@ class WaveNA(LightningModule):
         # x now holds the design parameters optimized to produce near fields similar to target.
         return pred_near_fields
     
+    def make_loss(self, pred_near_fields, near_fields_repeated, x):
+        fwd_pred_real = pred_near_fields.real
+        fwd_pred_imag = pred_near_fields.imag
+        fwd_pred_real.requires_grad_(True)
+        fwd_pred_imag.requires_grad_(True)
+        near_fields_real = near_fields_repeated[:, 0, :, :]
+        near_fields_imag = near_fields_repeated[:, 1, :, :]
+        near_fields_real.requires_grad_(True)
+        near_fields_imag.requires_grad_(True)
+
+        loss_fn = nn.MSELoss()
+        loss_real = loss_fn(fwd_pred_real, near_fields_real)
+        loss_imag = loss_fn(fwd_pred_imag, near_fields_imag)
+        mse_loss = loss_real + loss_imag
+
+        relu = torch.nn.ReLU()
+        bdy_loss_all = relu(torch.abs(x - self.radii_mean) - 0.5 * self.radii_range)
+        bdy_loss = torch.sum(bdy_loss_all) * 10
+        total_loss = mse_loss + bdy_loss
+        return total_loss    
+            
     def optimize_design(self, near_fields):
         batch_size = near_fields.shape[0]
         K = self.K
@@ -73,31 +98,17 @@ class WaveNA(LightningModule):
         x = torch.rand((K*batch_size, self.num_design_conf), device=self.device, requires_grad=True)
         inner_optimizer = torch.optim.Adam([x], lr=self.learning_rate)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(inner_optimizer, T_max=self.na_iters)
-        loss_fn = nn.MSELoss()
 
         for i in tqdm(range(self.na_iters)):
             inner_optimizer.zero_grad()
             # Forward pass through the frozen model (this now computes gradients w.r.t. x)
             pred_near_fields = self.forward_model(x)
             pred_near_fields.requires_grad_(True)
-            fwd_pred_real = pred_near_fields.real
-            fwd_pred_imag = pred_near_fields.imag
-            fwd_pred_real.requires_grad_(True)
-            fwd_pred_imag.requires_grad_(True)
-            near_fields_real = near_fields_repeated[:, 0, :, :]
-            near_fields_imag = near_fields_repeated[:, 1, :, :]
-            near_fields_real.requires_grad_(True)
-            near_fields_imag.requires_grad_(True)
-            loss_real = loss_fn(fwd_pred_real, near_fields_real)
-            loss_imag = loss_fn(fwd_pred_imag, near_fields_imag)
-            loss = loss_real + loss_imag
-            loss.requires_grad_(True)
+            loss = self.make_loss(pred_near_fields, near_fields_repeated, x)            
             loss.backward()
             inner_optimizer.step()
             scheduler.step()
             # TODO: N_ITERS 2x what's needed to go down
-            # TODO: Initialize multiple X guesses
-            # TODO: ADD LEARNING RATE SCHEDULE
             if i % 100 == 0:  # Log for first sample in batch
                 self.log(f"na_inner_loss", loss, on_step=True)
                 print(f"Iter {i}, Loss: {loss}")
