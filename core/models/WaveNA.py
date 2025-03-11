@@ -73,12 +73,8 @@ class WaveNA(LightningModule):
     def make_loss(self, pred_near_fields, near_fields_repeated, x):
         fwd_pred_real = pred_near_fields.real
         fwd_pred_imag = pred_near_fields.imag
-        fwd_pred_real.requires_grad_(True)
-        fwd_pred_imag.requires_grad_(True)
         near_fields_real = near_fields_repeated[:, 0, :, :]
         near_fields_imag = near_fields_repeated[:, 1, :, :]
-        near_fields_real.requires_grad_(True)
-        near_fields_imag.requires_grad_(True)
 
         loss_fn = nn.MSELoss()
         loss_real = loss_fn(fwd_pred_real, near_fields_real)
@@ -89,6 +85,7 @@ class WaveNA(LightningModule):
         bdy_loss_all = relu(torch.abs(x - self.radii_mean) - 0.5 * self.radii_range)
         bdy_loss = torch.sum(bdy_loss_all) * 10
         total_loss = mse_loss + bdy_loss
+        total_loss.requires_grad_(True)
         return total_loss    
             
     def optimize_design(self, near_fields):
