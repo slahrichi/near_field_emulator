@@ -193,6 +193,27 @@ class WaveInverseMLP(LightningModule):
             bdy_loss = torch.mean(bdy_loss_all) * 10
             
             loss = torch.add(mse_loss, bdy_loss)
+        elif choice == "sensitivity":
+            # replacing prediction with ground truth
+            preds = preds.to(torch.float32).contiguous()
+            labels = labels.to(torch.float32).contiguous()
+            mse = torch.nn.MSELoss()
+            
+            noise_std = 0.01
+            noise = torch.randn_like(labels) * noise_std
+
+            fwd_pred = labels + noise
+            
+            fwd_pred_real = fwd_pred.real
+            fwd_pred_imag = fwd_pred.imag
+
+            near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+            near_fields_real = near_fields_complex.real
+            near_fields_imag = near_fields_complex.imag
+
+            loss_real = mse(fwd_pred_real, near_fields_real)
+            loss_imag = mse(fwd_pred_imag, near_fields_imag)
+            loss = loss_real + loss_imag
         else:
             raise ValueError(f"Unsupported loss function: {choice}")
             

@@ -769,15 +769,10 @@ def calculate_absolute_difference(results, sample_idx=0):
     except KeyError:
         print("########\n Using Resimulated Fields!")
         if isinstance(results['field_truth'], list):
-            for i, item in enumerate(results['field_truth']):
-                print(f"Element {i} shape: {np.shape(item)}")
-
-            results['field_truth'] = np.array(results['field_truth'])
+            truth = np.array(results['field_truth'][sample_idx])
         if isinstance(results['field_resim'], list):
-            results['field_resim'] = np.array(results['field_resim'])
+            pred = np.array(results['field_resim'][sample_idx])
 
-        truth = torch.from_numpy(results['field_truth'][sample_idx, :])
-        pred = torch.from_numpy(results['field_resim'][sample_idx, :])
     return torch.abs(truth - pred)
     
 def animate_fields(test_results, dataset, sample_idx=0, seq_len=5, save_dir=None): 
