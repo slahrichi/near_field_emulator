@@ -299,7 +299,7 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
         pred_resim_all = np.concatenate(pred_resim, axis=0)
         resim = np.sqrt(np.mean((truth_resim_all - pred_resim_all) ** 2))  
     else:
-        resim = None
+        resim = 0
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
