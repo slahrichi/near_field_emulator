@@ -5,6 +5,7 @@
 import sys
 import torch
 import numpy as np
+import os
 #from geomloss import SamplesLoss
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 #from torchvision.models import resnet50, resnet18, resnet34
@@ -40,7 +41,9 @@ class WaveMLP(LightningModule):
         self.name = self.conf.arch # mlp or cvnn
         self.num_design_conf = int(self.conf.num_design_conf)
         self.strat = None
-        
+        self.model_id = self.conf.model_id
+        self.save_dir = f'/develop/results/meep_meep/{self.name}/model_{self.model_id}'
+
         if self.conf.mlp_strategy == 0:
             self.strat = 'standard'
         elif self.conf.mlp_strategy == 1:
@@ -452,9 +455,19 @@ class WaveMLP(LightningModule):
         if dataloader_idx == 0:  # val dataloader
             self.test_results['valid']['nf_pred'].append(preds_combined)
             self.test_results['valid']['nf_truth'].append(truths_combined)
+            valid_field_pred = [resim for resim in self.test_results['valid']['nf_pred']]
+            valid_field_truth = [truth for truth in self.test_results['valid']['nf_truth']]
+            torch.save(valid_field_pred, os.path.join(self.save_dir, "valid_field_pred.pt"))
+            torch.save(valid_field_truth, os.path.join(self.save_dir, "valid_field_truth.pt"))
+
         elif dataloader_idx == 1:  # train dataloader
             self.test_results['train']['nf_pred'].append(preds_combined)
             self.test_results['train']['nf_truth'].append(truths_combined)
+            train_field_pred = [resim for resim in self.test_results['train']['nf_pred']]
+            train_field_truth = [truth for truth in self.test_results['train']['nf_truth']]
+            torch.save(train_field_pred, os.path.join(self.save_dir, "train_field_pred.pt"))
+            torch.save(train_field_truth, os.path.join(self.save_dir, "train_field_truth.pt"))
+
         else:
             raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
         

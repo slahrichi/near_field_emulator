@@ -46,8 +46,8 @@ model:
         # - 10: Neural Adjoint 
     # - model_id: model identifier / name
 
-    arch: 9
-    model_id: 'inverse-v3'
+    arch: 1
+    model_id: 'forward-v2'
     #model_id: 'Tandem-bdy-ReducePlat'
 
     # General Model Parameters
