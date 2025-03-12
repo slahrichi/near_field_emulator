@@ -47,7 +47,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 9
-    model_id: 'model_Tandem-bdy'
+    model_id: 'Tandem-bdy'
     #model_id: 'Tandem-bdy-ReducePlat'
 
     # General Model Parameters
