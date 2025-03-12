@@ -769,6 +769,9 @@ def calculate_absolute_difference(results, sample_idx=0):
     except KeyError:
         print("########\n Using Resimulated Fields!")
         if isinstance(results['field_truth'], list):
+            for i, item in enumerate(results['field_truth']):
+                print(f"Element {i} shape: {np.shape(item)}")
+
             results['field_truth'] = np.array(results['field_truth'])
         if isinstance(results['field_resim'], list):
             results['field_resim'] = np.array(results['field_resim'])
