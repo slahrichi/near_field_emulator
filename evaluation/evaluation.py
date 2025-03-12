@@ -292,14 +292,11 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
     """
     truth_torch = torch.tensor(truth) if not isinstance(truth, torch.Tensor) else truth
     pred_torch  = torch.tensor(pred)  if not isinstance(pred, torch.Tensor)  else pred
-
-
-    truth_resim_all = np.concatenate(truth_resim, axis=0)
-    pred_resim_all = np.concatenate(pred_resim, axis=0)
-
     mae = np.mean(np.abs(truth - pred))
     rmse = np.sqrt(np.mean((truth - pred) ** 2))
     if truth_resim:
+        truth_resim_all = np.concatenate(truth_resim, axis=0)
+        pred_resim_all = np.concatenate(pred_resim, axis=0)
         resim = np.sqrt(np.mean((truth_resim_all - pred_resim_all) ** 2))  
     else:
         resim = None
