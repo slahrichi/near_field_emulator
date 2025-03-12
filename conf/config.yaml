@@ -180,7 +180,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 16
-    num_epochs: 1 # maximum
+    num_epochs: 100 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
@@ -192,7 +192,7 @@ trainer:
     # - cross_validation: True/False - whether to perform cross-validation
     # ---> if False, then a 5-fold 80/20 split is used
 
-    include_testing: True
+    include_testing: False
     cross_validation: False
 
     # early stopping settings
