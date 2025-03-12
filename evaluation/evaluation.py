@@ -381,8 +381,15 @@ def metrics(test_results, fold_idx=None, dataset='valid',
         
         # 3) Optionally compute MSE vs. time slice and plot
     if plot_mse:
+        if truth_resim:
+            plot_truth = truth_resim
+            plot_pred = pred_resim
+        else:
+            plot_truth = truth
+            plot_pred = pred
+            
         # compute MSE(t) for each slice
-        mse_means, mse_stds = compute_mse_per_slice(truth, pred)
+        mse_means, mse_stds = compute_mse_per_slice(plot_truth, plot_pred)
 
         # Plot
         plot_mse_evolution(
@@ -508,12 +515,17 @@ def plot_dft_fields(test_results, resub=False,
                     return data[sample_idx, channel_idx, :, :]
                 else:
                     raise ValueError(f"Unexpected data dimensions: {data.ndim}. Expected 4D or 5D.")
-
-            truth_real = torch.from_numpy(slice_data(results['nf_truth'], sample_idx, 0))
-            truth_imag = torch.from_numpy(slice_data(results['nf_truth'], sample_idx, 1))
-            pred_real = torch.from_numpy(slice_data(results['nf_pred'], sample_idx, 0))
-            pred_imag = torch.from_numpy(slice_data(results['nf_pred'], sample_idx, 1))
-
+            try:            
+                truth_real = torch.from_numpy(slice_data(results['nf_truth'], sample_idx, 0))
+                truth_imag = torch.from_numpy(slice_data(results['nf_truth'], sample_idx, 1))
+                pred_real = torch.from_numpy(slice_data(results['nf_pred'], sample_idx, 0))
+                pred_imag = torch.from_numpy(slice_data(results['nf_pred'], sample_idx, 1))
+            except KeyError:
+                print("##########\nUsing Resimulated Fields!!")
+                truth_real = torch.from_numpy(slice_data(results['field_truth'], sample_idx, 0))
+                truth_imag = torch.from_numpy(slice_data(results['field_truth'], sample_idx, 1))
+                pred_real = torch.from_numpy(slice_data(results['field_resim'], sample_idx, 0))
+                pred_imag = torch.from_numpy(slice_data(results['field_resim'], sample_idx, 1))
             # determine which coordinate format to plot
             if format == 'polar':
                 component_1 = "Magnitude"
@@ -674,84 +686,70 @@ def plot_absolute_difference(conf, test_results, resub=False, sample_idx=0,
     """
     def plot_single_set(results, title, sample_idx):
         abs_diff = calculate_absolute_difference(results, sample_idx)
-        if conf.model.arch != "inverse":
-            if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
-                # Extract real and imaginary differences
-                real_diff = abs_diff[0, :, :]
-                imag_diff = abs_diff[1, :, :]
-                
-                # Convert to magnitude and phase differences
-                #mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
-                
-                # Create a single column plot
-                fig, ax = plt.subplots(2, 1, figsize=(6, 12))
-                fig.suptitle(title, fontsize=16)
-                
-                # Plot magnitude difference
-                im_mag = ax[0].imshow(real_diff, cmap='magma')
-                ax[0].set_title('Real Difference')
-                ax[0].axis('off')
-                
-                # Plot phase difference
-                im_phase = ax[1].imshow(imag_diff, cmap='magma')
-                ax[1].set_title('Imaginary Difference')
-                ax[1].axis('off')
-                
-                # Add colorbars
-                fig.colorbar(im_mag, ax=ax[0], orientation='vertical', fraction=0.046, pad=0.04)
-                fig.colorbar(im_phase, ax=ax[1], orientation='vertical', fraction=0.046, pad=0.04)
+        if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder' or arch == "inverse":
+            # Extract real and imaginary differences
+            real_diff = abs_diff[0, :, :]
+            imag_diff = abs_diff[1, :, :]
             
-            else:
-                # Extract real and imaginary differences
-                real_diff = abs_diff[:, 0, :, :]
-                imag_diff = abs_diff[:, 1, :, :]
-                
-                # Convert to magnitude and phase differences
-                mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
-                
-                seq_len = mag_diff.shape[0]
-                
-                # Create figure with space for colorbar
-                fig = plt.figure(figsize=(4*seq_len, 9))
-                gs = fig.add_gridspec(3, seq_len, height_ratios=[1, 1, 0.1])
-                
-                axs_top = [fig.add_subplot(gs[0, i]) for i in range(seq_len)]
-                axs_bottom = [fig.add_subplot(gs[1, i]) for i in range(seq_len)]
-                cax = fig.add_subplot(gs[2, :])
-                
-                fig.suptitle(title, fontsize=16)
-                
-                for t in range(seq_len):
-                    im_mag = axs_top[t].imshow(mag_diff[t], cmap='magma')
-                    axs_top[t].axis('off')
-                    axs_top[t].set_title(f't={t+1}')
-                    
-                    im_phase = axs_bottom[t].imshow(phase_diff[t], cmap='magma')
-                    axs_bottom[t].axis('off')
-                
-                # Add single colorbar at the bottom
-                cbar = plt.colorbar(im_mag, cax=cax, orientation='horizontal')
-                cbar.set_label('Absolute Difference')
-
-        else:
+            # Convert to magnitude and phase differences
+            #mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
+            
             # Create a single column plot
             fig, ax = plt.subplots(2, 1, figsize=(6, 12))
             fig.suptitle(title, fontsize=16)
             
             # Plot magnitude difference
-            im_mag = ax[0].imshow(abs_diff, cmap='magma')
+            im_mag = ax[0].imshow(real_diff, cmap='magma')
             ax[0].set_title('Real Difference')
             ax[0].axis('off')
+            
+            # Plot phase difference
+            im_phase = ax[1].imshow(imag_diff, cmap='magma')
+            ax[1].set_title('Imaginary Difference')
+            ax[1].axis('off')
+            
+            # Add colorbars
+            fig.colorbar(im_mag, ax=ax[0], orientation='vertical', fraction=0.046, pad=0.04)
+            fig.colorbar(im_phase, ax=ax[1], orientation='vertical', fraction=0.046, pad=0.04)
+        
+        else:
+            # Extract real and imaginary differences
+            real_diff = abs_diff[:, 0, :, :]
+            imag_diff = abs_diff[:, 1, :, :]
+            
+            # Convert to magnitude and phase differences
+            mag_diff, phase_diff = mapping.cartesian_to_polar(real_diff, imag_diff)
+            
+            seq_len = mag_diff.shape[0]
+            
+            # Create figure with space for colorbar
+            fig = plt.figure(figsize=(4*seq_len, 9))
+            gs = fig.add_gridspec(3, seq_len, height_ratios=[1, 1, 0.1])
+            
+            axs_top = [fig.add_subplot(gs[0, i]) for i in range(seq_len)]
+            axs_bottom = [fig.add_subplot(gs[1, i]) for i in range(seq_len)]
+            cax = fig.add_subplot(gs[2, :])
+            
+            fig.suptitle(title, fontsize=16)
+            
+            for t in range(seq_len):
+                im_mag = axs_top[t].imshow(mag_diff[t], cmap='magma')
+                axs_top[t].axis('off')
+                axs_top[t].set_title(f't={t+1}')
+                
+                im_phase = axs_bottom[t].imshow(phase_diff[t], cmap='magma')
+                axs_bottom[t].axis('off')
+            
+            # Add single colorbar at the bottom
+            cbar = plt.colorbar(im_mag, cax=cax, orientation='horizontal')
+            cbar.set_label('Absolute Difference')
+
 
         if save_fig:
                     if not save_dir:
                         raise ValueError("Please specify a save directory")
                     file_name = f'abs_diff_{title}.pdf'
-                    if conf.model.arch != "inverse":
-                        save_eval_item(save_dir, fig, file_name, 'dft')
-                    else:
-                        save_eval_item(save_dir, fig, file_name, 'radii')
-
+                    save_eval_item(save_dir, fig, file_name, 'dft')
         else:
             plt.show()
 
@@ -769,16 +767,31 @@ def calculate_absolute_difference(results, sample_idx=0):
         truth = torch.from_numpy(results['nf_truth'][sample_idx, :])
         pred = torch.from_numpy(results['nf_pred'][sample_idx, :])
     except KeyError:
-        truth = torch.from_numpy(results['radii_truth'])
-        pred = torch.from_numpy(results['radii_pred'])
+        print("########\n Using Resimulated Fields!")
+        if isinstance(results['field_truth'], list):
+            results['field_truth'] = np.array(results['field_truth'])
+        if isinstance(results['field_resim'], list):
+            results['field_resim'] = np.array(results['field_resim'])
+
+        truth = torch.from_numpy(results['field_truth'][sample_idx, :])
+        pred = torch.from_numpy(results['field_resim'][sample_idx, :])
     return torch.abs(truth - pred)
     
 def animate_fields(test_results, dataset, sample_idx=0, seq_len=5, save_dir=None): 
     results = test_results[dataset]
-    truth_real = torch.from_numpy(results['nf_truth'][sample_idx, :, 0, :, :])
-    truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, :, 1, :, :])
-    pred_real = torch.from_numpy(results['nf_pred'][sample_idx, :, 0, :, :])
-    pred_imag = torch.from_numpy(results['nf_pred'][sample_idx, :, 1, :, :])
+    try:        
+        truth_real = torch.from_numpy(results['nf_truth'][sample_idx, :, 0, :, :])
+        truth_imag = torch.from_numpy(results['nf_truth'][sample_idx, :, 1, :, :])
+        pred_real = torch.from_numpy(results['nf_pred'][sample_idx, :, 0, :, :])
+        pred_imag = torch.from_numpy(results['nf_pred'][sample_idx, :, 1, :, :])
+    except KeyError:
+        print("#####\n Using Resimulated Fields!")
+        truth_real = torch.from_numpy(results['field_truth'][sample_idx, :, 0, :, :])
+        truth_imag = torch.from_numpy(results['field_truth'][sample_idx, :, 1, :, :])
+        pred_real = torch.from_numpy(results['field_resim'][sample_idx, :, 0, :, :])
+        pred_imag = torch.from_numpy(results['field_resim'][sample_idx, :, 1, :, :])
+
+
     truth_real = truth_real.permute(1, 2, 0)
     truth_imag = truth_imag.permute(1, 2, 0)
     pred_real = pred_real.permute(1, 2, 0)
