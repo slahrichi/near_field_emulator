@@ -294,10 +294,10 @@ class WaveInverseMLP(LightningModule):
                 self.test_results['valid']['field_resim'].append(resim_combined)
                 self.test_results['valid']['field_truth'].append(field_combined)
                 # Convert to tensors and save as lists
-                valid_radii_pred = [pred.cpu() for pred in self.test_results['valid']['radii_pred']]
-                valid_radii_truth = [truth.cpu() for truth in self.test_results['valid']['radii_truth']]
-                valid_field_resim = [resim.cpu() for resim in self.test_results['valid']['field_resim']]
-                valid_field_truth = [truth.cpu() for truth in self.test_results['valid']['field_truth']]
+                valid_radii_pred = [pred for pred in self.test_results['valid']['radii_pred']]
+                valid_radii_truth = [truth for truth in self.test_results['valid']['radii_truth']]
+                valid_field_resim = [resim for resim in self.test_results['valid']['field_resim']]
+                valid_field_truth = [truth for truth in self.test_results['valid']['field_truth']]
 
                 # Save as lists of tensors
                 torch.save(valid_radii_pred, os.path.join(self.save_dir, "valid_radii_pred.pt"))
@@ -312,10 +312,10 @@ class WaveInverseMLP(LightningModule):
                 self.test_results['train']['field_truth'].append(field_combined)
 
                 # Convert to tensors and save as lists
-                train_radii_pred = [pred.cpu() for pred in self.test_results['train']['radii_pred']]
-                train_radii_truth = [truth.cpu() for truth in self.test_results['train']['radii_truth']]
-                train_field_resim = [resim.cpu() for resim in self.test_results['train']['field_resim']]
-                train_field_truth = [truth.cpu() for truth in self.test_results['train']['field_truth']]
+                train_radii_pred = [pred for pred in self.test_results['train']['radii_pred']]
+                train_radii_truth = [truth for truth in self.test_results['train']['radii_truth']]
+                train_field_resim = [resim for resim in self.test_results['train']['field_resim']]
+                train_field_truth = [truth for truth in self.test_results['train']['field_truth']]
 
                 # Save as lists of tensors
                 torch.save(train_radii_pred, os.path.join(self.save_dir, "train_radii_pred.pt"))
