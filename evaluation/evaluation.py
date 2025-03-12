@@ -357,13 +357,16 @@ def metrics(test_results, fold_idx=None, dataset='valid',
     try:    
         truth = test_results[dataset]['nf_truth']
         pred = test_results[dataset]['nf_pred']
+        truth_resim = None
+        pred_resim = None
+
     except KeyError:
         truth = test_results[dataset]['radii_truth']
         pred = test_results[dataset]['radii_pred']
         truth_resim = test_results[dataset]['field_truth']
         pred_resim = test_results[dataset]['field_resim']
     std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
-
+    
     metrics = calculate_metrics(truth, pred, truth_resim, pred_resim)
     print(f"Metrics for {dataset.capitalize()} Dataset:")
     for metric, value in metrics.items():
