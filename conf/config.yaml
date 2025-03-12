@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 0
+directive: 1
 deployment: 1   
 
 #--------------------------------
@@ -48,7 +48,7 @@ model:
 
     arch: 9
     #model_id: 'Tandem-bdy'
-    model_id: 'Tandem-bdy-ReducePlat-noise'
+    model_id: 'Tandem-bdy-ReducePlat'
 
     # General Model Parameters
 
