@@ -93,7 +93,7 @@ def save_eval_item(save_dir, eval_item, file_name, type):
         save_path = os.path.join(save_dir, "radii_plots")
     else:
         return NotADirectoryError
-    #os.makedirs(save_path, exist_ok=True)
+    os.makedirs(save_path, exist_ok=True)
     save_path = os.path.join(save_path, file_name)
     std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
     if 'metrics' in type:

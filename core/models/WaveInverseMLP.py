@@ -45,6 +45,12 @@ class WaveInverseMLP(LightningModule):
         self.strat = None
         self.forward_ckpt_path = self.conf.forward_ckpt_path
         self.forward_config_path = self.conf.forward_config_path
+        self.radii_bounds = self.conf.radii_bounds
+        self.radii_lower_bound = torch.tensor([self.radii_bounds[0]] * 9, device=self.device, dtype=torch.float32)
+        self.radii_upper_bound = torch.tensor([self.radii_bounds[1]] * 9, device=self.device, dtype=torch.float32)
+        self.register_buffer('radii_range', self.radii_upper_bound - self.radii_lower_bound)
+        self.register_buffer('radii_mean', (self.radii_lower_bound + self.radii_upper_bound) / 2)
+
 
         
         # inverse (geometry --> radii)
@@ -159,6 +165,30 @@ class WaveInverseMLP(LightningModule):
             loss_real = mse(fwd_pred_real, near_fields_real)
             loss_imag = mse(fwd_pred_imag, near_fields_imag)
             loss = loss_real + loss_imag
+        elif choice == "resim_bdy":
+            preds = preds.to(torch.float32).contiguous()
+            labels = labels.to(torch.float32).contiguous()
+            mse = torch.nn.MSELoss()
+            
+            fwd = self.load_forward(self.forward_ckpt_path, self.forward_config_path)
+            fwd_pred = fwd(preds)
+            
+            fwd_pred_real = fwd_pred.real
+            fwd_pred_imag = fwd_pred.imag
+
+            near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+            near_fields_real = near_fields_complex.real
+            near_fields_imag = near_fields_complex.imag
+
+            loss_real = mse(fwd_pred_real, near_fields_real)
+            loss_imag = mse(fwd_pred_imag, near_fields_imag)
+            mse_loss = loss_real + loss_imag
+            
+            relu = torch.nn.ReLU()
+            bdy_loss_all = relu(torch.abs(preds - self.radii_mean) - 0.5 * self.radii_range)
+            bdy_loss = torch.mean(bdy_loss_all) * 10
+            
+            loss = torch.add(mse_loss, bdy_loss)
         else:
             raise ValueError(f"Unsupported loss function: {choice}")
             
