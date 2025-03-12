@@ -5,6 +5,7 @@
 import sys
 import torch
 import numpy as np
+import os
 #from geomloss import SamplesLoss
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 #from torchvision.models import resnet50, resnet18, resnet34
@@ -48,9 +49,10 @@ class WaveInverseMLP(LightningModule):
         self.radii_bounds = self.conf.radii_bounds
         self.radii_lower_bound = torch.tensor([self.radii_bounds[0]] * 9, device=self.device, dtype=torch.float32)
         self.radii_upper_bound = torch.tensor([self.radii_bounds[1]] * 9, device=self.device, dtype=torch.float32)
-        self.register_buffer('radii_range', self.radii_upper_bound - self.radii_lower_bound)
-        self.register_buffer('radii_mean', (self.radii_lower_bound + self.radii_upper_bound) / 2)
-
+        self.radii_range = self.radii_upper_bound - self.radii_lower_bound
+        self.radii_mean = (self.radii_lower_bound + self.radii_upper_bound) / 2
+        self.model_id = self.conf.model_id
+        self.save_dir = f'/develop/results/meep_meep/{self.name}/model_{self.model_id}'
 
         
         # inverse (geometry --> radii)
@@ -291,11 +293,33 @@ class WaveInverseMLP(LightningModule):
                 self.test_results['valid']['radii_truth'].append(radii)
                 self.test_results['valid']['field_resim'].append(resim_combined)
                 self.test_results['valid']['field_truth'].append(field_combined)
+
+                valid_radii_pred = np.concatenate([pred.cpu().numpy() for pred in self.test_results['valid']['radii_pred']])
+                valid_radii_truth = np.concatenate([truth.cpu().numpy() for truth in self.test_results['valid']['radii_truth']])
+                np.savetxt(os.path.join(self.save_dir,"valid_radii_pred.txt"), valid_radii_pred)
+                np.savetxt(os.path.join(self.save_dir,"valid_radii_truth.txt"), valid_radii_truth)
+
+                valid_field_resim = np.array(self.test_results['valid']['field_resim'])
+                valid_field_truth = np.array(self.test_results['valid']['field_truth'])
+                np.save(os.path.join(self.save_dir, "valid_field_resim.npy"), valid_field_resim)
+                np.save(os.path.join(self.save_dir, "valid_field_truth.npy"), valid_field_truth)
+
             elif dataloader_idx == 1:  # train dataloader
                 self.test_results['train']['radii_pred'].append(preds_real)
                 self.test_results['train']['radii_truth'].append(radii)
                 self.test_results['train']['field_resim'].append(resim_combined)
                 self.test_results['train']['field_truth'].append(field_combined)
+
+                train_radii_pred = np.concatenate([pred.cpu().numpy() for pred in self.test_results['train']['radii_pred']])
+                train_radii_truth = np.concatenate([truth.cpu().numpy() for truth in self.test_results['train']['radii_truth']])
+                np.savetxt(os.path.join(self.save_dir,"train_radii_pred.txt"), train_radii_pred)
+                np.savetxt(os.path.join(self.save_dir,"train_radii_truth.txt"), train_radii_truth)
+
+                train_field_resim = np.array(self.test_results['train']['field_resim'])
+                train_field_truth = np.array(self.test_results['train']['field_truth'])
+                np.save(os.path.join(self.save_dir, "train_field_resim.npy"), train_field_resim)
+                np.save(os.path.join(self.save_dir, "train_field_truth.npy"), train_field_truth)
+
             else:
                 raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
         else:
