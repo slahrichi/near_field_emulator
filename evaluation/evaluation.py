@@ -285,7 +285,7 @@ def plot_loss(conf, min_list=[None, None], max_list=[None, None], save_fig=False
         else:
             plt.show()
 
-def calculate_metrics(truth, pred, truth_resim, pred_resim):
+def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
     """
     Calculate various metrics between ground truth and predictions.
     Also compute MSE at each slice if it's a 5D shape (N, T, R, X, Y).
@@ -299,7 +299,10 @@ def calculate_metrics(truth, pred, truth_resim, pred_resim):
 
     mae = np.mean(np.abs(truth - pred))
     rmse = np.sqrt(np.mean((truth - pred) ** 2))
-    resim = np.sqrt(np.mean((truth_resim_all - pred_resim_all) ** 2))  
+    if truth_resim:
+        resim = np.sqrt(np.mean((truth_resim_all - pred_resim_all) ** 2))  
+    else:
+        resim = None
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
