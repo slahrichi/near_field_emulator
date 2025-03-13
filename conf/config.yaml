@@ -50,7 +50,7 @@ model:
     arch: 11
     #model_id: 'Tandem-bdy'
     #model_id: 'Tandem-bdy-ReducePlat'
-    model_id: 'tandem-conv-512-64'
+    model_id: 'tandem-conv-out-8'
 
     # General Model Parameters
 
@@ -66,7 +66,7 @@ model:
     na_iters: 100
     K: 10
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
-    conv_out_channels: 16
+    conv_out_channels: 8
     # multi-criteria loss
     mcl_params:
         alpha: 1
@@ -93,8 +93,8 @@ model:
     cvnn:
         #layers: [64, 512] # forward
         #layers: [512, 64] # inverse
-        #layers: [256, 32]
-        layers: [512, 64]
+        layers: [256, 32]
+        #layers: [512, 64]
         activation: 'complexrelu'
 
     mlp_strategy: 0
