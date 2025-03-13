@@ -92,8 +92,8 @@ model:
 
     cvnn:
         #layers: [64, 512] # forward
-        layers: [512, 64] # inverse
-        #layers: [256, 32]
+        #layers: [512, 64] # inverse
+        layers: [256, 32]
         #layers: [512, 64]
         activation: 'complexrelu'
 
