@@ -198,7 +198,7 @@ class WaveInverseMLP(LightningModule):
             preds = preds.to(torch.float32).contiguous()
             labels = labels.to(torch.float32).contiguous()
             mse = torch.nn.MSELoss()
-            noise_std = 0.00246016
+            noise_std = 0.01
             noise = torch.randn_like(near_fields) * noise_std
             fwd_pred = near_fields + noise
             loss = mse(fwd_pred, near_fields)

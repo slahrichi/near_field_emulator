@@ -502,7 +502,7 @@ def plot_dft_fields(test_results, resub=False,
     - fold_num: the fold # of the selected fold being plotted (if cross val)
     """
     def plot_single_set(results, title, format, save_path, sample_idx):
-        if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder':
+        if arch in ['mlp', 'cvnn', 'autoencoder', 'convTandem']:
             # extract and convert to tensors
             def slice_data(data, sample_idx, channel_idx):
                 """
