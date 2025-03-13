@@ -769,9 +769,11 @@ def calculate_absolute_difference(results, sample_idx=0):
     except KeyError:
         print("########\n Using Resimulated Fields!")
         if isinstance(results['field_truth'], list):
-            truth = np.array(results['field_truth'][sample_idx])
+            truth_np = np.array(results['field_truth'][sample_idx])
         if isinstance(results['field_resim'], list):
-            pred = np.array(results['field_resim'][sample_idx])
+            pred_np = np.array(results['field_resim'][sample_idx])
+        truth = torch.from_numpy(truth_np)
+        pred = torch.from_numpy(pred_np)
 
     return torch.abs(truth - pred)
     
