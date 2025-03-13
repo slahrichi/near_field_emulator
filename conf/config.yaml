@@ -50,7 +50,7 @@ model:
     arch: 11
     #model_id: 'Tandem-bdy'
     #model_id: 'Tandem-bdy-ReducePlat'
-    model_id: 'tandem-conv'
+    model_id: 'tandem-conv-512-64'
 
     # General Model Parameters
 
@@ -93,7 +93,8 @@ model:
     cvnn:
         #layers: [64, 512] # forward
         #layers: [512, 64] # inverse
-        layers: [256, 32]
+        #layers: [256, 32]
+        layers: [512, 64]
         activation: 'complexrelu'
 
     mlp_strategy: 0
