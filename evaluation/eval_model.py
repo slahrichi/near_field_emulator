@@ -47,7 +47,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         
     # compute relevant metrics across folds
     if model_type != 'autoencoder':
-        plot_mse = True if conf.model.arch not in ['mlp', 'cvnn', 'inverse'] else False
+        plot_mse = True if conf.model.arch not in ['mlp', 'cvnn', 'inverse', 'convTandem'] else False
         print("\nComputing and saving metrics...")
         eval.metrics(test_results, dataset='train', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
         eval.metrics(test_results, dataset='valid', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
@@ -68,7 +68,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
                                   arch=model_type, fold_num=fold_num)
     
     # visualize performance with animation
-    if model_type not in ['autoencoder', 'cvnn', 'mlp', 'inverse']:
+    if model_type not in ['autoencoder', 'cvnn', 'mlp', 'inverse', 'convTandem']:
         print("\nGenerating field animations...")
         eval.animate_fields(test_results, dataset='valid', 
                             seq_len=conf.model.seq_len, save_dir=results_dir)
