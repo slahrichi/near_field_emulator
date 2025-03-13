@@ -47,7 +47,7 @@ model:
         # - 11: WaveInverseConvMLP -
     # - model_id: model identifier / name
 
-    arch: 8
+    arch: 9
     model_id: 'Tandem-bdy-sensitivity'
     #model_id: 'Tandem-bdy-ReducePlat'
     #model_id: 'tandem-conv-out-8'
