@@ -28,10 +28,10 @@ from conf.schema import load_config
 
 sys.path.append("../")
 
-class WaveInverseMLP(LightningModule):
+class WaveInverseConvMLP(LightningModule):
     """Radii Prediction Model  
-    Architecture: MLPs  
-    Modes: Simple Inverse, Tandem"""
+    Architecture: ConvMLPs  
+    Modes: Tandem"""
     def __init__(self, model_config, fold_idx=None):
         super().__init__()
         
@@ -55,18 +55,15 @@ class WaveInverseMLP(LightningModule):
         #self.radii_mean = (self.radii_lower_bound + self.radii_upper_bound) / 2
         self.model_id = self.conf.model_id
         self.save_dir = f'/develop/results/meep_meep/{self.name}/model_{self.model_id}'
+        self.conv_out_channels = self.conf.conv_out_channels
 
         
         # inverse (geometry --> radii)
         # for now, we will just load a trained forward model
         # we are also using CVNN
         self.output_size = 9
-        if self.name == "inverse":
-            self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
-        else:
-            raise ValueError("Inverse model not supported with multiple MLPs yet")
-
-
+        self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+        
         self.save_hyperparameters()
         
         # Store necessary lists for tracking metrics per fold
@@ -75,20 +72,21 @@ class WaveInverseMLP(LightningModule):
          
     def build_mlp(self, input_size, mlp_conf):
         layers = []
-        in_features = input_size
+        in_channels = 1
+        layers.append(ComplexConv2d(in_channels, self.conv_out_channels, kernel_size=5, stride=5))
+        layers.append(self.get_activation_function(mlp_conf['activation']))
+        layers.append(ComplexConv2d(self.conv_out_channels, 2*self.conv_out_channels, kernel_size=5, stride=5))
+        layers.append(self.get_activation_function(mlp_conf['activation']))
+        layers.append(nn.Flatten())
+
+        in_features = 2*self.conv_out_channels * 6 * 6
+
         for layer_size in mlp_conf['layers']:
-            if self.name == 'inverse': # complex-valued NN
-                layers.append(ComplexLinear(in_features, layer_size))
-            else: # real-valued NN
-                raise ValueError(f"Only supporting CVNN for inverse for now. You are trying to use {self.name}")
+            layers.append(ComplexLinear(in_features, layer_size))
             layers.append(self.get_activation_function(mlp_conf['activation']))
             in_features = layer_size
-        if self.name == 'inverse':
-            # this should actually be self.name == "cvnn",
-            # TODO: in the future, if we want to use non-complex NN, we would need to add a flag to differentiate CVNN from MLP in the Inverse Setting. 
-            layers.append(ComplexLinearFinal(in_features, self.output_size))
-        else:
-            raise ValueError(f"Only supporting CVNN for inverse for now. You are trying to use {self.name}")
+        layers.append(ComplexLinearFinal(in_features, self.output_size))
+
         return nn.Sequential(*layers)
         
     def get_activation_function(self, activation_name):
@@ -111,8 +109,8 @@ class WaveInverseMLP(LightningModule):
         # Inverse model: near_fields -> radii
         near_fields = input
         near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
-        near_fields_flat = near_fields_complex.view(near_fields_complex.size(0), -1)
-        output = self.cvnn(near_fields_flat)
+        near_fields_complex = near_fields_complex.unsqueeze(1)
+        output = self.cvnn(near_fields_complex)
         output.view(-1, 9)
         return output
   
@@ -198,9 +196,10 @@ class WaveInverseMLP(LightningModule):
             preds = preds.to(torch.float32).contiguous()
             labels = labels.to(torch.float32).contiguous()
             mse = torch.nn.MSELoss()
-            noise_std = 0.00246016
+            noise_std = 0.01
             noise = torch.randn_like(near_fields) * noise_std
             fwd_pred = near_fields + noise
+            print(fwd_pred - noise)
             loss = mse(fwd_pred, near_fields)
         else:
             raise ValueError(f"Unsupported loss function: {choice}")
@@ -218,14 +217,10 @@ class WaveInverseMLP(LightningModule):
 
     def objective(self, batch, predictions):
         near_fields, radii = batch
-        if self.name == 'inverse':
-            labels = radii  
-            preds = predictions.real
-            radii_loss = self.compute_loss(near_fields, preds, labels, choice=self.loss_func)
-        else:
-            raise ValueError("Only CVNN handled for inverse!")
-        
-            # compute other metrics for logging besides specified loss function
+        labels = radii  
+        preds = predictions.real
+        radii_loss = self.compute_loss(near_fields, preds, labels, choice=self.loss_func)
+        # compute other metrics for logging besides specified loss function
         choices = {
             'mse': None,
             'resim': None
@@ -283,71 +278,66 @@ class WaveInverseMLP(LightningModule):
         
     def organize_testing(self, predictions, batch, batch_idx, dataloader_idx):
         near_fields, radii = batch
-        if self.name == 'inverse':
-            # Saving real part of the prediction only; double check that imaginary part can be disregarded
-            preds_real = predictions.real
+    
+        # Saving real part of the prediction only; double check that imaginary part can be disregarded
+        preds_real = predictions.real
 
-            # Compute resimulated fields
-            fwd = self.load_forward(self.forward_ckpt_path, self.forward_config_path)
-            field_resim = fwd(preds_real) # check if CVNN takes real only
-            field_truth = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
-            field_real = field_truth.real
-            field_imag = field_truth.imag
-            field_resim_real = field_resim.real
-            field_resim_imag = field_resim.imag
-            resim_combined = torch.stack([field_resim_real, field_resim_imag], dim=1).cpu().numpy()
-            field_combined = torch.stack([field_real, field_imag], dim=1).cpu().numpy()
+        # Compute resimulated fields
+        fwd = self.load_forward(self.forward_ckpt_path, self.forward_config_path)
+        field_resim = fwd(preds_real) # check if CVNN takes real only
+        field_truth = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+        field_real = field_truth.real
+        field_imag = field_truth.imag
+        field_resim_real = field_resim.real
+        field_resim_imag = field_resim.imag
+        resim_combined = torch.stack([field_resim_real, field_resim_imag], dim=1).cpu().numpy()
+        field_combined = torch.stack([field_real, field_imag], dim=1).cpu().numpy()
 
-            # Store predictions and ground truths for analysis after testing
-            if dataloader_idx == 0:  # val dataloader
-                self.test_results['valid']['radii_pred'].append(preds_real)
-                self.test_results['valid']['radii_truth'].append(radii)
-                self.test_results['valid']['field_resim'].append(resim_combined)
-                self.test_results['valid']['field_truth'].append(field_combined)
-                # Convert to tensors and save as lists
-                valid_radii_pred = [pred for pred in self.test_results['valid']['radii_pred']]
-                valid_radii_truth = [truth for truth in self.test_results['valid']['radii_truth']]
-                valid_field_resim = [resim for resim in self.test_results['valid']['field_resim']]
-                valid_field_truth = [truth for truth in self.test_results['valid']['field_truth']]
+        # Store predictions and ground truths for analysis after testing
+        if dataloader_idx == 0:  # val dataloader
+            self.test_results['valid']['radii_pred'].append(preds_real)
+            self.test_results['valid']['radii_truth'].append(radii)
+            self.test_results['valid']['field_resim'].append(resim_combined)
+            self.test_results['valid']['field_truth'].append(field_combined)
+            # Convert to tensors and save as lists
+            valid_radii_pred = [pred for pred in self.test_results['valid']['radii_pred']]
+            valid_radii_truth = [truth for truth in self.test_results['valid']['radii_truth']]
+            valid_field_resim = [resim for resim in self.test_results['valid']['field_resim']]
+            valid_field_truth = [truth for truth in self.test_results['valid']['field_truth']]
 
-                # Save as lists of tensors
-                torch.save(valid_radii_pred, os.path.join(self.save_dir, "valid_radii_pred.pt"))
-                torch.save(valid_radii_truth, os.path.join(self.save_dir, "valid_radii_truth.pt"))
-                torch.save(valid_field_resim, os.path.join(self.save_dir, "valid_field_resim.pt"))
-                torch.save(valid_field_truth, os.path.join(self.save_dir, "valid_field_truth.pt"))
+            # Save as lists of tensors
+            torch.save(valid_radii_pred, os.path.join(self.save_dir, "valid_radii_pred.pt"))
+            torch.save(valid_radii_truth, os.path.join(self.save_dir, "valid_radii_truth.pt"))
+            torch.save(valid_field_resim, os.path.join(self.save_dir, "valid_field_resim.pt"))
+            torch.save(valid_field_truth, os.path.join(self.save_dir, "valid_field_truth.pt"))
 
-            elif dataloader_idx == 1:  # train dataloader
-                self.test_results['train']['radii_pred'].append(preds_real)
-                self.test_results['train']['radii_truth'].append(radii)
-                self.test_results['train']['field_resim'].append(resim_combined)
-                self.test_results['train']['field_truth'].append(field_combined)
+        elif dataloader_idx == 1:  # train dataloader
+            self.test_results['train']['radii_pred'].append(preds_real)
+            self.test_results['train']['radii_truth'].append(radii)
+            self.test_results['train']['field_resim'].append(resim_combined)
+            self.test_results['train']['field_truth'].append(field_combined)
 
-                # Convert to tensors and save as lists
-                train_radii_pred = [pred for pred in self.test_results['train']['radii_pred']]
-                train_radii_truth = [truth for truth in self.test_results['train']['radii_truth']]
-                train_field_resim = [resim for resim in self.test_results['train']['field_resim']]
-                train_field_truth = [truth for truth in self.test_results['train']['field_truth']]
+            # Convert to tensors and save as lists
+            train_radii_pred = [pred for pred in self.test_results['train']['radii_pred']]
+            train_radii_truth = [truth for truth in self.test_results['train']['radii_truth']]
+            train_field_resim = [resim for resim in self.test_results['train']['field_resim']]
+            train_field_truth = [truth for truth in self.test_results['train']['field_truth']]
 
-                # Save as lists of tensors
-                torch.save(train_radii_pred, os.path.join(self.save_dir, "train_radii_pred.pt"))
-                torch.save(train_radii_truth, os.path.join(self.save_dir, "train_radii_truth.pt"))
-                torch.save(train_field_resim, os.path.join(self.save_dir, "train_field_resim.pt"))
-                torch.save(train_field_truth, os.path.join(self.save_dir, "train_field_truth.pt"))
+            # Save as lists of tensors
+            torch.save(train_radii_pred, os.path.join(self.save_dir, "train_radii_pred.pt"))
+            torch.save(train_radii_truth, os.path.join(self.save_dir, "train_radii_truth.pt"))
+            torch.save(train_field_resim, os.path.join(self.save_dir, "train_field_resim.pt"))
+            torch.save(train_field_truth, os.path.join(self.save_dir, "train_field_truth.pt"))
 
-                # train_radii_pred = np.concatenate([pred.cpu().numpy() for pred in self.test_results['train']['radii_pred']])
-                # train_radii_truth = np.concatenate([truth.cpu().numpy() for truth in self.test_results['train']['radii_truth']])
-                # np.savetxt(os.path.join(self.save_dir,"train_radii_pred.txt"), train_radii_pred)
-                # np.savetxt(os.path.join(self.save_dir,"train_radii_truth.txt"), train_radii_truth)
+            # train_radii_pred = np.concatenate([pred.cpu().numpy() for pred in self.test_results['train']['radii_pred']])
+            # train_radii_truth = np.concatenate([truth.cpu().numpy() for truth in self.test_results['train']['radii_truth']])
+            # np.savetxt(os.path.join(self.save_dir,"train_radii_pred.txt"), train_radii_pred)
+            # np.savetxt(os.path.join(self.save_dir,"train_radii_truth.txt"), train_radii_truth)
 
-                # train_field_resim = np.array(self.test_results['train']['field_resim'])
-                # train_field_truth = np.array(self.test_results['train']['field_truth'])
-                # np.save(os.path.join(self.save_dir, "train_field_resim.npy"), train_field_resim)
-                # np.save(os.path.join(self.save_dir, "train_field_truth.npy"), train_field_truth)
-
-            else:
-                raise ValueError(f"Invalid dataloader index: {dataloader_idx}")
-        else:
-            raise ValueError("Testing for inverse only available for CVNN.")
+            # train_field_resim = np.array(self.test_results['train']['field_resim'])
+            # train_field_truth = np.array(self.test_results['train']['field_truth'])
+            # np.save(os.path.join(self.save_dir, "train_field_resim.npy"), train_field_resim)
+            # np.save(os.path.join(self.save_dir, "train_field_truth.npy"), train_field_truth)
 
     def on_test_end(self):
         # Concatenate results from all batches

@@ -70,6 +70,7 @@ class ModelConfig(BaseModel):
     na_iters: int = 50
     K: int = 20
     radii_bounds: tuple = (0.0, 1.0)
+    conv_out_channels: int = 16
     
     @field_validator("arch", mode="before")
     def validate_arch(cls, value):
@@ -231,7 +232,8 @@ def get_model_type(arch: int) -> str:
         7: "diffusion",
         8: "autoencoder",
         9: "inverse",
-        10: "NA"
+        10: "NA",
+        11: "convTandem"
     }
     return model_types.get(arch, ValueError("Model type not recognized"))
 
