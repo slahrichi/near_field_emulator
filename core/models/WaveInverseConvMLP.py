@@ -14,6 +14,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 import math
+import time
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
 
 #--------------------------------
@@ -234,7 +235,10 @@ class WaveInverseConvMLP(LightningModule):
 
     def shared_step(self, batch, batch_idx):
         near_fields, radii = batch
+        start_time = time.time()
         preds = self.forward(near_fields)
+        elapsed_time = time.time() - start_time
+        print(f"Time to predict batch {batch_idx}: {elapsed_time:.6f} seconds")
         return preds
     
     def training_step(self, batch, batch_idx):
