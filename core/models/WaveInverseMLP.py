@@ -49,10 +49,10 @@ class WaveInverseMLP(LightningModule):
         self.radii_bounds = self.conf.radii_bounds
         self.radii_lower_bound = torch.tensor([self.radii_bounds[0]] * 9, device=self.device, dtype=torch.float32)
         self.radii_upper_bound = torch.tensor([self.radii_bounds[1]] * 9, device=self.device, dtype=torch.float32)
-        self.register_buffer('radii_mean', (self.radii_lower_bound + self.radii_upper_bound) / 2)
-        self.register_buffer('radii_range', self.radii_upper_bound - self.radii_lower_bound)
-        #self.radii_range = self.radii_upper_bound - self.radii_lower_bound
-        #self.radii_mean = (self.radii_lower_bound + self.radii_upper_bound) / 2
+        #self.register_buffer('radii_mean', (self.radii_lower_bound + self.radii_upper_bound) / 2)
+        #self.register_buffer('radii_range', self.radii_upper_bound - self.radii_lower_bound)
+        self.radii_range = self.radii_upper_bound - self.radii_lower_bound
+        self.radii_mean = (self.radii_lower_bound + self.radii_upper_bound) / 2
         self.model_id = self.conf.model_id
         self.save_dir = f'/develop/results/meep_meep/{self.name}/model_{self.model_id}'
 
