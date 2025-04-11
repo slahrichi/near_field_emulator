@@ -49,9 +49,9 @@ model:
 
     arch: 11
     #model_id: 'Tandem-bdy-sensitivity'
-    #model_id: 'Tandem-bdy-ReducePlat'
+    model_id: 'Tandem-bdy-ReducePlat'
     #model_id: 'tandem-conv'
-    model_id: "tandem-conv-512-64"
+    #model_id: "tandem-conv-512-64"
 
     # General Model Parameters
 
