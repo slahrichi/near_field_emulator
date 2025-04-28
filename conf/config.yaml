@@ -47,27 +47,28 @@ model:
         # - 11: WaveInverseConvMLP -
     # - model_id: model identifier / name
 
-    arch: 11
-    model_id: "td-bdy-conv-16-32-mlp-512-64-lr-1e-5"
+    arch: 1
+    #model_id: "td-bdy-conv-16-32-mlp-512-64-lr-1e-5"
     #model_id: "tandem-v3"
     #model_id: "inverse-v3"
     #model_id: 'Tandem-bdy-sensitivity'
     #model_id: 'Tandem-bdy-ReducePlat'
     #model_id: 'tandem-conv'
     #model_id: "tandem-conv-512-64"
+    model_id: forward
 
     # General Model Parameters
 
     optimizer: 'ADAM'
-    learning_rate: 1.e-5
+    learning_rate: 1.e-3
     lr_scheduler: 'ReduceLROnPlateau'
     #lr_scheduler: 'CosineAnnealingLR'
     load_checkpoint: False
-    #objective_function: 'mse'
+    objective_function: 'mse'
     #objective_function: "resim"
     objective_function: "resim_bdy" 
-    forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
-    forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
+    #forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
+    #forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
     na_iters: 100
     K: 10
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
@@ -96,8 +97,8 @@ model:
         activation: 'relu'
 
     cvnn:
-        #layers: [64, 512] # forward
-        layers: [512, 64] # inverse
+        layers: [64, 512] # forward
+        #layers: [512, 64] # inverse
         #layers: [256, 32]
         #layers: [512, 64]
         activation: 'complexrelu'
