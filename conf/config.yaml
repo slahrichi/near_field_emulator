@@ -66,7 +66,7 @@ model:
     load_checkpoint: False
     objective_function: 'mse'
     #objective_function: "resim"
-    objective_function: "resim_bdy" 
+    #objective_function: "resim_bdy" 
     #forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward-v2/model.ckpt"
     #forward_config_path: "/develop/results/meep_meep/cvnn/model_forward-v2/params.yaml"
     na_iters: 100
@@ -105,8 +105,8 @@ model:
 
     mlp_strategy: 0
     patch_size: 3
-    #num_design_conf: 9 # radii
-    num_design_conf: 27556 # inverse: 166*166*2
+    num_design_conf: 9 # radii
+    #num_design_conf: 27556 # inverse: 166*166*2
     #num_design_conf: 2 # ConvMLP
     interpolate_fields: False
 
