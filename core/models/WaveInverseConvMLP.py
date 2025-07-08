@@ -74,15 +74,24 @@ class WaveInverseConvMLP(LightningModule):
     def build_mlp(self, input_size, mlp_conf):
         layers = []
         in_channels = 1
-        layers.append(ComplexConv2d(in_channels, self.conv_out_channels, kernel_size=5, stride=5))
-        layers.append(self.get_activation_function(mlp_conf['activation']))
-        layers.append(ComplexConv2d(self.conv_out_channels, 2*self.conv_out_channels, kernel_size=5, stride=5))
-        layers.append(self.get_activation_function(mlp_conf['activation']))
+
+        conv_layers_conf = mlp_conf.get('conv_layers', [])
+        for conf in conv_layers_conf:
+            out_channels, kernel_size, stride = conf
+            layers.append(ComplexConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride))
+            layers.append(self.get_activation_function(mlp_conf['activation']))
+            in_channels = out_channels
         layers.append(nn.Flatten())
 
-        in_features = 2*self.conv_out_channels * 6 * 6
+        dummy_input = torch.randn(1, 1, 166, 166)
+        dummy_complex_input = torch.complex(dummy_input, dummy_input)
+        with torch.no_grad():
+            conv_output_shape = nn.Sequential(*layers[:-1])(dummy_complex_input).shape
+        
+        in_features = conv_output_shape[1] * conv_output_shape[2] * conv_output_shape[3]
 
-        for layer_size in mlp_conf['layers']:
+        linear_layers_conf = mlp_conf.get('layers', []) 
+        for layer_size in linear_layers_conf:
             layers.append(ComplexLinear(in_features, layer_size))
             layers.append(self.get_activation_function(mlp_conf['activation']))
             in_features = layer_size
