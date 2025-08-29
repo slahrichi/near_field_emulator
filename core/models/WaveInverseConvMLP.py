@@ -8,7 +8,7 @@ import numpy as np
 import os
 #from geomloss import SamplesLoss
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
-#from torchvision.models import resnet50, resnet18, resnet34
+from torchvision.models import resnet18
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
@@ -72,32 +72,58 @@ class WaveInverseConvMLP(LightningModule):
                             'valid': {'radii_pred': [], 'radii_truth': [],  'field_resim': [], 'field_truth': []}}
          
     def build_mlp(self, input_size, mlp_conf):
-        layers = []
-        in_channels = 1
+        if mlp_conf.get('use_resnet', False):
+            # Initialize pre-trained ResNet18
+            model = resnet18(pretrained=True)
+            
+            # Modify first conv layer to accept 2 channels (real and imaginary parts)
+            original_layer = model.conv1
+            model.conv1 = nn.Conv2d(2, 64, 
+                                  kernel_size=7, 
+                                  stride=2, 
+                                  padding=3, 
+                                  bias=False)
+            
+            # Initialize the weights of the new conv layer
+            with torch.no_grad():
+                model.conv1.weight[:, :2] = original_layer.weight[:, :2]
+            
+            # Replace final fully connected layer
+            model.fc = nn.Sequential(
+                nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Dropout(0.5),
+                nn.Linear(256, self.output_size)
+            )
+            return model
+        else:
+            # Original ConvMLP architecture
+            layers = []
+            in_channels = 1
 
-        conv_layers_conf = mlp_conf.get('conv_layers', [])
-        for conf in conv_layers_conf:
-            out_channels, kernel_size, stride = conf
-            layers.append(ComplexConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride))
-            layers.append(self.get_activation_function(mlp_conf['activation']))
-            in_channels = out_channels
-        layers.append(nn.Flatten())
+            conv_layers_conf = mlp_conf.get('conv_layers', [])
+            for conf in conv_layers_conf:
+                out_channels, kernel_size, stride = conf
+                layers.append(ComplexConv2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride))
+                layers.append(self.get_activation_function(mlp_conf['activation']))
+                in_channels = out_channels
+            layers.append(nn.Flatten())
 
-        dummy_input = torch.randn(1, 1, 166, 166)
-        dummy_complex_input = torch.complex(dummy_input, dummy_input)
-        with torch.no_grad():
-            conv_output_shape = nn.Sequential(*layers[:-1])(dummy_complex_input).shape
-        
-        in_features = conv_output_shape[1] * conv_output_shape[2] * conv_output_shape[3]
+            dummy_input = torch.randn(1, 1, 166, 166)
+            dummy_complex_input = torch.complex(dummy_input, dummy_input)
+            with torch.no_grad():
+                conv_output_shape = nn.Sequential(*layers[:-1])(dummy_complex_input).shape
+            
+            in_features = conv_output_shape[1] * conv_output_shape[2] * conv_output_shape[3]
 
-        linear_layers_conf = mlp_conf.get('layers', []) 
-        for layer_size in linear_layers_conf:
-            layers.append(ComplexLinear(in_features, layer_size))
-            layers.append(self.get_activation_function(mlp_conf['activation']))
-            in_features = layer_size
-        layers.append(ComplexLinearFinal(in_features, self.output_size))
+            linear_layers_conf = mlp_conf.get('layers', []) 
+            for layer_size in linear_layers_conf:
+                layers.append(ComplexLinear(in_features, layer_size))
+                layers.append(self.get_activation_function(mlp_conf['activation']))
+                in_features = layer_size
+            layers.append(ComplexLinearFinal(in_features, self.output_size))
 
-        return nn.Sequential(*layers)
+            return nn.Sequential(*layers)
         
     def get_activation_function(self, activation_name):
         if activation_name == 'relu':
@@ -118,10 +144,17 @@ class WaveInverseConvMLP(LightningModule):
     def forward(self, input):
         # Inverse model: near_fields -> radii
         near_fields = input
-        near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
-        near_fields_complex = near_fields_complex.unsqueeze(1)
-        output = self.cvnn(near_fields_complex)
-        output.view(-1, 9)
+        
+        if self.conf.cvnn.get('use_resnet', False):
+            # For ResNet: use real-valued input with 2 channels
+            output = self.cvnn(near_fields)  # near_fields is already [batch_size, 2, 166, 166]
+        else:
+            # For original ComplexConv architecture
+            near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+            near_fields_complex = near_fields_complex.unsqueeze(1)
+            output = self.cvnn(near_fields_complex)
+        
+        output = output.view(-1, self.output_size)
         return output
   
     def configure_optimizers(self):

@@ -127,6 +127,13 @@ def get_model_identifier(conf):
         return (f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
                 f'batch: {batch_size}, lstm_layers: {lstm_num_layers}, i_dims: {lstm_i_dims}, '
                 f'h_dims: {lstm_h_dims}, seq_len: {seq_len}')
+    elif model_type == 'cvnn':
+        if conf.model.cvnn.get('use_resnet', False):
+            return (f'{title} - Model: ResNet18, lr: {lr}, lr_scheduler: {lr_scheduler}, '
+                    f'optimizer: {optimizer}, batch: {batch_size}')
+        else:
+            return (f'{title} - lr: {lr}, lr_scheduler: {lr_scheduler}, optimizer: {optimizer}, '
+                    f'batch: {batch_size}, mlp_layers: {conf.model.cvnn.layers}')
     elif model_type in ['convlstm', 'ae-convlstm']:
         in_channels = conf.model.convlstm.in_channels
         out_channels = conf.model.convlstm.out_channels
@@ -354,8 +361,9 @@ def metrics(test_results, fold_idx=None, dataset='valid',
     try:    
         truth = test_results[dataset]['nf_truth']
         pred = test_results[dataset]['nf_pred']
-        truth_resim = None
-        pred_resim = None
+        # For inverse models (including ResNet), get resimulated fields if available
+        truth_resim = test_results[dataset].get('field_truth', None)
+        pred_resim = test_results[dataset].get('field_resim', None)
 
     except KeyError:
         truth = test_results[dataset]['radii_truth']
@@ -680,13 +688,13 @@ def plot_absolute_difference(conf, test_results, resub=False, sample_idx=0,
         sample_idx (int): Index of sample to plot
         save_fig (bool): Whether to save the figure
         save_dir (str): Directory to save figure if save_fig is True
-        arch (str): Architecture type ('mlp' or 'lstm')
+        arch (str): Architecture type ('mlp', 'lstm', 'cvnn', 'resnet', etc.)
         fold_num: the fold # of the selected fold being plotted (if cross val)
 
     """
     def plot_single_set(results, title, sample_idx):
         abs_diff = calculate_absolute_difference(results, sample_idx)
-        if arch == 'mlp' or arch == 'cvnn' or arch == 'autoencoder' or arch == "inverse":
+        if arch in ['mlp', 'cvnn', 'autoencoder', 'inverse']:
             # Extract real and imaginary differences
             real_diff = abs_diff[0, :, :]
             imag_diff = abs_diff[1, :, :]
