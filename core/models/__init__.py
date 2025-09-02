@@ -3,7 +3,6 @@ from .WaveLSTM import WaveLSTM
 from .WaveConvLSTM import WaveConvLSTM
 from .WaveAELSTM import WaveAELSTM
 from .WaveAEConvLSTM import WaveAEConvLSTM
-from .WaveDiffusion import WaveDiffusion
 from .WaveMLP import WaveMLP
 from .WaveInverseMLP import WaveInverseMLP
 from .WaveInverseConvMLP import WaveInverseConvMLP
@@ -17,7 +16,6 @@ __all__ = [
     "WaveConvLSTM",
     "WaveAELSTM",
     "WaveAEConvLSTM",
-    "WaveDiffusion",
     "WaveMLP",
     "WaveInverseMLP",
     "WaveNA",
