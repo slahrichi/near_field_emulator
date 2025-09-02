@@ -286,7 +286,7 @@ data:
 kube:
     namespace : gpn-mizzou-muem
     image : docker.io/kovaleskilab/ml_basic:v4
-    job_files : /develop/code/near_field_emulator/kube/kube_jobs  # this is a local directory
+    job_files : near_field_emulator/kube/kube_jobs  # this is a local directory
     pvc_volumes : dft-volumes # use `kubectl get pvc` to see list of pvcs
     pvc_preprocessed : nfe-data 
     pvc_results : training-results
@@ -335,7 +335,7 @@ kube:
         num_mem_lim : 128Gi
         paths :
             template : templates/load_results_job.txt
-            params: /develop/code/near_field_emulator/configs/params.yaml
+            params: near_field_emulator/configs/params.yaml
 
     evaluation_job :
         paths:
