@@ -8,7 +8,7 @@ import numpy as np
 import os
 #from geomloss import SamplesLoss
 from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
-from torchvision.models import resnet18
+from torchvision.models import resnet18, resnet50
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
@@ -73,8 +73,8 @@ class WaveInverseConvMLP(LightningModule):
          
     def build_mlp(self, input_size, mlp_conf):
         if mlp_conf.get('use_resnet', False):
-            # Initialize pre-trained ResNet18
-            model = resnet18(pretrained=True)
+            # Initialize pre-trained ResNet50
+            model = resnet50(pretrained=True)
             
             # Modify first conv layer to accept 2 channels (real and imaginary parts)
             original_layer = model.conv1
@@ -96,8 +96,9 @@ class WaveInverseConvMLP(LightningModule):
                 model.conv1.weight.data.copy_(new_w)
             
             # Replace final fully connected layer
+            # ResNet50 has a 2048-dim feature before the classifier
             model.fc = nn.Sequential(
-                nn.Linear(512, 256),
+                nn.Linear(2048, 256),
                 nn.ReLU(),
                 nn.Dropout(0.5),
                 nn.Linear(256, self.output_size)
