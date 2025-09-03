@@ -225,7 +225,7 @@ paths:
     data: 'data/'
     train: 'train/'
     valid: 'valid/'
-    results: 'results/meep_meep/convTandem/one_to_many/sequential'
+    results: 'results/meep_meep/'
     volumes: 'nfe-data/volumes'
     library: 'code/near_field_emulator/utils/neighbors_library_allrandom.pkl'
     pretrained_ae: 'meep_meep/autoencoder/model_ae-v1/'
