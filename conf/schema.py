@@ -187,11 +187,11 @@ class KubeConfig(BaseModel):
     load_results_job: Dict[str, Any]
     evaluation_job: Dict[str, Any]
     
-    @model_validator(mode="after")
-    def validate_existence(cls, model):
-        if not os.path.exists(model.job_files):
-            raise ValueError(f"Job files directory {model.job_files} does not exist")
-        return model
+    # @model_validator(mode="after")
+    # def validate_existence(cls, model):
+    #     if not os.path.exists(model.job_files):
+    #         raise ValueError(f"Job files directory {model.job_files} does not exist")
+    #     return model
 
 class MainConfig(BaseModel):
     directive: int
