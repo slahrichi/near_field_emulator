@@ -84,9 +84,16 @@ class WaveInverseConvMLP(LightningModule):
                                   padding=3, 
                                   bias=False)
             
-            # Initialize the weights of the new conv layer
+            # Initialize the weights of the new conv layer by averaging pretrained RGB
+            # weights and replicating the mean for the two input channels. This is
+            # more stable than copying two arbitrary RGB channels.
             with torch.no_grad():
-                model.conv1.weight[:, :2] = original_layer.weight[:, :2]
+                orig_w = original_layer.weight.data.clone()   # shape: [64, 3, 7, 7]
+                # mean over the input channel dimension -> [64,1,7,7]
+                w_mean = orig_w.mean(dim=1, keepdim=True)
+                # replicate mean to two channels -> [64,2,7,7]
+                new_w = w_mean.repeat(1, 2, 1, 1)
+                model.conv1.weight.data.copy_(new_w)
             
             # Replace final fully connected layer
             model.fc = nn.Sequential(
