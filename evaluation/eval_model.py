@@ -85,7 +85,7 @@ def run(conf):
     # Load model checkpoint
     model_path = os.path.join(results_dir, 'model.ckpt')
     model_instance = model_loader.select_model(saved_conf.model)
-    model_instance.load_state_dict(torch.load(model_path)['state_dict'])
+    model_instance.load_state_dict(torch.load(model_path, weights_only=False)['state_dict'])
 
     # empty logger so as not to mess with loss.csv
     logger = None
