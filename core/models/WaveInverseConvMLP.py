@@ -16,6 +16,7 @@ from pytorch_lightning import LightningModule
 import math
 import time
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
+from pathlib import Path
 
 #--------------------------------
 # Import: Custom Python Libraries
@@ -336,6 +337,7 @@ class WaveInverseConvMLP(LightningModule):
         self.organize_testing(preds, batch, batch_idx, dataloader_idx)
         
     def organize_testing(self, predictions, batch, batch_idx, dataloader_idx):
+        Path(self.save_dir).mkdir(parents=True, exist_ok=True)
         near_fields, radii = batch
     
         # Saving real part of the prediction only; double check that imaginary part can be disregarded
