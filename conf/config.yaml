@@ -56,7 +56,7 @@ model:
     #model_id: 'tandem-conv'
     #model_id: "tandem-conv-512-64"
     #model_id: "exp_A_conv_16_32_mlp_512_64"
-    model_id: "resnet_50_lr1e_5_bs_64"
+    model_id: "resnet_50_lr1e_5_bs_16"
 
     # General Model Parameters
 
@@ -198,7 +198,7 @@ model:
 #       Training Params
 #--------------------------------
 trainer:
-    batch_size: 64
+    batch_size: 16
     num_epochs: 100 # maximum
 
     accelerator: 'gpu' 
