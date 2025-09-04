@@ -140,7 +140,7 @@ def save_best_model(conf, best_model_path, n_splits=None):
         os.makedirs(results_dir, exist_ok=True)
         checkpoint_path = os.path.join(results_dir, 'model.ckpt')
         
-        best_model = torch.load(best_model_path)
+        best_model = torch.load(best_model_path, weights_only=False)
         torch.save(best_model, checkpoint_path)
         logging.info(f"Saved best overall model to {checkpoint_path}")
         
