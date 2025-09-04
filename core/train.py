@@ -71,39 +71,45 @@ class CustomEarlyStopping(EarlyStopping):
         if isinstance(current_score, torch.Tensor):
             current_score = current_score.item()
         
+        # Initialize best score on first call
         if self.initial_score is None:
             self.initial_score = current_score
             self.wait_count = 0
-            
-        # Calculate total improvement over the patience period
+            return
+
+        # Convert tensors to scalars if needed
+        if isinstance(current_score, torch.Tensor):
+            current_score_val = float(current_score.item())
+        else:
+            current_score_val = float(current_score)
+
+        best_val = float(self.initial_score) if not isinstance(self.initial_score, torch.Tensor) else float(self.initial_score.item())
+
+        # Determine whether we have an improvement beyond min_delta
         if self.mode == 'min':
-            total_improvement = self.initial_score - current_score
-            # total_improvement should be negative to match min_delta    
-            total_improvement = -total_improvement
-        else:  # mode == 'max'
-            total_improvement = current_score - self.initial_score
-            
-        if isinstance(total_improvement, torch.Tensor):
-            total_improvement = total_improvement.item()
-            
-        #if self.verbose:
-        #    print(f"\nEpoch {trainer.current_epoch}: total_improvement = {total_improvement:.5f}, min_delta = {self.min_delta}\n")
-            
-        # check if total_improvement exceeds min_delta
-        if total_improvement <= self.min_delta:
-            # reset counters
-            self.initial_score = current_score
+            is_improvement = (best_val - current_score_val) > self.min_delta
+            improvement_amount = best_val - current_score_val
+        else:
+            is_improvement = (current_score_val - best_val) > self.min_delta
+            improvement_amount = current_score_val - best_val
+
+        if is_improvement:
+            # Found sufficient improvement -> reset counters and update best
+            self.initial_score = current_score_val
             self.wait_count = 0
             if self.verbose:
-                print(f"\nEpoch {trainer.current_epoch}: Improvement of {total_improvement:.5f} observed; continuing training.\n")
-        else: # didn't improve enough
-            self.wait_count += 1
+                print(f"\nEpoch {trainer.current_epoch}: Improvement observed (amount={improvement_amount:.6f}); continuing training.\n")
+            return
+
+        # No sufficient improvement this validation call
+        self.wait_count += 1
+        if self.verbose:
+            print(f"\nEpoch {trainer.current_epoch}: No sufficient improvement; wait_count = {self.wait_count}/{self.patience}\n")
+
+        if self.wait_count >= self.patience:
             if self.verbose:
-                print(f"\nEpoch {trainer.current_epoch}: No sufficient improvement; wait_count = {self.wait_count}/{self.patience}\n")
-            if self.wait_count >= self.patience:
-                if self.verbose:
-                    print(f"\nEarlyStopping at epoch {trainer.current_epoch}: {self.monitor} did not improve by at least {self.min_delta} over the last {self.patience} epochs.\n")
-                trainer.should_stop = True
+                print(f"\nEarlyStopping at epoch {trainer.current_epoch}: {self.monitor} did not improve by at least {self.min_delta} for {self.patience} consecutive validation checks.\n")
+            trainer.should_stop = True
            
 def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar):
     """Create and return a configured Trainer instance."""
