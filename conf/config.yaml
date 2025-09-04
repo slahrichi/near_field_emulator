@@ -56,12 +56,12 @@ model:
     #model_id: 'tandem-conv'
     #model_id: "tandem-conv-512-64"
     #model_id: "exp_A_conv_16_32_mlp_512_64"
-    model_id: "resnet_50_lr1e_3_bs_64"
+    model_id: "resnet_50_lr1e_4_bs_64"
 
     # General Model Parameters
 
     optimizer: 'ADAM'
-    learning_rate: 1.e-3
+    learning_rate: 1.e-4
     lr_scheduler: 'ReduceLROnPlateau'
     #lr_scheduler: 'CosineAnnealingLR'
     load_checkpoint: False
