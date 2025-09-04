@@ -72,9 +72,13 @@ class WaveInverseConvMLP(LightningModule):
                             'valid': {'radii_pred': [], 'radii_truth': [],  'field_resim': [], 'field_truth': []}}
          
     def build_mlp(self, input_size, mlp_conf):
+        # mlp_conf is expected to be a dict from the yaml config
         if mlp_conf.get('use_resnet', False):
-            # Initialize pre-trained ResNet50
-            model = resnet50(pretrained=True)
+            resnet_variant = mlp_conf.get('resnet_variant', 'resnet18')
+            if resnet_variant == 'resnet50':
+                model = resnet50(pretrained=True)
+            else:
+                model = resnet18(pretrained=True)
             
             # Modify first conv layer to accept 2 channels (real and imaginary parts)
             original_layer = model.conv1
@@ -96,9 +100,10 @@ class WaveInverseConvMLP(LightningModule):
                 model.conv1.weight.data.copy_(new_w)
             
             # Replace final fully connected layer
-            # ResNet50 has a 2048-dim feature before the classifier
+            # ResNet feature dim: 2048 for resnet50, 512 for resnet18
+            feat_dim = 2048 if mlp_conf.get('resnet_variant', 'resnet18') == 'resnet50' else 512
             model.fc = nn.Sequential(
-                nn.Linear(2048, 256),
+                nn.Linear(feat_dim, 256),
                 nn.ReLU(),
                 nn.Dropout(0.5),
                 nn.Linear(256, self.output_size)

@@ -106,6 +106,7 @@ model:
         #layers: [512, 64]
         activation: 'complexrelu'
         use_resnet: true  # Set to true to use ResNet18 instead of ComplexConv
+        resnet_variant: resnet50 #or resnet18
 
     mlp_strategy: 0
     patch_size: 3
