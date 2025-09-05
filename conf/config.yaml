@@ -56,7 +56,7 @@ model:
     #model_id: 'tandem-conv'
     #model_id: "tandem-conv-512-64"
     #model_id: "exp_A_conv_16_32_mlp_512_64"
-    model_id: "resnet_18_lr1e_4"
+    model_id: "resnet_18_lr1e_5_bs_64"
 
     # General Model Parameters
 
