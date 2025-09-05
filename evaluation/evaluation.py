@@ -300,13 +300,16 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
     truth_torch = torch.tensor(truth) if not isinstance(truth, torch.Tensor) else truth
     pred_torch  = torch.tensor(pred)  if not isinstance(pred, torch.Tensor)  else pred
     mae = np.mean(np.abs(truth - pred))
-    rmse = np.sqrt(np.mean((truth - pred) ** 2))
+    mse = np.mean((truth - pred) ** 2)
+    rmse = np.sqrt(mse)
     if truth_resim:
         truth_resim_all = np.concatenate(truth_resim, axis=0)
         pred_resim_all = np.concatenate(pred_resim, axis=0)
-        resim = np.sqrt(np.mean((truth_resim_all - pred_resim_all) ** 2))  
+        resim_mse = np.mean((truth_resim_all - pred_resim_all) ** 2)
+        resim = np.sqrt(resim_mse)
     else:
-        resim = 0
+        resim_mse = 0.0
+        resim = 0.0
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
@@ -339,8 +342,10 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
     # Build dictionary
     out = {
         'MAE': mae,
-        'RMSE': rmse,
-        'Resim': resim,
+        'MSE': mse,                # explicit MSE for predictions (radii or fields)
+        'RMSE': rmse,              # kept for backward compatibility
+        'Resim_MSE': resim_mse,    # explicit resimulation MSE
+        'Resim': resim,            # kept for backward compatibility (RMSE of resim)
         'Correlation': correlation,
         'PSNR': psnr.item(),
         'SSIM': ssim.item()
@@ -834,8 +839,8 @@ def animate_fields(test_results, dataset, sample_idx=0, seq_len=5, save_dir=None
                                 interval=250)
 
 def construct_results_table(model_names, model_types):
-    # Define the metrics to extract
-    metrics_to_extract = ["RMSE", "Correlation", "PSNR"]
+    # Define the metrics to extract (prefer explicit MSE/Resim_MSE but accept RMSE for backward compatibility)
+    metrics_to_extract = ["MSE", "RMSE", "Resim_MSE", "Resim", "Correlation", "PSNR"]
     
     # Initialize a dictionary to store results
     results = {model_type: {model_name: {"resub": {}, "testing": {}} for model_name in model_names} for model_type in model_types}
