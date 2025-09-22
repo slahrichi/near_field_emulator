@@ -93,8 +93,8 @@ class WaveMLP(LightningModule):
                 self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf['mlp_imag'])
         else:
             # Build full MLPs
-            if self.conf.data.source == 'projections':
-                self.output_size = self.conf.data.num_projections
+            if self.conf.source == 'projections':
+                self.output_size = self.conf.num_projections
                 self.model = self.build_mlp(self.num_design_conf, self.conf.cvnn, is_complex=False)
             else:
                 self.output_size = 166 * 166
@@ -152,7 +152,7 @@ class WaveMLP(LightningModule):
     def forward(self, input):
         # Forward model: radii -> near_fields
         radii = input    
-        if self.conf.data.source == 'projections':
+        if self.conf.source == 'projections':
             return self.model(radii)
 
         if self.name == 'cvnn':
