@@ -184,6 +184,8 @@ class KubeConfig(BaseModel):
     pvc_volumes: str
     pvc_preprocessed: str
     pvc_results: str
+    pvc_projections: str
+    pvc_radii: Optional[str] = None
     data_job: Dict[str, Any]
     train_job: Dict[str, Any]
     load_results_job: Dict[str, Any]
