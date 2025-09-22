@@ -8,7 +8,7 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 from pytorch_lightning import LightningModule
-from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
+#from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
 from tqdm import tqdm
 #--------------------------------
 # Import: Custom Python Libraries
@@ -67,7 +67,6 @@ class WaveNA(LightningModule):
     def forward(self, input):
         # Inverse model: near_fields -> radii
         pred_near_fields = self.forward_model(input)
-        # x now holds the design parameters optimized to produce near fields similar to target.
         return pred_near_fields
     
     def make_loss(self, pred_near_fields, near_fields_repeated, x):
@@ -76,17 +75,27 @@ class WaveNA(LightningModule):
         near_fields_real = near_fields_repeated[:, 0, :, :]
         near_fields_imag = near_fields_repeated[:, 1, :, :]
 
-        loss_fn = nn.MSELoss()
+        loss_fn = nn.MSELoss(reduction='none')
         loss_real = loss_fn(fwd_pred_real, near_fields_real)
         loss_imag = loss_fn(fwd_pred_imag, near_fields_imag)
-        mse_loss = loss_real + loss_imag
+        
+        loss_real = loss_real.sum(dim=[1, 2])  # now shape: (K*batch_size,)
+        loss_imag = loss_imag.sum(dim=[1, 2])  # now shape: (K*batch_size,)
+
+        K = self.K
+        batch_size = near_fields_repeated.shape[0] // K
+        loss_real = loss_real.view(K, batch_size)
+        loss_imag = loss_imag.view(K, batch_size)
+        mse_loss = loss_real + loss_imag  # shape: (K, batch_size)
 
         relu = torch.nn.ReLU()
         bdy_loss_all = relu(torch.abs(x - self.radii_mean) - 0.5 * self.radii_range)
-        bdy_loss = torch.sum(bdy_loss_all) * 0.10
+        bdy_loss = torch.sum(bdy_loss_all, dim=1).view(self.K, batch_size) * 0.10
         total_loss = mse_loss + bdy_loss
+        mean_loss = total_loss.mean() 
         total_loss.requires_grad_(True)
-        return total_loss    
+        mean_loss.requires_grad_(True)
+        return mean_loss, total_loss
             
     def optimize_design(self, near_fields):
         batch_size = near_fields.shape[0]
@@ -94,22 +103,28 @@ class WaveNA(LightningModule):
         near_fields_repeated = near_fields.repeat(K, 1, 1, 1)
         x = torch.rand((K*batch_size, self.num_design_conf), device=self.device, requires_grad=True)
         inner_optimizer = torch.optim.Adam([x], lr=self.learning_rate)
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(inner_optimizer, T_max=self.na_iters)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(inner_optimizer)
+        self.na_iter_losses = []
 
         for i in tqdm(range(self.na_iters)):
             inner_optimizer.zero_grad()
             # Forward pass through the frozen model (this now computes gradients w.r.t. x)
             pred_near_fields = self.forward_model(x)
             pred_near_fields.requires_grad_(True)
-            loss = self.make_loss(pred_near_fields, near_fields_repeated, x)            
+            loss, loss_per_candidate = self.make_loss(pred_near_fields, near_fields_repeated, x)            
             loss.backward()
             inner_optimizer.step()
-            scheduler.step()
-            # TODO: N_ITERS 2x what's needed to go down
+            scheduler.step(loss)
             if i % 100 == 0:  # Log for first sample in batch
                 self.log(f"na_inner_loss", loss, on_step=True)
                 print(f"Iter {i}, Loss: {loss}")
-        
+            # Record losses (detach so that we do not store the computation graph)
+            self.na_iter_losses.append(loss_per_candidate.detach().cpu().numpy())
+
+        loss_history = np.stack(self.na_iter_losses, axis=0)
+        # Save the loss history to disk (this will save to the current working directory)
+        np.save(f"na_iter_losses_{self.na_iters}_iters_{self.K}_K.npy", loss_history)
+
         x_optimized = x.view(K, batch_size, self.num_design_conf)
         x_optimized_flat = x_optimized.view(K * batch_size, self.num_design_conf)
         pred_near_fields = self.forward_model(x_optimized_flat)
@@ -120,10 +135,10 @@ class WaveNA(LightningModule):
         mse_real = torch.mean((pred_real - near_fields_real) ** 2, dim=[2, 3])
         mse_imag = torch.mean((pred_imag - near_fields_imag) ** 2, dim=[2, 3])
         mse_total = mse_real + mse_imag  # Shape: (K, batch_size)
-        min_indices = torch.argmin(mse_total, dim=0)  # Shape: (batch_size,)
-        batch_indices = torch.arange(batch_size)
-        best_x = x_optimized[min_indices, batch_indices, :]  # Shape: (batch_size, num_design_conf)
-        
+        seed_avg_mse = mse_total.mean(dim=1)
+        best_seed_index = torch.argmin(seed_avg_mse)  # Scalar index
+        print("Best overall candidate MSE:", seed_avg_mse[best_seed_index].item())
+        best_x = x_optimized[best_seed_index]
         return best_x
         
     def training_step(self, batch, batch_idx):
