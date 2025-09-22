@@ -165,7 +165,7 @@ class NF_Datamodule(LightningDataModule):
             return os.path.join(self.path_data, 'preprocessed_data', f"dataset_{self.conf.model.modelstm.method}.pt")
         else:
             #wv = str(self.conf.data.wavelength).replace('.', '')
-            return os.path.join(self.path_data, 'preprocessed_data', f'dataset.pt')
+            return os.path.join(self.path_data, 'preprocessed_data', f'dataset_155.pt')
         
     def setup_fold(self, train_idx, val_idx):
         # create subsets for the current fold
