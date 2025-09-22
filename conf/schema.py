@@ -71,6 +71,8 @@ class ModelConfig(BaseModel):
     K: int = 20
     radii_bounds: tuple = (0.0, 1.0)
     conv_out_channels: int = 16
+    source: Optional[str] = None
+    num_projections: Optional[int] = None
     
     @field_validator("arch", mode="before")
     def validate_arch(cls, value):

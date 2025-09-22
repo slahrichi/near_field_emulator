@@ -184,6 +184,10 @@ def train_once(conf, data_module):
     """
     data_module.setup_og()
 
+    # Add data source info to model config
+    conf.model.source = conf.data.source
+    conf.model.num_projections = conf.data.num_projections
+
     model_instance = model_loader.select_model(conf.model)
     logger = custom_logger.Logger(
         all_paths=conf.paths,
@@ -249,6 +253,11 @@ def train_with_cross_validation(conf, data_module):
         if fold_idx > 0:
             clear_memory()
 
+        # Add data source info to model config
+        conf.model.source = conf.data.source
+        conf.model.num_projections = conf.data.num_projections
+
+        # Pass the model config to the model
         model_instance = model_loader.select_model(conf.model, fold_idx)
         data_module.setup_fold(train_idx, val_idx)
 
