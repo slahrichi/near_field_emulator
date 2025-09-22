@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from complexPyTorch.complexFunctions import complex_relu
+#from complexPyTorch.complexFunctions import complex_relu
 
 class ComplexLinearFinal(nn.Module):
     """Complex-valued Linear Layer."""
