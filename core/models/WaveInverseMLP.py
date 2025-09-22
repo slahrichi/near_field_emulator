@@ -62,7 +62,12 @@ class WaveInverseMLP(LightningModule):
         # we are also using CVNN
         self.output_size = 9
         if self.name == "inverse":
-            self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+            if self.conf.data.source == 'projections':
+                input_size = self.conf.data.num_projections
+                self.model = self.build_mlp(input_size, self.conf.cvnn, is_complex=False)
+            else:
+                input_size = self.num_design_conf
+                self.model = self.build_mlp(input_size, self.conf.cvnn, is_complex=True)
         else:
             raise ValueError("Inverse model not supported with multiple MLPs yet")
 
@@ -73,22 +78,22 @@ class WaveInverseMLP(LightningModule):
         self.test_results = {'train': {'radii_pred': [], 'radii_truth': [], 'field_resim': [], 'field_truth': []},
                             'valid': {'radii_pred': [], 'radii_truth': [],  'field_resim': [], 'field_truth': []}}
          
-    def build_mlp(self, input_size, mlp_conf):
+    def build_mlp(self, input_size, mlp_conf, is_complex=True):
         layers = []
         in_features = input_size
         for layer_size in mlp_conf['layers']:
-            if self.name == 'inverse': # complex-valued NN
+            if is_complex:
                 layers.append(ComplexLinear(in_features, layer_size))
-            else: # real-valued NN
-                raise ValueError(f"Only supporting CVNN for inverse for now. You are trying to use {self.name}")
-            layers.append(self.get_activation_function(mlp_conf['activation']))
+                layers.append(self.get_activation_function(mlp_conf['activation']))
+            else:
+                layers.append(nn.Linear(in_features, layer_size))
+                layers.append(nn.ReLU()) # Default to ReLU for real-valued MLP
             in_features = layer_size
-        if self.name == 'inverse':
-            # this should actually be self.name == "cvnn",
-            # TODO: in the future, if we want to use non-complex NN, we would need to add a flag to differentiate CVNN from MLP in the Inverse Setting. 
+        
+        if is_complex:
             layers.append(ComplexLinearFinal(in_features, self.output_size))
         else:
-            raise ValueError(f"Only supporting CVNN for inverse for now. You are trying to use {self.name}")
+            layers.append(nn.Linear(in_features, self.output_size))
         return nn.Sequential(*layers)
         
     def get_activation_function(self, activation_name):
@@ -109,11 +114,16 @@ class WaveInverseMLP(LightningModule):
         
     def forward(self, input):
         # Inverse model: near_fields -> radii
-        near_fields = input
-        near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
-        near_fields_flat = near_fields_complex.view(near_fields_complex.size(0), -1)
-        output = self.cvnn(near_fields_flat)
-        output.view(-1, 9)
+        if self.conf.data.source == 'projections':
+            # Input is already a vector of projections
+            output = self.model(input)
+        else:
+            near_fields = input
+            near_fields_complex = torch.complex(near_fields[:, 0, :, :], near_fields[:, 1, :, :])
+            near_fields_flat = near_fields_complex.view(near_fields_complex.size(0), -1)
+            output = self.model(near_fields_flat)
+        
+        output = output.view(-1, self.output_size)
         return output
   
     def configure_optimizers(self):

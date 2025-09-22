@@ -87,18 +87,22 @@ class WaveMLP(LightningModule):
         elif self.strat == "all_slices": # all_slices
             self.output_size = 166 * 166 * 63 
             if self.name == 'cvnn':
-                self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+                self.cvnn = self.build_mlp(self.num_design_conf, self.conf['cvnn'])
             else:
-                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
-                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf['mlp_real'])
+                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf['mlp_imag'])
         else:
             # Build full MLPs
-            self.output_size = 166 * 166
-            if self.name == 'cvnn':
-                self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+            if self.conf.data.source == 'projections':
+                self.output_size = self.conf.data.num_projections
+                self.model = self.build_mlp(self.num_design_conf, self.conf.cvnn, is_complex=False)
             else:
-                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
-                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+                self.output_size = 166 * 166
+                if self.name == 'cvnn':
+                    self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+                else:
+                    self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
+                    self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
         
         self.save_hyperparameters()
         
@@ -111,17 +115,19 @@ class WaveMLP(LightningModule):
         self.val_psnr = PeakSignalNoiseRatio(data_range=1.0)
         self.val_ssim = StructuralSimilarityIndexMeasure(data_range=1.0)
          
-    def build_mlp(self, input_size, mlp_conf):
+    def build_mlp(self, input_size, mlp_conf, is_complex=True):
         layers = []
         in_features = input_size
         for layer_size in mlp_conf['layers']:
-            if self.name == 'cvnn': # complex-valued NN
+            if is_complex:
                 layers.append(ComplexLinear(in_features, layer_size))
-            else: # real-valued NN
+                layers.append(self.get_activation_function(mlp_conf['activation']))
+            else:
                 layers.append(nn.Linear(in_features, layer_size))
-            layers.append(self.get_activation_function(mlp_conf['activation']))
+                layers.append(nn.ReLU())
             in_features = layer_size
-        if self.name == 'cvnn':
+
+        if is_complex:
             layers.append(ComplexLinearFinal(in_features, self.output_size))
         else:
             layers.append(nn.Linear(in_features, self.output_size))
@@ -146,6 +152,9 @@ class WaveMLP(LightningModule):
     def forward(self, input):
         # Forward model: radii -> near_fields
         radii = input    
+        if self.conf.data.source == 'projections':
+            return self.model(radii)
+
         if self.name == 'cvnn':
             # Convert radii to complex numbers
             radii_complex = torch.complex(radii, torch.zeros_like(radii))

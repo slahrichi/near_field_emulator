@@ -47,16 +47,8 @@ model:
         # - 11: WaveInverseConvMLP
     # - model_id: model identifier / name
 
-    arch: 11
-    #model_id: "td-bdy-conv-16-32-mlp-512-64-lr-1e-5"
-    #model_id: "tandem-v3"
-    #model_id: "inverse-v3"
-    #model_id: 'Tandem-bdy-sensitivity'
-    #model_id: 'Tandem-bdy-ReducePlat'
-    #model_id: 'tandem-conv'
-    #model_id: "tandem-conv-512-64"
-    #model_id: "exp_A_conv_16_32_mlp_512_64"
-    model_id: "resnet_50_lr1e_4_bs_16"
+    arch: 9
+    model_id: "inverse_projections_10"
 
     # General Model Parameters
 
@@ -99,14 +91,14 @@ model:
 
     cvnn:
         #layers: [64, 512] # forward
-        #layers: [512, 64] # inverse
-        conv_layers: [[16, 5, 5], [32, 5, 5]]
-        layers: [512, 64]
+        layers: [512, 64] # inverse
+        #conv_layers: [[16, 5, 5], [32, 5, 5]]
+        #layers: [512, 64]
         #layers: [256, 32]
         #layers: [512, 64]
         activation: 'complexrelu'
-        use_resnet: true  # Set to true to use ResNet18 instead of ComplexConv
-        resnet_variant: resnet50 # options are 18 and 50
+        use_resnet: false
+        #resnet_variant: resnet50 # options are 18 and 50
 
     mlp_strategy: 0
     patch_size: 3
@@ -280,6 +272,8 @@ data:
     all_slices: True
     wavelength: 1.55
     eval_wavelength: 1.55
+    source: 'projections' # 'fields' or 'projections'
+    num_projections: 10 # Number of projections to use as input
 
 #--------------------------------
 #       Kube Params
@@ -291,6 +285,8 @@ kube:
     pvc_volumes : dft-volumes # use `kubectl get pvc` to see list of pvcs
     pvc_preprocessed : nfe-data 
     pvc_results : training-results
+    pvc_projections: braket_results
+    pvc_radii: meep_dataset_v2
 
     data_job:
         num_cpus : 32
@@ -340,4 +336,4 @@ kube:
 
     evaluation_job :
         paths:
-            template : kube/templates/evaluation_job.txt   
+            template : kube/templates/evaluation_job.txt

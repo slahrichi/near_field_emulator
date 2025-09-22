@@ -69,6 +69,77 @@ class NF_Datamodule(LightningDataModule):
 
     # TODO: Getting a bit messy, consider abstraction/subclassing
     def setup(self, stage: Optional[str] = None):
+        if self.conf.data.source == 'projections':
+            self.setup_projections()
+        else:
+            self.setup_fields()
+
+    def setup_projections(self):
+        # Load projections and radii from their respective PVCs
+        projections_path = os.path.join(self.conf.paths.root, 'data', self.conf.kube.pvc_projections, 'projections.pt')
+        radii_path = os.path.join(self.conf.paths.root, 'data', self.conf.kube.pvc_radii, 'radii.pt')
+        
+        projections_file = os.path.join(f"/data/{self.conf.kube.pvc_projections}/", "projections_0.pkl")
+
+        # Load projections
+        try:
+            with open(projections_file, 'rb') as f:
+                projections_data = pickle.load(f)
+            print(f"Successfully loaded projections from {projections_file}")
+        except FileNotFoundError:
+            print(f"ERROR: Projections file not found at {projections_file}")
+            return
+        except Exception as e:
+            print(f"ERROR: Failed to load or process projections file: {e}")
+            return
+            
+        # The projections_data is a dictionary, let's get the actual tensor
+        projections = projections_data['projections']
+        # Select the number of projections specified in the config
+        projections = projections[:, :self.conf.data.num_projections]
+        projections = torch.tensor(projections, dtype=torch.float32)
+
+
+        # Load radii by scanning directories
+        radii_list = []
+        simulation_dirs = sorted([d for d in os.listdir(f"/data/{self.conf.kube.pvc_radii}/") if os.path.isdir(os.path.join(f"/data/{self.conf.kube.pvc_radii}/", d)) and d.isdigit()])
+        
+        print(f"Found {len(simulation_dirs)} simulation directories in {f'/data/{self.conf.kube.pvc_radii}/'}")
+
+        for sim_dir in simulation_dirs:
+            metadata_file = os.path.join(f"/data/{self.conf.kube.pvc_radii}/", sim_dir, f"metadata_{int(sim_dir):05d}.pkl")
+            try:
+                with open(metadata_file, 'rb') as f:
+                    metadata = pickle.load(f)
+                    # Assuming radii are stored under the key 'radii' in the metadata
+                    radii_list.append(metadata['radii'])
+            except FileNotFoundError:
+                print(f"Warning: Metadata file not found at {metadata_file}, skipping.")
+                continue
+            except KeyError:
+                print(f"Warning: 'radii' key not found in {metadata_file}, skipping.")
+                continue
+            except Exception as e:
+                print(f"ERROR: Failed to load or process metadata file {metadata_file}: {e}")
+                continue
+        
+        if not radii_list:
+            print("ERROR: No radii data could be loaded. Please check the PVC structure and metadata file contents.")
+            return
+
+        radii = torch.tensor(np.array(radii_list), dtype=torch.float32)
+        print(f"Successfully loaded {len(radii)} radii samples.")
+
+        # Ensure projections and radii have the same number of samples
+        num_samples = min(len(projections), len(radii))
+        projections = projections[:num_samples]
+        radii = radii[:num_samples]
+        print(f"Using {num_samples} consistent samples for training.")
+
+        # Combine into a single dataset
+        self.dataset = ProjectionsDataset(projections, radii, self.conf.data.num_projections)
+
+    def setup_fields(self):
         datapath = self.get_datapath()
         data = torch.load(datapath)
         if self.conf.data.subset:
@@ -139,6 +210,17 @@ class NF_Datamodule(LightningDataModule):
                           num_workers=self.n_cpus,
                           shuffle=False
                         )
+
+class ProjectionsDataset(Dataset):
+    def __init__(self, projections, radii):
+        self.projections = projections
+        self.radii = radii
+
+    def __len__(self):
+        return len(self.projections)
+
+    def __getitem__(self, idx):
+        return self.projections[idx], self.radii[idx]
 
 class WaveMLP_Dataset(Dataset):
     """
