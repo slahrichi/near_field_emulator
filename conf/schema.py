@@ -140,7 +140,9 @@ class DataConfig(BaseModel):
     all_slices: bool = False
     wavelength: float
     eval_wavelength: float
-    
+    source: Literal['fields', 'projections'] = 'fields'
+    num_projections: Optional[int] = None
+
     @field_validator("wavelength", mode="before")
     def validate_wavelength(cls, value):
         possibilities = [2.881, 1.65, 1.55, 1.3, 1.06]
