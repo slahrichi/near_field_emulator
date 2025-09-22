@@ -84,9 +84,14 @@ class NF_Datamodule(LightningDataModule):
             with open(projections_file, 'rb') as f:
                 projections_data = pickle.load(f)
             print(f"Successfully loaded projections from {projections_file}")
-            projections = projections_data['projections']
-            projections = projections[:, :self.conf.data.num_projections]
-            projections = torch.tensor(projections, dtype=torch.float32)
+            
+            # Correctly slice each projection array in the list
+            num_projections_to_use = self.conf.data.num_projections
+            sliced_projections = [p[:num_projections_to_use] for p in projections_data['projections']]
+            
+            # Convert the list of sliced arrays into a single 2D tensor
+            projections = torch.tensor(np.array(sliced_projections), dtype=torch.float32)
+            
         except Exception as e:
             print(f"ERROR: Failed to load or process projections file {projections_file}: {e}")
             return
