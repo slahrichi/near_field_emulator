@@ -65,8 +65,8 @@ class ModelConfig(BaseModel):
     io_mode: str = "one_to_many"
     autoreg: bool = True
     spacing_mode: str = "sequential"
-    forward_ckpt_path: str = ""
-    forward_config_path: str = ""
+    forward_ckpt_path: Optional[str] = ""
+    forward_config_path: Optional[str] = ""
     na_iters: int = 50
     K: int = 20
     radii_bounds: tuple = (0.0, 1.0)
