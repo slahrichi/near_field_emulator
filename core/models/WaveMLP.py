@@ -44,151 +44,51 @@ class WaveMLP(LightningModule):
         self.model_id = self.conf.model_id
         self.save_dir = f'/develop/results/meep_meep/{self.name}/model_{self.model_id}'
 
-        if self.conf.mlp_strategy == 0:
-            self.strat = 'standard'
-            self.output_size = 166 * 166
-        elif self.conf.mlp_strategy == 1:
-            self.strat = 'patch'
-        elif self.conf.mlp_strategy == 2:
-            self.strat = 'distributed'
-        elif self.conf.mlp_strategy == 3:
-            self.strat = 'all_slices'
-        else:
-            raise ValueError("Approach not recognized.")
-        
-        if self.strat == 'patch': # patch-wise
-            self.output_size = (self.patch_size)**2
-            self.num_patches_height = math.ceil(166 / self.patch_size)
-            self.num_patches_width = math.ceil(166 / self.patch_size)
-            self.num_patches = self.num_patches_height * self.num_patches_width
-            # determine whether or not to use complex-valued NN
-            # if not, we have separate MLPs, if so, we have one MLP
-            if self.name == 'cvnn':
-                self.cvnn = nn.ModuleList([
-                    self.build_mlp(self.num_design_conf, self.conf['cvnn']) for _ in range(self.num_patches)
-                ])
-            else:
-                # Build MLPs for each patch
-                self.mlp_real = nn.ModuleList([
-                self.build_mlp(self.num_design_conf, self.conf['mlp_real']) for _ in range(self.num_patches)
-                ])
-                self.mlp_imag = nn.ModuleList([
-                    self.build_mlp(self.num_design_conf, self.conf['mlp_imag']) for _ in range(self.num_patches)
-                ])
-                
-        elif self.strat == 'distributed': # distributed subset
-            self.output_size = (self.patch_size)**2
-            if self.name == 'cvnn':
-                self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
-            else:
-                # build MLPs
-                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
-                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
-
-        elif self.strat == "all_slices": # all slices at once
-            self.output_size = (166*166*63)
-            input_size = self.num_design_conf
-            self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
-            self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
-            
         if self.conf.source == 'projections':
-            input_size = self.num_design_conf
-            self.output_size = self.conf.num_projections
+            self.input_size = self.num_design_conf
+            self.output_size = self.conf.data.num_projections
             if self.name == 'cvnn':
-                self.model = self.build_mlp(input_size, self.conf.cvnn, is_complex=True)
+                self.model = self.build_mlp(self.input_size, self.conf.cvnn, is_complex=True)
             else:
-                self.model_real = self.build_mlp(input_size, self.conf.mlp_real, is_complex=False)
-                self.model_imag = self.build_mlp(input_size, self.conf.mlp_imag, is_complex=False)
+                self.model_real = self.build_mlp(self.input_size, self.conf.mlp_real, is_complex=False)
+                self.model_imag = self.build_mlp(self.input_size, self.conf.mlp_imag, is_complex=False)
         else:
+            self.input_size = self.num_design_conf
             if self.strat == 'standard': # full image
+                self.output_size = 166 * 166
                 if self.name == 'cvnn':
-                    self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+                    self.cvnn = self.build_mlp(self.input_size, self.conf.cvnn)
                 else:
-                    self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
-                    self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+                    self.mlp_real = self.build_mlp(self.input_size, self.conf.mlp_real)
+                    self.mlp_imag = self.build_mlp(self.input_size, self.conf.mlp_imag)
             elif self.strat == 'patch': # patch-wise
                 self.output_size = (self.patch_size)**2
                 self.num_patches_height = math.ceil(166 / self.patch_size)
                 self.num_patches_width = math.ceil(166 / self.patch_size)
                 self.num_patches = self.num_patches_height * self.num_patches_width
-                # determine whether or not to use complex-valued NN
-                # if not, we have separate MLPs, if so, we have one MLP
                 if self.name == 'cvnn':
                     self.cvnn = nn.ModuleList([
-                        self.build_mlp(self.num_design_conf, self.conf['cvnn']) for _ in range(self.num_patches)
+                        self.build_mlp(self.input_size, self.conf['cvnn']) for _ in range(self.num_patches)
                     ])
                 else:
-                    # Build MLPs for each patch
                     self.mlp_real = nn.ModuleList([
-                    self.build_mlp(self.num_design_conf, self.conf['mlp_real']) for _ in range(self.num_patches)
+                        self.build_mlp(self.input_size, self.conf['mlp_real']) for _ in range(self.num_patches)
                     ])
                     self.mlp_imag = nn.ModuleList([
-                        self.build_mlp(self.num_design_conf, self.conf['mlp_imag']) for _ in range(self.num_patches)
+                        self.build_mlp(self.input_size, self.conf['mlp_imag']) for _ in range(self.num_patches)
                     ])
-                    
             elif self.strat == 'distributed': # distributed subset
                 self.output_size = (self.patch_size)**2
                 if self.name == 'cvnn':
-                    self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+                    self.cvnn = self.build_mlp(self.input_size, self.conf.cvnn)
                 else:
-                    # build MLPs
-                    self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
-                    self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
-
+                    self.mlp_real = self.build_mlp(self.input_size, self.conf.mlp_real)
+                    self.mlp_imag = self.build_mlp(self.input_size, self.conf.mlp_imag)
             elif self.strat == "all_slices": # all slices at once
                 self.output_size = (166*166*63)
-                input_size = self.num_design_conf
-                self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
-                self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
-            if self.conf.source == 'projections':
-                input_size = self.num_design_conf
-                self.output_size = self.conf.data.num_projections
-                if self.name == 'cvnn':
-                    self.model = self.build_mlp(input_size, self.conf.mlp, is_complex=True)
-                else:
-                    self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
-                    self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
-            else:
-                if self.strat == 'standard': # full image
-                    if self.name == 'cvnn':
-                        self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
-                    else:
-                        self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
-                        self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
-                elif self.strat == 'patch': # patch-wise
-                    self.output_size = (self.patch_size)**2
-                    self.num_patches_height = math.ceil(166 / self.patch_size)
-                    self.num_patches_width = math.ceil(166 / self.patch_size)
-                    self.num_patches = self.num_patches_height * self.num_patches_width
-                    # determine whether or not to use complex-valued NN
-                    # if not, we have separate MLPs, if so, we have one MLP
-                    if self.name == 'cvnn':
-                        self.cvnn = nn.ModuleList([
-                            self.build_mlp(self.num_design_conf, self.conf['cvnn']) for _ in range(self.num_patches)
-                        ])
-                    else:
-                        # Build MLPs for each patch
-                        self.mlp_real = nn.ModuleList([
-                        self.build_mlp(self.num_design_conf, self.conf['mlp_real']) for _ in range(self.num_patches)
-                        ])
-                        self.mlp_imag = nn.ModuleList([
-                            self.build_mlp(self.num_design_conf, self.conf['mlp_imag']) for _ in range(self.num_patches)
-                        ])
-                        
-                elif self.strat == 'distributed': # distributed subset
-                    self.output_size = (self.patch_size)**2
-                    if self.name == 'cvnn':
-                        self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
-                    else:
-                        # build MLPs
-                        self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
-                        self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
-
-                elif self.strat == "all_slices": # all slices at once
-                    self.output_size = (166*166*63)
-                    input_size = self.num_design_conf
-                    self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
-                    self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+                self.model_real = self.build_mlp(self.input_size, self.conf.mlp, is_complex=False)
+                self.model_imag = self.build_mlp(self.input_size, self.conf.mlp, is_complex=False)
+            
         if self.conf.source == 'projections':
             self.input_size = self.num_design_conf
             self.output_size = self.conf.num_projections
@@ -198,14 +98,50 @@ class WaveMLP(LightningModule):
                 self.model_real = self.build_mlp(self.input_size, self.conf.mlp_real, is_complex=False)
                 self.model_imag = self.build_mlp(self.input_size, self.conf.mlp_imag, is_complex=False)
         else:
-            # Build full MLPs
-            self.input_size = self.num_design_conf
-            self.output_size = 166 * 166
-            if self.name == 'cvnn':
-                self.cvnn = self.build_mlp(self.input_size, self.conf.cvnn)
-            else:
-                self.mlp_real = self.build_mlp(self.input_size, self.conf.mlp_real)
-                self.mlp_imag = self.build_mlp(self.input_size, self.conf.mlp_imag)
+            if self.strat == 'standard': # full image
+                self.input_size = self.num_design_conf
+                self.output_size = 166 * 166
+                if self.name == 'cvnn':
+                    self.cvnn = self.build_mlp(self.input_size, self.conf.cvnn)
+                else:
+                    self.mlp_real = self.build_mlp(self.input_size, self.conf.mlp_real)
+                    self.mlp_imag = self.build_mlp(self.input_size, self.conf.mlp_imag)
+            elif self.strat == 'patch': # patch-wise
+                self.input_size = self.num_design_conf
+                self.output_size = (self.patch_size)**2
+                self.num_patches_height = math.ceil(166 / self.patch_size)
+                self.num_patches_width = math.ceil(166 / self.patch_size)
+                self.num_patches = self.num_patches_height * self.num_patches_width
+                # determine whether or not to use complex-valued NN
+                # if not, we have separate MLPs, if so, we have one MLP
+                if self.name == 'cvnn':
+                    self.cvnn = nn.ModuleList([
+                        self.build_mlp(self.input_size, self.conf['cvnn']) for _ in range(self.num_patches)
+                    ])
+                else:
+                    # Build MLPs for each patch
+                    self.mlp_real = nn.ModuleList([
+                    self.build_mlp(self.input_size, self.conf['mlp_real']) for _ in range(self.num_patches)
+                    ])
+                    self.mlp_imag = nn.ModuleList([
+                        self.build_mlp(self.input_size, self.conf['mlp_imag']) for _ in range(self.num_patches)
+                    ])
+                    
+            elif self.strat == 'distributed': # distributed subset
+                self.input_size = self.num_design_conf
+                self.output_size = (self.patch_size)**2
+                if self.name == 'cvnn':
+                    self.cvnn = self.build_mlp(self.input_size, self.conf.cvnn)
+                else:
+                    # build MLPs
+                    self.mlp_real = self.build_mlp(self.input_size, self.conf.mlp_real)
+                    self.mlp_imag = self.build_mlp(self.input_size, self.conf.mlp_imag)
+
+            elif self.strat == "all_slices": # all slices at once
+                self.output_size = (166*166*63)
+                self.input_size = self.num_design_conf
+                self.model_real = self.build_mlp(self.input_size, self.conf.mlp, is_complex=False)
+                self.model_imag = self.build_mlp(self.input_size, self.conf.mlp, is_complex=False)
         
         self.save_hyperparameters()
         
