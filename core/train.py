@@ -54,16 +54,18 @@ class CustomEarlyStopping(EarlyStopping):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def _log_info(self, trainer, reason: str):
-        super()._log_info(trainer, reason)
-        if self.verbose:
-            print(f"Epoch {trainer.current_epoch}: {reason}")
+    def _log_info(self, trainer, reason: str, log_rank_zero_only: bool = False):
+        super()._log_info(trainer, reason, log_rank_zero_only)
+        # The parent class's logging is already quite informative.
+        # You can add more custom logging here if needed.
 
     def on_validation_end(self, trainer, pl_module):
         super().on_validation_end(trainer, pl_module)
         if self.verbose and not trainer.should_stop:
-            print(f"Epoch {trainer.current_epoch}: Monitored metric {self.monitor} = {trainer.callback_metrics.get(self.monitor):.6f}. "
-                  f"Patience count = {self.wait_count}/{self.patience}.")
+            current_score = trainer.callback_metrics.get(self.monitor)
+            if current_score is not None:
+                print(f"Epoch {trainer.current_epoch}: Monitored metric {self.monitor} = {current_score:.6f}. "
+                      f"Patience count = {self.wait_count}/{self.patience}.")
            
 def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar):
     """Create and return a configured Trainer instance."""
