@@ -69,7 +69,7 @@ class NF_Datamodule(LightningDataModule):
 
     # TODO: Getting a bit messy, consider abstraction/subclassing
     def setup(self, stage: Optional[str] = None):
-        if self.conf.data.source == 'projections':
+        if self.conf.model.source == 'projections':
             self.setup_projections()
         else:
             self.setup_fields()
