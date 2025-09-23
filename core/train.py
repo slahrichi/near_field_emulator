@@ -50,64 +50,52 @@ class CustomProgressBar(TQDMProgressBar):
         return base_metrics
     
 class CustomEarlyStopping(EarlyStopping):
-    """Custom Early Stopping class for controlling the training loop;  
+    """Custom Early Stopping class for controlling the training loop;
     ensuring that we terminate the model after it stops improving.
     """
     def __init__(self, monitor='val_loss', patience=5, min_delta=0.01, mode='min', verbose=True):
         super().__init__(monitor=monitor, patience=patience, min_delta=min_delta, mode=mode, verbose=verbose)
         self.wait_count = 0
-        self.best_score = None
         self.last_epoch_processed = -1
-        
+
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.current_epoch == self.last_epoch_processed:
             return
         self.last_epoch_processed = trainer.current_epoch
-        
-        current_score = trainer.callback_metrics[self.monitor]
+
+        current_score = trainer.callback_metrics.get(self.monitor)
         if current_score is None:
             return
-        
-        if isinstance(current_score, torch.Tensor):
-            current_score = current_score.item()
-        
-        # Initialize best score on first call
+
+        # Ensure current_score is a tensor
+        if not isinstance(current_score, torch.Tensor):
+            current_score = torch.tensor(current_score, device=pl_module.device)
+
+        # Initialize best_score if it's not set
         if self.best_score is None:
             self.best_score = current_score
             self.wait_count = 0
             return
 
-        # Convert tensors to scalars if needed
-        if isinstance(current_score, torch.Tensor):
-            current_score_val = float(current_score.item())
-        else:
-            current_score_val = float(current_score)
-
-        # Determine whether we have an improvement beyond min_delta
-        if self.mode == 'min':
-            is_improvement = (self.best_score - current_score_val) > self.min_delta
-            improvement_amount = self.best_score - current_score_val
-        else:
-            is_improvement = (current_score_val - self.best_score) > self.min_delta
-            improvement_amount = current_score_val - self.best_score
-
-        if is_improvement:
-            # Found sufficient improvement -> reset counters and update best
-            self.best_score = current_score_val
+        # Determine if there is an improvement
+        if self.monitor_op(current_score - self.min_delta, self.best_score.to(current_score.device)):
+            improvement_amount = abs(self.best_score - current_score)
+            self.best_score = current_score
             self.wait_count = 0
             if self.verbose:
-                print(f"\nEpoch {trainer.current_epoch}: Improvement observed (amount={improvement_amount:.6f}); continuing training.\n")
-            return
-
-        # No sufficient improvement this validation call
-        self.wait_count += 1
-        if self.verbose:
-            print(f"\nEpoch {trainer.current_epoch}: No sufficient improvement; wait_count = {self.wait_count}/{self.patience}\n")
-
-        if self.wait_count >= self.patience:
+                print(f"\nEpoch {trainer.current_epoch}: Improvement observed (amount={improvement_amount:.6f}); "
+                      f"continuing training.\n")
+        else:
+            self.wait_count += 1
             if self.verbose:
-                print(f"\nEarlyStopping at epoch {trainer.current_epoch}: {self.monitor} did not improve by at least {self.min_delta} for {self.patience} consecutive validation checks.\n")
-            trainer.should_stop = True
+                print(f"\nEpoch {trainer.current_epoch}: No sufficient improvement; "
+                      f"wait_count = {self.wait_count}/{self.patience}\n")
+
+            if self.wait_count >= self.patience:
+                if self.verbose:
+                    print(f"\nEarlyStopping at epoch {trainer.current_epoch}: {self.monitor} did not improve by at "
+                          f"least {self.min_delta} for {self.patience} consecutive validation checks.\n")
+                trainer.should_stop = True
            
 def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar):
     """Create and return a configured Trainer instance."""
