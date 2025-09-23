@@ -56,7 +56,7 @@ class CustomEarlyStopping(EarlyStopping):
     def __init__(self, monitor='val_loss', patience=5, min_delta=0.01, mode='min', verbose=True):
         super().__init__(monitor=monitor, patience=patience, min_delta=min_delta, mode=mode, verbose=verbose)
         self.wait_count = 0
-        self.initial_score = None
+        self.best_score = None
         self.last_epoch_processed = -1
         
     def on_validation_epoch_end(self, trainer, pl_module):
@@ -72,8 +72,8 @@ class CustomEarlyStopping(EarlyStopping):
             current_score = current_score.item()
         
         # Initialize best score on first call
-        if self.initial_score is None:
-            self.initial_score = current_score
+        if self.best_score is None:
+            self.best_score = current_score
             self.wait_count = 0
             return
 
@@ -83,19 +83,17 @@ class CustomEarlyStopping(EarlyStopping):
         else:
             current_score_val = float(current_score)
 
-        best_val = float(self.initial_score) if not isinstance(self.initial_score, torch.Tensor) else float(self.initial_score.item())
-
         # Determine whether we have an improvement beyond min_delta
         if self.mode == 'min':
-            is_improvement = (best_val - current_score_val) > self.min_delta
-            improvement_amount = best_val - current_score_val
+            is_improvement = (self.best_score - current_score_val) > self.min_delta
+            improvement_amount = self.best_score - current_score_val
         else:
-            is_improvement = (current_score_val - best_val) > self.min_delta
-            improvement_amount = current_score_val - best_val
+            is_improvement = (current_score_val - self.best_score) > self.min_delta
+            improvement_amount = current_score_val - self.best_score
 
         if is_improvement:
             # Found sufficient improvement -> reset counters and update best
-            self.initial_score = current_score_val
+            self.best_score = current_score_val
             self.wait_count = 0
             if self.verbose:
                 print(f"\nEpoch {trainer.current_epoch}: Improvement observed (amount={improvement_amount:.6f}); continuing training.\n")
@@ -337,5 +335,5 @@ def run(conf):
         train_with_cross_validation(conf, data_module)
     else: # run once
         train_once(conf, data_module)
-    shutil.copy('/develop/code/near_field_emulator/conf/config.yaml', os.path.join(conf.paths.results, 'params.yaml'))
+    shutil.copy('/app/near_field_emulator/conf/config.yaml', os.path.join(conf.paths.results, 'params.yaml'))
     

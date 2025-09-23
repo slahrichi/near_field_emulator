@@ -299,6 +299,11 @@ class WaveMLP(LightningModule):
             # Mean Squared Error
             preds = preds.to(torch.float32).contiguous()
             labels = labels.to(torch.float32).contiguous()
+            
+            # Check if values are unusually large for debugging
+            if torch.max(torch.abs(preds)) > 100 or torch.max(torch.abs(labels)) > 100:
+                print(f"WARNING: Large values detected - Preds range: [{preds.min():.2f}, {preds.max():.2f}], Labels range: [{labels.min():.2f}, {labels.max():.2f}]")
+            
             fn = torch.nn.MSELoss()
             loss = fn(preds, labels)
         elif choice == 'emd':
@@ -364,9 +369,16 @@ class WaveMLP(LightningModule):
                 labels_imag = projections.imag
                 preds_real = predictions.real
                 preds_imag = predictions.imag
+                
+                # Print debug info to understand the scale of values
+                if self.global_step % 10 == 0:  # Only print occasionally
+                    print(f"Debug - Projections range: Real {labels_real.min():.4f} to {labels_real.max():.4f}, Imag {labels_imag.min():.4f} to {labels_imag.max():.4f}")
+                    print(f"Debug - Predictions range: Real {preds_real.min():.4f} to {preds_real.max():.4f}, Imag {preds_imag.min():.4f} to {preds_imag.max():.4f}")
             else:
-                labels = projections
-                preds = predictions
+                labels_real = projections.real
+                labels_imag = projections.imag
+                preds_real = predictions.real
+                preds_imag = predictions.imag
 
             loss_real = self.compute_loss(preds_real, labels_real, choice=self.loss_func)
             loss_imag = self.compute_loss(preds_imag, labels_imag, choice=self.loss_func)
@@ -437,6 +449,15 @@ class WaveMLP(LightningModule):
         return preds
     
     def training_step(self, batch, batch_idx):
+        # Inspect data once at the beginning of training
+        if self.global_step == 0:
+            # Inspect input data 
+            if self.conf.source == 'projections':
+                radii, projections = batch
+                print(f"Input radii stats: Min={radii.min().item():.4f}, Max={radii.max().item():.4f}, Mean={radii.mean().item():.4f}")
+                print(f"Target projections stats: Real min={projections.real.min().item():.4f}, Real max={projections.real.max().item():.4f}")
+                print(f"Target projections stats: Imag min={projections.imag.min().item():.4f}, Imag max={projections.imag.max().item():.4f}")
+        
         preds = self.shared_step(batch, batch_idx)
         loss_dict = self.objective(batch, preds)
         loss = loss_dict['loss']
@@ -446,10 +467,20 @@ class WaveMLP(LightningModule):
             self.log('train_loss', -loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         else: # mse
             self.log("train_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
-        #print(f"train_psnr_recorded: {-loss}")
+            
+            # Print occasional samples of predictions vs targets for debugging
+            if batch_idx == 0 and self.current_epoch % 10 == 0:
+                if self.conf.source == 'projections':
+                    _, projections = batch
+                    if self.name == 'cvnn':
+                        print(f"Epoch {self.current_epoch} - Sample predictions vs targets:")
+                        print(f"Pred Real[0]: {preds.real[0, 0:3].detach().cpu().numpy()}")
+                        print(f"True Real[0]: {projections.real[0, 0:3].detach().cpu().numpy()}")
+                        print(f"Pred Imag[0]: {preds.imag[0, 0:3].detach().cpu().numpy()}")
+                        print(f"True Imag[0]: {projections.imag[0, 0:3].detach().cpu().numpy()}")
+        
         other_metrics = [f"{key}" for key in loss_dict.keys() if key != 'loss' and key != self.loss_func]
         for key in other_metrics:
-            #print(f"train_{key}", loss_dict[key])
             self.log(f"train_{key}", loss_dict[key], prog_bar=False, on_step=False, on_epoch=True, sync_dist=True)
         
         return {'loss': loss, 'output': preds, 'target': batch}
