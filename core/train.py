@@ -184,10 +184,6 @@ def train_once(conf, data_module):
     """
     data_module.setup_og()
 
-    # Add data source info to model config
-    conf.model.source = conf.data.source
-    conf.model.num_projections = conf.data.num_projections
-
     model_instance = model_loader.select_model(conf.model)
     logger = custom_logger.Logger(
         all_paths=conf.paths,
