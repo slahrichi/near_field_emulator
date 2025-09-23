@@ -90,7 +90,7 @@ class NF_Datamodule(LightningDataModule):
             sliced_projections = [p[:num_projections_to_use] for p in projections_data]
             
             # Convert the list of sliced arrays into a single 2D tensor
-            projections = torch.tensor(np.array(sliced_projections), dtype=torch.float32)
+            projections = torch.tensor(np.array(sliced_projections), dtype=torch.complex64)
             
         except Exception as e:
             print(f"ERROR: Failed to load or process projections file {projections_file}: {e}")
@@ -118,7 +118,7 @@ class NF_Datamodule(LightningDataModule):
         print(f"Using {num_samples} consistent samples for training.")
 
         # 4. Create the full dataset
-        self.dataset = ProjectionsDataset(projections, radii)
+        self.dataset = ProjectionsDataset(projections, radii, tags, self.arch)
 
         # 5. Create a map of indices for the original train/valid split
         for i in range(len(tags)):
@@ -201,15 +201,30 @@ class NF_Datamodule(LightningDataModule):
                         )
 
 class ProjectionsDataset(Dataset):
-    def __init__(self, projections, radii):
+    def __init__(self, projections, radii, tags, arch):
         self.projections = projections
         self.radii = radii
+        self.tags = tags
+        self.arch = arch
 
     def __len__(self):
         return len(self.projections)
 
     def __getitem__(self, idx):
-        return self.projections[idx], self.radii[idx]
+        projection = self.projections[idx]
+        radius = self.radii[idx]
+
+        # Convert numpy arrays to tensors if they aren't already
+        if not isinstance(projection, torch.Tensor):
+            projection = torch.from_numpy(projection).cfloat()
+        if not isinstance(radius, torch.Tensor):
+            radius = torch.from_numpy(radius).float()
+
+        if self.arch in ['inverse', 'convTandem']:
+            return projection, radius
+        else:  # 'mlp', 'cvnn', etc.
+            return radius, projection
+
 
 class WaveMLP_Dataset(Dataset):
     """

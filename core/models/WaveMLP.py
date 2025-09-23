@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 import math
-#from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
+from .CVNN import ComplexReLU, ModReLU, ComplexLinear, ComplexLinearFinal
 
 #--------------------------------
 # Import: Custom Python Libraries
@@ -84,25 +84,123 @@ class WaveMLP(LightningModule):
                 self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
                 self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
 
-        elif self.strat == "all_slices": # all_slices
-            self.output_size = 166 * 166 * 63 
+        elif self.strat == "all_slices": # all slices at once
+            self.output_size = (166*166*63)
+            input_size = self.num_design_conf
+            self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+            self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+            
+        if self.conf.source == 'projections':
+            input_size = self.num_design_conf
+            self.output_size = self.conf.data.num_projections
             if self.name == 'cvnn':
-                self.cvnn = self.build_mlp(self.num_design_conf, self.conf['cvnn'])
+                self.model = self.build_mlp(input_size, self.conf.mlp, is_complex=True)
             else:
-                self.mlp_real = self.build_mlp(self.num_design_conf, self.conf['mlp_real'])
-                self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf['mlp_imag'])
+                self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+                self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
         else:
-            # Build full MLPs
-            if self.conf.source == 'projections':
-                self.output_size = self.conf.num_projections
-                self.model = self.build_mlp(self.num_design_conf, self.conf.cvnn, is_complex=False)
-            else:
-                self.output_size = 166 * 166
+            if self.strat == 'standard': # full image
                 if self.name == 'cvnn':
                     self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
                 else:
                     self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
                     self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+            elif self.strat == 'patch': # patch-wise
+                self.output_size = (self.patch_size)**2
+                self.num_patches_height = math.ceil(166 / self.patch_size)
+                self.num_patches_width = math.ceil(166 / self.patch_size)
+                self.num_patches = self.num_patches_height * self.num_patches_width
+                # determine whether or not to use complex-valued NN
+                # if not, we have separate MLPs, if so, we have one MLP
+                if self.name == 'cvnn':
+                    self.cvnn = nn.ModuleList([
+                        self.build_mlp(self.num_design_conf, self.conf['cvnn']) for _ in range(self.num_patches)
+                    ])
+                else:
+                    # Build MLPs for each patch
+                    self.mlp_real = nn.ModuleList([
+                    self.build_mlp(self.num_design_conf, self.conf['mlp_real']) for _ in range(self.num_patches)
+                    ])
+                    self.mlp_imag = nn.ModuleList([
+                        self.build_mlp(self.num_design_conf, self.conf['mlp_imag']) for _ in range(self.num_patches)
+                    ])
+                    
+            elif self.strat == 'distributed': # distributed subset
+                self.output_size = (self.patch_size)**2
+                if self.name == 'cvnn':
+                    self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+                else:
+                    # build MLPs
+                    self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
+                    self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+
+            elif self.strat == "all_slices": # all slices at once
+                self.output_size = (166*166*63)
+                input_size = self.num_design_conf
+                self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+                self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+            if self.conf.source == 'projections':
+                input_size = self.num_design_conf
+                self.output_size = self.conf.data.num_projections
+                if self.name == 'cvnn':
+                    self.model = self.build_mlp(input_size, self.conf.mlp, is_complex=True)
+                else:
+                    self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+                    self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+            else:
+                if self.strat == 'standard': # full image
+                    if self.name == 'cvnn':
+                        self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+                    else:
+                        self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
+                        self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+                elif self.strat == 'patch': # patch-wise
+                    self.output_size = (self.patch_size)**2
+                    self.num_patches_height = math.ceil(166 / self.patch_size)
+                    self.num_patches_width = math.ceil(166 / self.patch_size)
+                    self.num_patches = self.num_patches_height * self.num_patches_width
+                    # determine whether or not to use complex-valued NN
+                    # if not, we have separate MLPs, if so, we have one MLP
+                    if self.name == 'cvnn':
+                        self.cvnn = nn.ModuleList([
+                            self.build_mlp(self.num_design_conf, self.conf['cvnn']) for _ in range(self.num_patches)
+                        ])
+                    else:
+                        # Build MLPs for each patch
+                        self.mlp_real = nn.ModuleList([
+                        self.build_mlp(self.num_design_conf, self.conf['mlp_real']) for _ in range(self.num_patches)
+                        ])
+                        self.mlp_imag = nn.ModuleList([
+                            self.build_mlp(self.num_design_conf, self.conf['mlp_imag']) for _ in range(self.num_patches)
+                        ])
+                        
+                elif self.strat == 'distributed': # distributed subset
+                    self.output_size = (self.patch_size)**2
+                    if self.name == 'cvnn':
+                        self.cvnn = self.build_mlp(self.num_design_conf, self.conf.cvnn)
+                    else:
+                        # build MLPs
+                        self.mlp_real = self.build_mlp(self.num_design_conf, self.conf.mlp_real)
+                        self.mlp_imag = self.build_mlp(self.num_design_conf, self.conf.mlp_imag)
+
+                elif self.strat == "all_slices": # all slices at once
+                    self.output_size = (166*166*63)
+                    input_size = self.num_design_conf
+                    self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+                    self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
+        if self.conf.source == 'projections':
+            self.input_size = self.conf.num_radii
+            self.output_size = self.conf.num_projections
+            self.model = self.build_mlp(self.input_size, self.conf.cvnn, is_complex=True)
+        else:
+            # Build full MLPs
+            self.input_size = self.num_design_conf
+            self.output_size = 166 * 166
+            if self.name == 'cvnn':
+                self.cvnn = self.build_mlp(self.input_size, self.conf.cvnn)
+            else:
+                self.mlp_real = self.build_mlp(self.input_size, self.conf.mlp_real)
+                self.mlp_imag = self.build_mlp(self.input_size, self.conf.mlp_imag)
         
         self.save_hyperparameters()
         
@@ -149,11 +247,19 @@ class WaveMLP(LightningModule):
         else:
             raise ValueError(f"Unsupported activation function: {activation_name}")
         
-    def forward(self, input):
-        # Forward model: radii -> near_fields
-        radii = input    
+    def forward(self, input_data):
+        # Forward model: radii -> projections
         if self.conf.source == 'projections':
-            return self.model(radii)
+            radii = input_data
+            if self.name == 'cvnn':
+                return self.model(radii)
+            else:
+                preds_real = self.model_real(radii)
+                preds_imag = self.model_imag(radii)
+                return torch.complex(preds_real, preds_imag)
+
+        # Existing logic for field prediction
+        radii = input_data
 
         if self.name == 'cvnn':
             # Convert radii to complex numbers
@@ -348,6 +454,29 @@ class WaveMLP(LightningModule):
         return loss
     
     def objective(self, batch, predictions):
+        if self.conf.source == 'projections':
+            radii, projections = batch
+            if self.name == 'cvnn':
+                labels = projections
+                preds = predictions
+            else:
+                labels_real = projections.real
+                labels_imag = projections.imag
+                preds_real = predictions.real
+                preds_imag = predictions.imag
+
+            loss_real = self.compute_loss(preds_real, labels_real, choice=self.loss_func)
+            loss_imag = self.compute_loss(preds_imag, labels_imag, choice=self.loss_func)
+            loss = loss_real + loss_imag
+            
+            choices = {'mse': None, 'ssim': None, 'psnr': None}
+            for key in choices:
+                if key != self.loss_func:
+                    choices[key] = self.compute_loss(predictions, projections, choice=key)
+            
+            return {"loss": loss, **choices}
+
+        # Existing objective for field prediction
         radii, near_fields = batch
 
         if self.name == 'cvnn':
@@ -396,8 +525,12 @@ class WaveMLP(LightningModule):
     
 
     def shared_step(self, batch, batch_idx):
-        radii, near_fields = batch
-        preds = self.forward(radii)
+        if self.conf.source == 'projections':
+            radii, projections = batch
+            preds = self.forward(radii)
+        else:
+            radii, near_fields = batch
+            preds = self.forward(radii)
         return preds
     
     def training_step(self, batch, batch_idx):

@@ -64,10 +64,10 @@ class WaveInverseMLP(LightningModule):
         if self.name == "inverse":
             if self.conf.data.source == 'projections':
                 input_size = self.conf.data.num_projections
-                self.model = self.build_mlp(input_size, self.conf.cvnn, is_complex=False)
+                self.model = self.build_mlp(input_size, self.conf.mlp, is_complex=True)
             else:
-                input_size = self.num_design_conf
-                self.model = self.build_mlp(input_size, self.conf.cvnn, is_complex=True)
+                input_size = 166 * 166
+                self.model = self.build_mlp(input_size, self.conf.mlp, is_complex=True)
         else:
             raise ValueError("Inverse model not supported with multiple MLPs yet")
 
@@ -228,29 +228,38 @@ class WaveInverseMLP(LightningModule):
         return model
 
     def objective(self, batch, predictions):
-        near_fields, radii = batch
-        if self.name == 'inverse':
-            labels = radii  
-            preds = predictions.real
-            radii_loss = self.compute_loss(near_fields, preds, labels, choice=self.loss_func)
+        if self.conf.data.source == 'projections':
+            projections, radii = batch
         else:
-            raise ValueError("Only CVNN handled for inverse!")
-        
-            # compute other metrics for logging besides specified loss function
+            near_fields, radii = batch
+            
+        if self.name == 'inverse':
+            preds = predictions
+            labels = radii
+            radii_loss = self.compute_loss(projections if self.conf.data.source == 'projections' else near_fields, preds, labels, choice=self.loss_func)
+        else:
+            # tandem
+            preds = predictions
+            labels = radii
+            radii_loss = self.compute_loss(projections if self.conf.data.source == 'projections' else near_fields, preds, labels, choice=self.loss_func)
         choices = {
             'mse': None,
             'resim': None
         }
         for key in choices:
             if key != self.loss_func:
-                loss = self.compute_loss(near_fields, preds, labels, choice=key)
+                loss = self.compute_loss(projections if self.conf.data.source == 'projections' else near_fields, preds, labels, choice=key)
                 choices[key] = loss
         return {"loss": radii_loss, **choices}
 
 
     def shared_step(self, batch, batch_idx):
-        near_fields, radii = batch
-        preds = self.forward(near_fields)
+        if self.conf.data.source == 'projections':
+            projections, radii = batch
+            preds = self.forward(projections)
+        else:
+            near_fields, radii = batch
+            preds = self.forward(near_fields)
         return preds
     
     def training_step(self, batch, batch_idx):
