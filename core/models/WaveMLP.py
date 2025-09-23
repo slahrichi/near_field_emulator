@@ -7,13 +7,13 @@ import torch
 import numpy as np
 import os
 #from geomloss import SamplesLoss
-from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 #from torchvision.models import resnet50, resnet18, resnet34
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 import math
+from torchmetrics import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
 
 #--------------------------------
@@ -46,6 +46,7 @@ class WaveMLP(LightningModule):
 
         if self.conf.mlp_strategy == 0:
             self.strat = 'standard'
+            self.output_size = 166 * 166
         elif self.conf.mlp_strategy == 1:
             self.strat = 'patch'
         elif self.conf.mlp_strategy == 2:
@@ -189,9 +190,13 @@ class WaveMLP(LightningModule):
                     self.model_real = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
                     self.model_imag = self.build_mlp(input_size, self.conf.mlp, is_complex=False)
         if self.conf.source == 'projections':
-            self.input_size = self.conf.num_radii
+            self.input_size = self.num_design_conf
             self.output_size = self.conf.num_projections
-            self.model = self.build_mlp(self.input_size, self.conf.cvnn, is_complex=True)
+            if self.name == 'cvnn':
+                self.model = self.build_mlp(self.input_size, self.conf.cvnn, is_complex=True)
+            else:
+                self.model_real = self.build_mlp(self.input_size, self.conf.mlp_real, is_complex=False)
+                self.model_imag = self.build_mlp(self.input_size, self.conf.mlp_imag, is_complex=False)
         else:
             # Build full MLPs
             self.input_size = self.num_design_conf

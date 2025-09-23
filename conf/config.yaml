@@ -104,8 +104,8 @@ model:
 
     mlp_strategy: 0
     patch_size: 3
-    #num_design_conf: 9 # radii
-    num_design_conf: 27556 # inverse: 166*166*2
+    num_design_conf: 9 # radii
+    #num_design_conf: 27556 # inverse: 166*166*2
     #num_design_conf: 2 # ConvMLP
     interpolate_fields: False
 
