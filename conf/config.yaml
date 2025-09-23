@@ -92,8 +92,8 @@ model:
         activation: 'relu'
 
     cvnn:
-        #layers: [64, 512] # forward
-        layers: [512, 64] # inverse
+        layers: [32, 64] # forward
+        #layers: [512, 64] # inverse
         #conv_layers: [[16, 5, 5], [32, 5, 5]]
         #layers: [512, 64]
         #layers: [256, 32]

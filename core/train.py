@@ -50,52 +50,20 @@ class CustomProgressBar(TQDMProgressBar):
         return base_metrics
     
 class CustomEarlyStopping(EarlyStopping):
-    """Custom Early Stopping class for controlling the training loop;
-    ensuring that we terminate the model after it stops improving.
-    """
-    def __init__(self, monitor='val_loss', patience=5, min_delta=0.01, mode='min', verbose=True):
-        super().__init__(monitor=monitor, patience=patience, min_delta=min_delta, mode=mode, verbose=verbose)
-        self.wait_count = 0
-        self.last_epoch_processed = -1
+    """Custom Early Stopping class to provide more verbose logging."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-    def on_validation_epoch_end(self, trainer, pl_module):
-        if trainer.current_epoch == self.last_epoch_processed:
-            return
-        self.last_epoch_processed = trainer.current_epoch
+    def _log_info(self, trainer, reason: str):
+        super()._log_info(trainer, reason)
+        if self.verbose:
+            print(f"Epoch {trainer.current_epoch}: {reason}")
 
-        current_score = trainer.callback_metrics.get(self.monitor)
-        if current_score is None:
-            return
-
-        # Ensure current_score is a tensor
-        if not isinstance(current_score, torch.Tensor):
-            current_score = torch.tensor(current_score, device=pl_module.device)
-
-        # Initialize best_score if it's not set
-        if self.best_score is None:
-            self.best_score = current_score
-            self.wait_count = 0
-            return
-
-        # Determine if there is an improvement
-        if self.monitor_op(current_score - self.min_delta, self.best_score.to(current_score.device)):
-            improvement_amount = abs(self.best_score - current_score)
-            self.best_score = current_score
-            self.wait_count = 0
-            if self.verbose:
-                print(f"\nEpoch {trainer.current_epoch}: Improvement observed (amount={improvement_amount:.6f}); "
-                      f"continuing training.\n")
-        else:
-            self.wait_count += 1
-            if self.verbose:
-                print(f"\nEpoch {trainer.current_epoch}: No sufficient improvement; "
-                      f"wait_count = {self.wait_count}/{self.patience}\n")
-
-            if self.wait_count >= self.patience:
-                if self.verbose:
-                    print(f"\nEarlyStopping at epoch {trainer.current_epoch}: {self.monitor} did not improve by at "
-                          f"least {self.min_delta} for {self.patience} consecutive validation checks.\n")
-                trainer.should_stop = True
+    def on_validation_end(self, trainer, pl_module):
+        super().on_validation_end(trainer, pl_module)
+        if self.verbose and not trainer.should_stop:
+            print(f"Epoch {trainer.current_epoch}: Monitored metric {self.monitor} = {trainer.callback_metrics.get(self.monitor):.6f}. "
+                  f"Patience count = {self.wait_count}/{self.patience}.")
            
 def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar):
     """Create and return a configured Trainer instance."""
