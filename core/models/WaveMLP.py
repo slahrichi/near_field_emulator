@@ -360,13 +360,13 @@ class WaveMLP(LightningModule):
         if self.conf.source == 'projections':
             radii, projections = batch
             if self.name == 'cvnn':
-                labels = projections
-                preds = predictions
-            else:
                 labels_real = projections.real
                 labels_imag = projections.imag
                 preds_real = predictions.real
                 preds_imag = predictions.imag
+            else:
+                labels = projections
+                preds = predictions
 
             loss_real = self.compute_loss(preds_real, labels_real, choice=self.loss_func)
             loss_imag = self.compute_loss(preds_imag, labels_imag, choice=self.loss_func)
