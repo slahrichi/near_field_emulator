@@ -152,7 +152,10 @@ class WaveMLP(LightningModule):
         if self.conf.source == 'projections':
             radii = input_data
             if self.name == 'cvnn':
-                return self.model(radii)
+                # Convert input to complex and ensure consistent dtype (float32)
+                radii = radii.to(torch.float32)
+                radii_complex = torch.complex(radii, torch.zeros_like(radii))
+                return self.model(radii_complex)
             else:
                 preds_real = self.model_real(radii)
                 preds_imag = self.model_imag(radii)
