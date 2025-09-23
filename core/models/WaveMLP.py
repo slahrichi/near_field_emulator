@@ -46,7 +46,7 @@ class WaveMLP(LightningModule):
 
         if self.conf.source == 'projections':
             self.input_size = self.num_design_conf
-            self.output_size = self.conf.data.num_projections
+            self.output_size = self.conf.num_projections
             if self.name == 'cvnn':
                 self.model = self.build_mlp(self.input_size, self.conf.cvnn, is_complex=True)
             else:
