@@ -14,14 +14,14 @@ import torch.nn.functional as F
 from torch.optim.lr_scheduler import CosineAnnealingLR, ReduceLROnPlateau
 from pytorch_lightning import LightningModule
 import math
-from .CVNN import ComplexReLU, ModReLU, ComplexLinear, ComplexLinearFinal
+from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
 
 #--------------------------------
 # Import: Custom Python Libraries
 #--------------------------------
 #from utils import parameter_manager
 #from core.complexNN import ComplexLinear, ModReLU
-#from .CVNN import ComplexReLU, ModReLU, ComplexLinearFinal
+from .CVNN import ComplexReLU, ModReLU, ComplexLinearFinal
 
 sys.path.append("../")
 
