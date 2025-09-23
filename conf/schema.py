@@ -71,7 +71,7 @@ class ModelConfig(BaseModel):
     K: int = 20
     radii_bounds: tuple = (0.0, 1.0)
     conv_out_channels: int = 16
-    source: Optional[str] = None
+    source: Literal['fields', 'projections'] = 'fields'
     num_projections: Optional[int] = None
     
     @field_validator("arch", mode="before")
@@ -142,8 +142,6 @@ class DataConfig(BaseModel):
     all_slices: bool = False
     wavelength: float
     eval_wavelength: float
-    source: Literal['fields', 'projections'] = 'fields'
-    num_projections: Optional[int] = None
 
     @field_validator("wavelength", mode="before")
     def validate_wavelength(cls, value):

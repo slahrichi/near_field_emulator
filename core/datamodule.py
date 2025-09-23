@@ -86,7 +86,7 @@ class NF_Datamodule(LightningDataModule):
             print(f"Successfully loaded projections from {projections_file}")
             
             # Correctly slice each projection array in the list
-            num_projections_to_use = self.conf.data.num_projections
+            num_projections_to_use = self.conf.model.num_projections
             sliced_projections = [p[:num_projections_to_use] for p in projections_data]
             
             # Convert the list of sliced arrays into a single 2D tensor

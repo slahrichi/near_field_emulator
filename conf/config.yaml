@@ -66,6 +66,8 @@ model:
     K: 10
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
     conv_out_channels: 16
+    source: 'projections' # 'fields' or 'projections'
+    num_projections: 10 # Number of projections to use as input
     # multi-criteria loss
     mcl_params:
         alpha: 1
@@ -273,7 +275,6 @@ data:
     wavelength: 1.55
     eval_wavelength: 1.55
     source: 'projections' # 'fields' or 'projections'
-    num_projections: 10 # Number of projections to use as input
 
 #--------------------------------
 #       Kube Params

@@ -62,8 +62,8 @@ class WaveInverseMLP(LightningModule):
         # we are also using CVNN
         self.output_size = 9
         if self.name == "inverse":
-            if self.conf.data.source == 'projections':
-                input_size = self.conf.data.num_projections
+            if self.conf.source == 'projections':
+                input_size = self.conf.num_projections
                 self.model = self.build_mlp(input_size, self.conf.mlp, is_complex=True)
             else:
                 input_size = 166 * 166
