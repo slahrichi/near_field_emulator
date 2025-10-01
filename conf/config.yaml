@@ -47,8 +47,8 @@ model:
         # - 11: WaveInverseConvMLP
     # - model_id: model identifier / name
 
-    arch: 1
-    model_id: "forward_projections_10"
+    arch: 10
+    model_id: "NA"
 
     # General Model Parameters
 
@@ -60,13 +60,13 @@ model:
     objective_function: 'mse'
     #objective_function: "resim"    
     #objective_function: "resim_bdy" 
-    forward_ckpt_path : null
-    forward_config_path: null
+    forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward/model.ckpt"
+    forward_config_path: "/develop/results/meep_meep/cvnn/model_forward/params.yaml"
     na_iters: 100
     K: 10
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
     conv_out_channels: 16
-    source: 'projections' # 'fields' or 'projections'
+    source: 'fields' # 'fields' or 'projections'
     num_projections: 10 # Number of projections to use as input
     # multi-criteria loss
     mcl_params:
