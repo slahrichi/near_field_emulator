@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1   
 
 #--------------------------------
@@ -48,7 +48,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 1
-    model_id: "forward_na"
+    model_id: "forward_na_large"
 
     # General Model Parameters
 
@@ -92,7 +92,7 @@ model:
         activation: 'relu'
 
     cvnn:
-        layers: [64, 256] # forward
+        layers: [64, 512] # forward
         #layers: [512, 64] # inverse
         #conv_layers: [[16, 5, 5], [32, 5, 5]]
         #layers: [512, 64]
