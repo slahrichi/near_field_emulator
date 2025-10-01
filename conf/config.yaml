@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1   
 
 #--------------------------------
@@ -48,14 +48,14 @@ model:
     # - model_id: model identifier / name
 
     arch: 1
-    model_id: "forward_na_large"
+    model_id: "forward_na_new"
 
     # General Model Parameters
 
     optimizer: 'ADAM'
-    learning_rate: 1.e-4
-    lr_scheduler: 'ReduceLROnPlateau'
-    #lr_scheduler: 'CosineAnnealingLR'
+    learning_rate: 1.e-3
+    #lr_scheduler: 'ReduceLROnPlateau'
+    lr_scheduler: 'CosineAnnealingLR'
     load_checkpoint: False
     objective_function: 'mse'
     #objective_function: "resim"    
@@ -192,7 +192,7 @@ model:
 #       Training Params
 #--------------------------------
 trainer:
-    batch_size: 16
+    batch_size: 8
     num_epochs: 100 # maximum
 
     accelerator: 'gpu' 
