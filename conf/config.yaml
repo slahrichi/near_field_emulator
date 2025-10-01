@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 0
+directive: 1
 deployment: 1   
 
 #--------------------------------
@@ -60,8 +60,8 @@ model:
     objective_function: 'mse'
     #objective_function: "resim"    
     #objective_function: "resim_bdy" 
-    #forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward/model.ckpt"
-    #forward_config_path: "/develop/results/meep_meep/cvnn/model_forward/params.yaml"
+    #forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_mna/model.ckpt"
+    #forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na/params.yaml"
     na_iters: 100
     K: 10
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
