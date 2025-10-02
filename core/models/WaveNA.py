@@ -66,7 +66,7 @@ class WaveNA(LightningModule):
             raise ValueError("Neural Adjoint requires forward_ckpt_path and forward_config_path in the config.")
         forward_conf = load_config(config_path)
         model = WaveMLP(model_config=forward_conf.model)
-        state = torch.load(checkpoint_path, map_location="cpu")
+        state = torch.load(checkpoint_path, weights_only=False)
         state_dict = state['state_dict'] if isinstance(state, dict) and 'state_dict' in state else state
         model.load_state_dict(state_dict)
         model.eval()
