@@ -89,7 +89,13 @@ def run(conf):
     # Load model checkpoint
     model_path = os.path.join(results_dir, 'model.ckpt')
     model_instance = model_loader.select_model(saved_conf.model)
-    model_instance.load_state_dict(torch.load(model_path, weights_only=False)['state_dict'])
+    if os.path.exists(model_path):
+        model_instance.load_state_dict(torch.load(model_path, weights_only=False)['state_dict'])
+    else:
+        if saved_conf.model.arch == 'NA':
+            print(f"Warning: checkpoint not found at {model_path}. Proceeding without loading weights for NA model (no trainable parameters).")
+        else:
+            raise FileNotFoundError(f"Checkpoint not found at {model_path}")
 
     # empty logger so as not to mess with loss.csv
     logger = None
