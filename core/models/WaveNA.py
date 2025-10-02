@@ -143,28 +143,29 @@ class WaveNA(LightningModule):
         last_mse = None
         last_candidate_loss = None
 
-        for iter_idx in range(self.na_iters):
-            inner_optimizer.zero_grad()
-            pred_real, pred_imag = self._run_forward(candidates)
-            total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
-                pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
-            )
-            total_loss.backward()
-            inner_optimizer.step()
-
-            with torch.no_grad():
-                candidates.data.clamp_(
-                    self.radii_lower_bound.unsqueeze(0),
-                    self.radii_upper_bound.unsqueeze(0)
+        with torch.enable_grad():
+            for iter_idx in range(self.na_iters):
+                inner_optimizer.zero_grad()
+                pred_real, pred_imag = self._run_forward(candidates)
+                total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
+                    pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
                 )
+                total_loss.backward()
+                inner_optimizer.step()
 
-            self._step_scheduler(scheduler, total_loss)
+                with torch.no_grad():
+                    candidates.data.clamp_(
+                        self.radii_lower_bound.unsqueeze(0),
+                        self.radii_upper_bound.unsqueeze(0)
+                    )
 
-            if self.trainer is not None and iter_idx % max(1, self.na_iters // 5) == 0:
-                self.log("na_inner_loss", total_loss.detach(), on_step=False, on_epoch=False, prog_bar=False)
+                self._step_scheduler(scheduler, total_loss)
 
-            last_mse = mse
-            last_candidate_loss = candidate_loss
+                if self.trainer is not None and iter_idx % max(1, self.na_iters // 5) == 0:
+                    self.log("na_inner_loss", total_loss.detach(), on_step=False, on_epoch=False, prog_bar=False)
+
+                last_mse = mse
+                last_candidate_loss = candidate_loss
 
         candidates_final = candidates.detach().view(self.K, batch_size, self.num_design_conf)
         mse_matrix = last_mse.view(self.K, batch_size)
