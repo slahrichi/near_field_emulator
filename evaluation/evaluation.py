@@ -434,7 +434,15 @@ def compute_mse_per_slice(truth, pred):
     if isinstance(pred, torch.Tensor):
         pred = pred.detach().cpu().numpy()
     
-    # If shape is (batch, seq_len, r_i, xdim, ydim), let's extract dimensions
+    # Handle cases without a temporal dimension (e.g., NA fields shaped (batch, channels, H, W))
+    if truth.ndim < 4:
+        raise ValueError("Expected at least 4D tensor for per-slice MSE computation")
+
+    if truth.ndim == 4:
+        # Treat as a single timestep with shape (batch, channels, H, W)
+        truth = truth[:, None, ...]
+        pred = pred[:, None, ...]
+
     batch_size, seq_len = truth.shape[0], truth.shape[1]
     
     # Arrays to store results
