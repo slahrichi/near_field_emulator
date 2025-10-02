@@ -79,7 +79,8 @@ def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progres
         'callbacks': [checkpoint_callback, early_stopping, progress_bar],
         'check_val_every_n_epoch': conf.trainer.valid_rate,
         'num_sanity_val_steps': 1,
-        'log_every_n_steps': 1
+        'log_every_n_steps': 1,
+        'inference_mode': False
     }
 
     if torch.cuda.is_available():
