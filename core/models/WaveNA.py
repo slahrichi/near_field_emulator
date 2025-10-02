@@ -161,9 +161,6 @@ class WaveNA(LightningModule):
 
                 self._step_scheduler(scheduler, total_loss)
 
-                if self.trainer is not None and iter_idx % max(1, self.na_iters // 5) == 0:
-                    self.log("na_inner_loss", total_loss.detach(), on_step=False, on_epoch=False, prog_bar=False)
-
                 last_mse = mse
                 last_candidate_loss = candidate_loss
 
