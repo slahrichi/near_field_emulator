@@ -143,7 +143,10 @@ class WaveNA(LightningModule):
         last_mse = None
         last_candidate_loss = None
 
-        with torch.enable_grad():
+        prev_grad_state = torch.is_grad_enabled()
+        torch.set_grad_enabled(True)
+
+        try:
             for iter_idx in range(self.na_iters):
                 inner_optimizer.zero_grad()
                 pred_real, pred_imag = self._run_forward(candidates)
@@ -163,6 +166,8 @@ class WaveNA(LightningModule):
 
                 last_mse = mse
                 last_candidate_loss = candidate_loss
+        finally:
+            torch.set_grad_enabled(prev_grad_state)
 
         candidates_final = candidates.detach().view(self.K, batch_size, self.num_design_conf)
         mse_matrix = last_mse.view(self.K, batch_size)
