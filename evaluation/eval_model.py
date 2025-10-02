@@ -51,6 +51,10 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         print("\nComputing and saving metrics...")
         eval.metrics(test_results, dataset='train', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
         eval.metrics(test_results, dataset='valid', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
+
+    if model_type == 'NA':
+        for dataset in ['train', 'valid']:
+            eval.summarize_na_results(test_results, dataset=dataset, save_dir=results_dir)
     
     if conf.model.arch != "inverse":    
         # visualize performance with DFT fields

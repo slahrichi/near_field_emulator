@@ -1,3 +1,4 @@
+import json
 import pickle
 import sys
 import os
@@ -13,6 +14,7 @@ import matplotlib.cm as cm
 import scipy.stats as stats
 import yaml
 from torchmetrics.image import PeakSignalNoiseRatio, StructuralSimilarityIndexMeasure
+from pathlib import Path
 
 sys.path.append('../')
 import utils.mapping as mapping
@@ -897,6 +899,134 @@ def construct_results_table(model_names, model_types):
     
     print("\nLaTeX Table:")
     print(latex_table)
+
+
+def summarize_na_results(test_results, dataset, save_dir, top_k=5):
+    dataset_results = test_results.get(dataset)
+    if dataset_results is None:
+        return
+
+    radii_truth = _na_to_numpy(dataset_results.get('radii_truth'))
+    radii_pred = _na_to_numpy(dataset_results.get('radii_pred'))
+    field_truth = _na_to_numpy(dataset_results.get('field_truth'))
+    field_resim = _na_to_numpy(dataset_results.get('field_resim'))
+
+    if radii_truth.size == 0 or radii_pred.size == 0 or field_truth.size == 0 or field_resim.size == 0:
+        return
+
+    radii_mse = np.mean((radii_pred - radii_truth) ** 2, axis=1)
+    field_mse = np.mean((field_resim - field_truth) ** 2, axis=(1, 2, 3))
+    composite = radii_mse + field_mse
+
+    order = np.argsort(composite)
+    k = int(min(top_k, order.size))
+    best_indices = order[:k]
+    worst_indices = order[-k:][::-1]
+
+    dataset_dir = Path(save_dir) / "na_analysis" / dataset
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+
+    summary = {
+        'mean_radii_mse': float(radii_mse.mean()),
+        'std_radii_mse': float(radii_mse.std()),
+        'mean_field_mse': float(field_mse.mean()),
+        'std_field_mse': float(field_mse.std()),
+        'best_indices': best_indices.tolist(),
+        'worst_indices': worst_indices.tolist()
+    }
+
+    with open(dataset_dir / 'summary.json', 'w') as f:
+        json.dump(summary, f, indent=2)
+
+    np.savez(dataset_dir / 'metrics.npz',
+             radii_truth=radii_truth,
+             radii_pred=radii_pred,
+             field_truth=field_truth,
+             field_resim=field_resim,
+             radii_mse=radii_mse,
+             field_mse=field_mse,
+             best_indices=best_indices,
+             worst_indices=worst_indices)
+
+    for rank, idx in enumerate(best_indices, start=1):
+        _plot_na_sample(radii_truth[idx], radii_pred[idx], field_truth[idx], field_resim[idx],
+                        dataset_dir / f'best_{rank}_idx_{idx}.png', f'Best #{rank}')
+
+    for rank, idx in enumerate(worst_indices, start=1):
+        _plot_na_sample(radii_truth[idx], radii_pred[idx], field_truth[idx], field_resim[idx],
+                        dataset_dir / f'worst_{rank}_idx_{idx}.png', f'Worst #{rank}')
+
+
+def _na_to_numpy(data):
+    if data is None:
+        return np.array([])
+    if isinstance(data, np.ndarray):
+        return data
+    if isinstance(data, torch.Tensor):
+        return data.detach().cpu().numpy()
+    if isinstance(data, list):
+        if not data:
+            return np.array([])
+        arrays = []
+        for item in data:
+            if isinstance(item, torch.Tensor):
+                arrays.append(item.detach().cpu().numpy())
+            else:
+                arrays.append(np.asarray(item))
+        return np.concatenate(arrays, axis=0)
+    return np.asarray(data)
+
+
+def _plot_na_sample(radii_truth, radii_pred, field_truth, field_resim, output_path, title):
+    diff_radii = radii_pred - radii_truth
+    diff_real = field_resim[0] - field_truth[0]
+    diff_imag = field_resim[1] - field_truth[1]
+
+    vlim_real = float(np.max(np.abs(diff_real))) if np.any(diff_real) else 1.0
+    vlim_imag = float(np.max(np.abs(diff_imag))) if np.any(diff_imag) else 1.0
+
+    fig, axes = plt.subplots(3, 3, figsize=(11, 10))
+    indices = np.arange(radii_truth.shape[0])
+
+    axes[0, 0].bar(indices, radii_truth)
+    axes[0, 0].set_title('True radii')
+    axes[0, 1].bar(indices, radii_pred)
+    axes[0, 1].set_title('Predicted radii')
+    axes[0, 2].bar(indices, diff_radii)
+    axes[0, 2].axhline(0, color='black', linewidth=0.8)
+    axes[0, 2].set_title('Radii diff')
+
+    im00 = axes[1, 0].imshow(field_truth[0], cmap='viridis')
+    axes[1, 0].set_title('True field (real)')
+    fig.colorbar(im00, ax=axes[1, 0], fraction=0.046, pad=0.04)
+
+    im01 = axes[1, 1].imshow(field_resim[0], cmap='viridis')
+    axes[1, 1].set_title('Resim field (real)')
+    fig.colorbar(im01, ax=axes[1, 1], fraction=0.046, pad=0.04)
+
+    im02 = axes[1, 2].imshow(diff_real, cmap='bwr', vmin=-vlim_real, vmax=vlim_real)
+    axes[1, 2].set_title('Diff (real)')
+    fig.colorbar(im02, ax=axes[1, 2], fraction=0.046, pad=0.04)
+
+    im10 = axes[2, 0].imshow(field_truth[1], cmap='viridis')
+    axes[2, 0].set_title('True field (imag)')
+    fig.colorbar(im10, ax=axes[2, 0], fraction=0.046, pad=0.04)
+
+    im11 = axes[2, 1].imshow(field_resim[1], cmap='viridis')
+    axes[2, 1].set_title('Resim field (imag)')
+    fig.colorbar(im11, ax=axes[2, 1], fraction=0.046, pad=0.04)
+
+    im12 = axes[2, 2].imshow(diff_imag, cmap='bwr', vmin=-vlim_imag, vmax=vlim_imag)
+    axes[2, 2].set_title('Diff (imag)')
+    fig.colorbar(im12, ax=axes[2, 2], fraction=0.046, pad=0.04)
+
+    for ax in axes.flatten():
+        ax.tick_params(labelsize=8)
+
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=200)
+    plt.close(fig)
     
 if __name__ == "__main__":
     # fetch the model names from command line args
