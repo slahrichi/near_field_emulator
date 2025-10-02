@@ -709,7 +709,7 @@ def plot_absolute_difference(conf, test_results, resub=False, sample_idx=0,
     """
     def plot_single_set(results, title, sample_idx):
         abs_diff = calculate_absolute_difference(results, sample_idx)
-        if arch in ['mlp', 'cvnn', 'autoencoder', 'inverse']:
+        if arch in ['mlp', 'cvnn', 'autoencoder', 'inverse', 'NA']:
             # Extract real and imaginary differences
             real_diff = abs_diff[0, :, :]
             imag_diff = abs_diff[1, :, :]
