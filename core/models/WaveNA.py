@@ -146,14 +146,15 @@ class WaveNA(LightningModule):
         grad_mode = torch.is_grad_enabled()
         torch.set_grad_enabled(True)
         try:
-            with torch.enable_grad():
-                for iter_idx in range(self.na_iters):
-                    inner_optimizer.zero_grad()
-                    pred_real, pred_imag = self._run_forward(candidates)
-                    total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
-                        pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
-                    )
-                    total_loss.backward()
+            with torch.inference_mode(False):
+                with torch.enable_grad():
+                    for iter_idx in range(self.na_iters):
+                        inner_optimizer.zero_grad()
+                        pred_real, pred_imag = self._run_forward(candidates)
+                        total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
+                            pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
+                        )
+                        total_loss.backward()
                     inner_optimizer.step()
 
                     with torch.no_grad():
