@@ -47,7 +47,7 @@ model:
         # - 11: WaveInverseConvMLP
     # - model_id: model identifier / name
 
-    arch: 1
+    arch: 10
     model_id: "inverse_na_new"
 
     # General Model Parameters

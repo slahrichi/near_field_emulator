@@ -104,7 +104,7 @@ def save_eval_item(save_dir, eval_item, file_name, type):
                 if metric in std_metrics:
                     file.write(f"{metric}: {value}\n")
                 else:
-                    file.write(f"{metric}: {value:.4f}\n")
+                    file.write(f"{metric}: {value:.4e}\n")
     else:
         eval_item.savefig(save_path)
     print(f"Generated evaluation item: {type}")
@@ -353,10 +353,10 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
         'SSIM': ssim.item()
     }
     if rmse_first_slice is not None:
-        out['RMSE_First_Slice'] = f"{rmse_first_slice:.4f} +/- {first_slice_std:.4f}"
+        out['RMSE_First_Slice'] = f"{rmse_first_slice:.4e} +/- {first_slice_std:.4e}"
     if rmse_final_slice is not None:
         # Add a string with +/- if you like
-        out['RMSE_Final_Slice'] = f"{rmse_final_slice:.4f} +/- {final_slice_std:.4f}"
+        out['RMSE_Final_Slice'] = f"{rmse_final_slice:.4e} +/- {final_slice_std:.4e}"
 
     return out
 
@@ -385,7 +385,7 @@ def metrics(test_results, fold_idx=None, dataset='valid',
         if metric in std_metrics:
             print(f"{metric}: {value}")
         else:
-            print(f"{metric}: {value:.4f}")
+            print(f"{metric}: {value:.4e}")
 
     # save to file if requested
     if save_fig:
