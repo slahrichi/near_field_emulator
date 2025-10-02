@@ -89,7 +89,7 @@ class WaveNA(LightningModule):
             raise ValueError("Unexpected forward model output type")
         return pred_real, pred_imag
 
-    def _compute_candidate_losses(self, pred_real, pred_imag, target_real, target_imag, candidates):
+    def _compute_candidate_losses(self, pred_real, pred_imag, target_real, target_imag, candidates, batch_size):
         mse_real = F.mse_loss(pred_real, target_real, reduction='none')
         mse_imag = F.mse_loss(pred_imag, target_imag, reduction='none')
         mse = (mse_real + mse_imag).flatten(1).mean(dim=1)
@@ -98,7 +98,8 @@ class WaveNA(LightningModule):
         boundary_penalty = F.relu(deviation).sum(dim=1) * self.inner_boundary_weight
 
         total_candidate_loss = mse + boundary_penalty
-        total_loss = total_candidate_loss.mean()
+        loss_per_target = total_candidate_loss.view(self.K, batch_size).mean(dim=0)
+        total_loss = loss_per_target.mean()
 
         return total_loss, total_candidate_loss, mse.detach(), boundary_penalty.detach()
 
@@ -146,7 +147,7 @@ class WaveNA(LightningModule):
             inner_optimizer.zero_grad()
             pred_real, pred_imag = self._run_forward(candidates)
             total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
-                pred_real, pred_imag, target_real_rep, target_imag_rep, candidates
+                pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
             )
             total_loss.backward()
             inner_optimizer.step()
@@ -260,10 +261,16 @@ class WaveNA(LightningModule):
         for mode in ['train', 'valid']:
             pred_entries = self.test_results[mode]['radii_pred']
             truth_entries = self.test_results[mode]['radii_truth']
+            field_pred_entries = self.test_results[mode]['field_resim']
+            field_truth_entries = self.test_results[mode]['field_truth']
             if isinstance(pred_entries, list) and pred_entries:
                 self.test_results[mode]['radii_pred'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in pred_entries], axis=0)
             if isinstance(truth_entries, list) and truth_entries:
                 self.test_results[mode]['radii_truth'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in truth_entries], axis=0)
+            if isinstance(field_pred_entries, list) and field_pred_entries:
+                self.test_results[mode]['field_resim'] = np.concatenate(field_pred_entries, axis=0)
+            if isinstance(field_truth_entries, list) and field_truth_entries:
+                self.test_results[mode]['field_truth'] = np.concatenate(field_truth_entries, axis=0)
 
         for dataset in ['train', 'valid']:
             entries = self.test_results[dataset]['radii_pred']
