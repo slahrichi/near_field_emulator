@@ -143,31 +143,31 @@ class WaveNA(LightningModule):
         last_mse = None
         last_candidate_loss = None
 
-        prev_grad_state = torch.is_grad_enabled()
+        grad_mode = torch.is_grad_enabled()
         torch.set_grad_enabled(True)
-
         try:
-            for iter_idx in range(self.na_iters):
-                inner_optimizer.zero_grad()
-                pred_real, pred_imag = self._run_forward(candidates)
-                total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
-                    pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
-                )
-                total_loss.backward()
-                inner_optimizer.step()
-
-                with torch.no_grad():
-                    candidates.data.clamp_(
-                        self.radii_lower_bound.unsqueeze(0),
-                        self.radii_upper_bound.unsqueeze(0)
+            with torch.enable_grad():
+                for iter_idx in range(self.na_iters):
+                    inner_optimizer.zero_grad()
+                    pred_real, pred_imag = self._run_forward(candidates)
+                    total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
+                        pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
                     )
+                    total_loss.backward()
+                    inner_optimizer.step()
 
-                self._step_scheduler(scheduler, total_loss)
+                    with torch.no_grad():
+                        candidates.data.clamp_(
+                            self.radii_lower_bound.unsqueeze(0),
+                            self.radii_upper_bound.unsqueeze(0)
+                        )
 
-                last_mse = mse
-                last_candidate_loss = candidate_loss
+                    self._step_scheduler(scheduler, total_loss)
+
+                    last_mse = mse
+                    last_candidate_loss = candidate_loss
         finally:
-            torch.set_grad_enabled(prev_grad_state)
+            torch.set_grad_enabled(grad_mode)
 
         candidates_final = candidates.detach().view(self.K, batch_size, self.num_design_conf)
         mse_matrix = last_mse.view(self.K, batch_size)
