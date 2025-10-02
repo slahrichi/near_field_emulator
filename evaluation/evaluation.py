@@ -304,9 +304,9 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
     mae = np.mean(np.abs(truth - pred))
     mse = np.mean((truth - pred) ** 2)
     rmse = np.sqrt(mse)
-    if truth_resim:
-        truth_resim_all = np.concatenate(truth_resim, axis=0)
-        pred_resim_all = np.concatenate(pred_resim, axis=0)
+    if truth_resim is not None:
+        truth_resim_all = np.asarray(truth_resim)
+        pred_resim_all = np.asarray(pred_resim)
         resim_mse = np.mean((truth_resim_all - pred_resim_all) ** 2)
         resim = np.sqrt(resim_mse)
     else:
