@@ -63,7 +63,7 @@ model:
     forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_na_new/model.ckpt"
     forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na_new/params.yaml"
     na_iters: 100
-    K: 10
+    K: 1000
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
     conv_out_channels: 16
     source: 'fields' # 'fields' or 'projections'
@@ -193,7 +193,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 8
-    num_epochs: 100 # maximum
+    num_epochs: 1 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
