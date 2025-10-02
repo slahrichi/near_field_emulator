@@ -396,7 +396,7 @@ def metrics(test_results, fold_idx=None, dataset='valid',
         
         # 3) Optionally compute MSE vs. time slice and plot
     if plot_mse:
-        if truth_resim:
+        if truth_resim is not None:
             plot_truth = truth_resim
             plot_pred = pred_resim
         else:
