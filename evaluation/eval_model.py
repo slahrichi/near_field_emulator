@@ -34,7 +34,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         results_dir = os.path.join(results_dir, f"eval_{wl}")
         os.makedirs(results_dir, exist_ok=True)
     metrics_dir = os.path.join(results_dir, "performance_metrics")
-    output_subdir = "dft_plots" if conf.model.arch != "inverse" else "radii_plots"
+    output_subdir = "dft_plots" if conf.model.arch not in ["inverse", "NA"] else "radii_plots"
     output_dir = os.path.join(results_dir, output_subdir)
     flipbook_dir = os.path.join(results_dir, "flipbooks")
     directories = [metrics_dir, output_dir, flipbook_dir]
@@ -47,7 +47,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         
     # compute relevant metrics across folds
     if model_type != 'autoencoder':
-        plot_mse = True if conf.model.arch not in ['mlp', 'cvnn', 'inverse', 'convTandem'] else False
+        plot_mse = True if conf.model.arch not in ['mlp', 'cvnn', 'inverse', 'convTandem', 'NA'] else False
         print("\nComputing and saving metrics...")
         eval.metrics(test_results, dataset='train', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
         eval.metrics(test_results, dataset='valid', save_fig=True, save_dir=results_dir, plot_mse=plot_mse)
@@ -56,7 +56,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
         for dataset in ['train', 'valid']:
             eval.summarize_na_results(test_results, dataset=dataset, save_dir=results_dir)
     
-    if conf.model.arch != "inverse":    
+    if conf.model.arch not in ["inverse", "NA"]:    
         # visualize performance with DFT fields
         print("\nGenerating DFT field plots...")
         eval.plot_dft_fields(test_results, resub=True, sample_idx=10, save_fig=True, 
@@ -72,7 +72,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
                                   arch=model_type, fold_num=fold_num)
     
     # visualize performance with animation
-    if model_type not in ['autoencoder', 'cvnn', 'mlp', 'inverse', 'convTandem']:
+    if model_type not in ['autoencoder', 'cvnn', 'mlp', 'inverse', 'convTandem', 'NA']:
         print("\nGenerating field animations...")
         eval.animate_fields(test_results, dataset='valid', 
                             seq_len=conf.model.seq_len, save_dir=results_dir)
