@@ -31,6 +31,8 @@ class WaveNA(LightningModule):
         self.na_iters = self.conf.na_iters
         self.K = self.conf.K
         self.lr_scheduler = getattr(self.conf, "lr_scheduler", "None")
+        optimizer_name = getattr(self.conf, "optimizer", "adam")
+        self.inner_optimizer_name = optimizer_name.lower() if isinstance(optimizer_name, str) else "adam"
         self.loss_func = self.conf.objective_function
         self.fold_idx = fold_idx
         self.name = self.conf.arch
@@ -108,6 +110,17 @@ class WaveNA(LightningModule):
         seeds = self.radii_lower_bound.unsqueeze(0) + rand * self.radii_range.unsqueeze(0)
         return torch.nn.Parameter(seeds)
 
+    def _build_inner_optimizer(self, candidates):
+        if self.inner_optimizer_name == 'adam':
+            return torch.optim.Adam([candidates], lr=self.learning_rate)
+        if self.inner_optimizer_name == 'sgd':
+            return torch.optim.SGD([candidates], lr=self.learning_rate)
+
+        requested = getattr(self.conf, "optimizer", self.inner_optimizer_name)
+        raise ValueError(
+            f"Unsupported inner optimizer '{requested}'. Supported options are 'adam' and 'sgd'."
+        )
+
     def _step_scheduler(self, scheduler, loss):
         if scheduler is None:
             return
@@ -132,7 +145,7 @@ class WaveNA(LightningModule):
         target_imag_rep = target_imag.repeat_interleave(self.K, dim=0)
 
         candidates = self._initial_seed(batch_size, device, dtype)
-        inner_optimizer = torch.optim.Adam([candidates], lr=self.learning_rate)
+        inner_optimizer = self._build_inner_optimizer(candidates)
 
         scheduler = None
         if self.lr_scheduler == 'ReduceLROnPlateau':
