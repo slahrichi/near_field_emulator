@@ -48,7 +48,7 @@ model:
     # - model_id: model identifier / name
 
     arch:  10
-    model_id: "na_bug_fixed"
+    model_id: "na_bug_fixed_ground_truth"
 
     # General Model Parameters
 
