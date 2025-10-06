@@ -9,7 +9,7 @@
 # - 0: local
 # - 1: kubernetes
 
-directive: 1
+directive: 0
 deployment: 1   
 
 #--------------------------------
@@ -47,21 +47,21 @@ model:
         # - 11: WaveInverseConvMLP
     # - model_id: model identifier / name
 
-    arch: 10
-    model_id: "inverse_na_10k"
+    arch:  1
+    model_id: "forward_na_bad"
 
     # General Model Parameters
 
     optimizer: 'ADAM'
-    learning_rate: 1.e-3
+    learning_rate: 1.e-4
     lr_scheduler: 'ReduceLROnPlateau'
     #lr_scheduler: 'CosineAnnealingLR'
     load_checkpoint: False
     objective_function: 'mse'
     #objective_function: "resim"    
     #objective_function: "resim_bdy" 
-    forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_na/model.ckpt"
-    forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na/params.yaml"
+    #forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_na/model.ckpt"
+    #forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na/params.yaml"
     na_iters: 1000
     K: 10000
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
@@ -92,7 +92,7 @@ model:
         activation: 'relu'
 
     cvnn:
-        layers: [64, 512] # forward
+        layers: [64, 128] # forward
         #layers: [512, 64] # inverse
         #conv_layers: [[16, 5, 5], [32, 5, 5]]
         #layers: [512, 64]
