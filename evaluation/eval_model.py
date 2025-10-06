@@ -79,7 +79,7 @@ def plotting(conf, test_results, results_dir, fold_num=None, transfer=False):
     
     print(f"\nEvaluation complete. All results saved to: {results_dir}")
 
-def run(conf):
+def run(conf, generate_plots: bool = True, extra_callbacks=None):
     # use current params to get results directory
     results_dir = conf.paths.results
     
@@ -128,7 +128,7 @@ def run(conf):
             model_instance.test_results[mode][key] =  []
     
     # setup the trainer
-    trainer = train.configure_trainer(saved_conf, logger, checkpoint_callback, early_stopping, progress_bar)
+    trainer = train.configure_trainer(saved_conf, logger, checkpoint_callback, early_stopping, progress_bar, extra_callbacks=extra_callbacks)
     
     # determine if we're evaluating on a different wavelength
     transfer_eval = saved_conf.data.eval_wavelength != saved_conf.data.wavelength
@@ -153,7 +153,8 @@ def run(conf):
     trainer.test(model_instance, dataloaders=[data_module.val_dataloader(), data_module.train_dataloader()])
     
     # evaluate
-    plotting(saved_conf, model_instance.test_results, 
-            results_dir, transfer=transfer_eval)
-    
-    
+    if generate_plots:
+        plotting(saved_conf, model_instance.test_results, 
+                results_dir, transfer=transfer_eval)
+
+    return model_instance

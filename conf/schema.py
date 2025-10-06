@@ -57,6 +57,13 @@ class ModelConfig(BaseModel):
     patch_size: int = 3
     num_design_conf: int = 9
     interpolate_fields: bool = False
+    na_seed_strategy: Literal['random', 'ground_truth', 'jitter'] = 'random'
+    na_seed_jitter_std: float = 0.01
+    na_track_stabilization: bool = False
+    na_stabilization_tol: float = 1e-4
+    na_enable_early_exit: bool = False
+    na_early_exit_tol: float = 1e-3
+    na_early_exit_patience: int = 1
     lstm: LSTMConfig = None
     modelstm: ModesConfig = None
     convlstm: ConvLSTMConfig = None

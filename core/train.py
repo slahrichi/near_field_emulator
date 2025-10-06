@@ -67,7 +67,7 @@ class CustomEarlyStopping(EarlyStopping):
                 print(f"Epoch {trainer.current_epoch}: Monitored metric {self.monitor} = {current_score:.6f}. "
                       f"Patience count = {self.wait_count}/{self.patience}.")
            
-def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar):
+def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progress_bar, extra_callbacks=None):
     """Create and return a configured Trainer instance."""
     trainer_kwargs = {
         'logger': logger,
@@ -82,6 +82,9 @@ def configure_trainer(conf, logger, checkpoint_callback, early_stopping, progres
         'log_every_n_steps': 1,
         'inference_mode': False
     }
+
+    if extra_callbacks:
+        trainer_kwargs['callbacks'].extend(extra_callbacks)
 
     if torch.cuda.is_available():
         trainer_kwargs.update({
