@@ -48,7 +48,7 @@ model:
     # - model_id: model identifier / name
 
     arch: 10
-    model_id: "inverse_na_sgd"
+    model_id: "inverse_na_10k_K"
 
     # General Model Parameters
 
