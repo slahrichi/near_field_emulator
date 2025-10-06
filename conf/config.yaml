@@ -47,23 +47,23 @@ model:
         # - 11: WaveInverseConvMLP
     # - model_id: model identifier / name
 
-    arch:  1
-    model_id: "forward_na_bad"
+    arch:  10
+    model_id: "na_bug_fixed"
 
     # General Model Parameters
 
     optimizer: 'ADAM'
-    learning_rate: 1.e-4
+    learning_rate: 1.e-3
     lr_scheduler: 'ReduceLROnPlateau'
     #lr_scheduler: 'CosineAnnealingLR'
     load_checkpoint: False
     objective_function: 'mse'
     #objective_function: "resim"    
     #objective_function: "resim_bdy" 
-    #forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_na/model.ckpt"
-    #forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na/params.yaml"
-    na_iters: 1000
-    K: 10000
+    forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_na_new/model.ckpt"
+    forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na_new/params.yaml"
+    na_iters: 100
+    K: 1000
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
     conv_out_channels: 16
     source: 'fields' # 'fields' or 'projections'
@@ -193,7 +193,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 8
-    num_epochs: 100 # maximum
+    num_epochs: 1 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
