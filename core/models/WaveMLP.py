@@ -299,11 +299,6 @@ class WaveMLP(LightningModule):
             # Mean Squared Error
             preds = preds.to(torch.float32).contiguous()
             labels = labels.to(torch.float32).contiguous()
-            
-            # Check if values are unusually large for debugging
-            if torch.max(torch.abs(preds)) > 100 or torch.max(torch.abs(labels)) > 100:
-                print(f"WARNING: Large values detected - Preds range: [{preds.min():.2f}, {preds.max():.2f}], Labels range: [{labels.min():.2f}, {labels.max():.2f}]")
-            
             fn = torch.nn.MSELoss()
             loss = fn(preds, labels)
         elif choice == 'emd':
@@ -369,16 +364,9 @@ class WaveMLP(LightningModule):
                 labels_imag = projections.imag
                 preds_real = predictions.real
                 preds_imag = predictions.imag
-                
-                # Print debug info to understand the scale of values
-                if self.global_step % 10 == 0:  # Only print occasionally
-                    print(f"Debug - Projections range: Real {labels_real.min():.4f} to {labels_real.max():.4f}, Imag {labels_imag.min():.4f} to {labels_imag.max():.4f}")
-                    print(f"Debug - Predictions range: Real {preds_real.min():.4f} to {preds_real.max():.4f}, Imag {preds_imag.min():.4f} to {preds_imag.max():.4f}")
             else:
-                labels_real = projections.real
-                labels_imag = projections.imag
-                preds_real = predictions.real
-                preds_imag = predictions.imag
+                labels = projections
+                preds = predictions
 
             loss_real = self.compute_loss(preds_real, labels_real, choice=self.loss_func)
             loss_imag = self.compute_loss(preds_imag, labels_imag, choice=self.loss_func)
