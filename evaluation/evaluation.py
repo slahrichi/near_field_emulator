@@ -304,14 +304,28 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
     mae = np.mean(np.abs(truth - pred))
     mse = np.mean((truth - pred) ** 2)
     rmse = np.sqrt(mse)
-    if truth_resim is not None:
+
+    resim_mse = np.nan
+    resim_rmse = np.nan
+    resim_mse_std = None
+    if truth_resim is not None and pred_resim is not None:
         truth_resim_all = np.asarray(truth_resim)
         pred_resim_all = np.asarray(pred_resim)
-        resim_mse = np.mean((truth_resim_all - pred_resim_all) ** 2)
-        resim = np.sqrt(resim_mse)
-    else:
-        resim_mse = 0.0
-        resim = 0.0
+
+        if truth_resim_all.shape != pred_resim_all.shape:
+            raise ValueError(
+                f"Resimulation tensors must share shape. Got truth {truth_resim_all.shape}, pred {pred_resim_all.shape}."
+            )
+
+        truth_resim_all = truth_resim_all.astype(np.float64, copy=False)
+        pred_resim_all = pred_resim_all.astype(np.float64, copy=False)
+
+        resim_error = truth_resim_all - pred_resim_all
+        reduction_axes = tuple(range(1, resim_error.ndim)) if resim_error.ndim > 1 else ()
+        resim_mse_per_sample = np.mean(resim_error ** 2, axis=reduction_axes)
+        resim_mse = float(np.mean(resim_mse_per_sample))
+        resim_rmse = float(np.sqrt(resim_mse))
+        resim_mse_std = float(np.std(resim_mse_per_sample, ddof=0))
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
@@ -347,11 +361,13 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
         'MSE': mse,                # explicit MSE for predictions (radii or fields)
         'RMSE': rmse,              # kept for backward compatibility
         'Resim_MSE': resim_mse,    # explicit resimulation MSE
-        'Resim': resim,            # kept for backward compatibility (RMSE of resim)
+        'Resim': resim_rmse,       # kept for backward compatibility (RMSE of resim)
         'Correlation': correlation,
         'PSNR': psnr.item(),
         'SSIM': ssim.item()
     }
+    if resim_mse_std is not None:
+        out['Resim_MSE_Std'] = resim_mse_std
     if rmse_first_slice is not None:
         out['RMSE_First_Slice'] = f"{rmse_first_slice:.4e} +/- {first_slice_std:.4e}"
     if rmse_final_slice is not None:

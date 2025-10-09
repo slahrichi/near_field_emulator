@@ -203,6 +203,26 @@ class WaveNA(LightningModule):
                 sync_dist=True
             )
 
+        initial_field_mse = _safe_tensor(debug_info.get('initial_field_mse'))
+        if initial_field_mse is not None:
+            self.log(
+                f"{stage_prefix}_na_initial_field_mse",
+                initial_field_mse.mean(),
+                on_step=False,
+                on_epoch=True,
+                sync_dist=True
+            )
+
+        final_field_mse = _safe_tensor(debug_info.get('final_field_mse'))
+        if final_field_mse is not None:
+            self.log(
+                f"{stage_prefix}_na_final_field_mse",
+                final_field_mse.mean(),
+                on_step=False,
+                on_epoch=True,
+                sync_dist=True
+            )
+
         early_exit_iter = debug_info.get('early_exit_iter')
         if isinstance(early_exit_iter, int):
             self.log(
@@ -315,6 +335,8 @@ class WaveNA(LightningModule):
             initial_mse = F.mse_loss(initial_snapshot, target_repeat, reduction='none').flatten(2).mean(dim=2)
             debug_info['initial_best_mse'] = initial_mse.min(dim=0)[0].detach()
 
+        debug_info['initial_field_mse'] = None
+
         gather_helper = torch.arange(batch_size, device=device)
 
         grad_mode = torch.is_grad_enabled()
@@ -328,14 +350,43 @@ class WaveNA(LightningModule):
                         total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
                             pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
                         )
+
+                        mse_matrix_iter = mse.view(self.K, batch_size)
+                        best_mse_iter, best_indices_iter = mse_matrix_iter.min(dim=0)
+
+                        if self.na_enable_early_exit:
+                            with torch.no_grad():
+                                candidates_view = candidates.detach().view(self.K, batch_size, self.num_design_conf)
+                                best_design_iter = candidates_view.permute(1, 0, 2)[gather_helper, best_indices_iter]
+                                initial_best_iter = initial_candidates.permute(1, 0, 2)[gather_helper, best_indices_iter]
+                                displacement_iter = (best_design_iter - initial_best_iter).abs().max(dim=1)[0]
+                                max_disp = displacement_iter.max()
+                                if max_disp <= self.na_early_exit_tol:
+                                    early_exit_counter += 1
+                                    last_displacement = displacement_iter.detach()
+                                    last_mse = mse.detach()
+                                    last_candidate_loss = candidate_loss.detach()
+                                    last_total_loss = total_loss.detach()
+                                    if early_exit_counter >= self.na_early_exit_patience:
+                                        early_exit_iter = iter_idx
+                                        break
+                                else:
+                                    early_exit_counter = 0
+
+                        if iter_idx == 0 and debug_info.get('initial_field_mse') is None:
+                            debug_info['initial_field_mse'] = best_mse_iter.detach()
+
                         total_loss.backward()
                         inner_optimizer.step()
 
                         with torch.no_grad():
                             candidates.data.clamp_(lower_bound_tensor, upper_bound_tensor)
 
-                        mse_matrix_iter = mse.view(self.K, batch_size)
-                        best_mse_iter, best_indices_iter = mse_matrix_iter.min(dim=0)
+                            candidates_view = candidates.view(self.K, batch_size, self.num_design_conf)
+                            best_design_iter = candidates_view.permute(1, 0, 2)[gather_helper, best_indices_iter]
+                            initial_best_iter = initial_candidates.permute(1, 0, 2)[gather_helper, best_indices_iter]
+                            displacement_iter = (best_design_iter - initial_best_iter).abs().max(dim=1)[0]
+                            last_displacement = displacement_iter.detach()
 
                         last_mse = mse.detach()
                         last_candidate_loss = candidate_loss.detach()
@@ -348,20 +399,6 @@ class WaveNA(LightningModule):
                                 stabilization_iters[newly_stabilized] = iter_idx
                                 stabilized_mask |= newly_stabilized
                             prev_best_mse = best_mse_iter.detach()
-
-                        if self.na_enable_early_exit:
-                            candidates_view = candidates.detach().view(self.K, batch_size, self.num_design_conf)
-                            best_design_iter = candidates_view.permute(1, 0, 2)[gather_helper, best_indices_iter]
-                            initial_best_iter = initial_candidates.permute(1, 0, 2)[gather_helper, best_indices_iter]
-                            displacement_iter = (best_design_iter - initial_best_iter).abs().max(dim=1)[0]
-                            last_displacement = displacement_iter.detach()
-                            if displacement_iter.max() <= self.na_early_exit_tol:
-                                early_exit_counter += 1
-                                if early_exit_counter >= self.na_early_exit_patience:
-                                    early_exit_iter = iter_idx
-                                    break
-                            else:
-                                early_exit_counter = 0
 
             if scheduler is not None and last_total_loss is not None:
                 self._step_scheduler(scheduler, last_total_loss)
@@ -390,6 +427,12 @@ class WaveNA(LightningModule):
         if early_exit_iter is not None:
             debug_info['early_exit_iter'] = early_exit_iter
 
+        debug_info['final_field_mse'] = mse_matrix.min(dim=0)[0].detach()
+
+        if debug_info.get('initial_field_mse') is None:
+            debug_info['initial_field_mse'] = mse_matrix.min(dim=0)[0].detach()
+
+        debug_info = {key: value for key, value in debug_info.items() if value is not None}
         self.latest_debug_info = debug_info
 
         return best_designs, mse_matrix.detach(), last_candidate_loss.view(self.K, batch_size).detach(), debug_info
