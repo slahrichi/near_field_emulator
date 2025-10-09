@@ -62,7 +62,7 @@ model:
     #objective_function: "resim_bdy" 
     forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_bad_forward/model.ckpt"
     forward_config_path: "/develop/results/meep_meep/cvnn/model_bad_forward/params.yaml"
-    na_iters: 1000
+    na_iters: 100
     K: 1000
     na_seed_strategy: "ground_truth"
     na_track_stabilization: True
