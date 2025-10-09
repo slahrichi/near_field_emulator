@@ -48,7 +48,7 @@ model:
     # - model_id: model identifier / name
 
     arch:  10
-    model_id: "na_stay_put"
+    model_id: "na_jitter"
 
     # General Model Parameters
 
@@ -64,7 +64,7 @@ model:
     forward_config_path: "/develop/results/meep_meep/cvnn/model_bad_forward/params.yaml"
     na_iters: 100
     K: 1000
-    na_seed_strategy: "ground_truth"
+    na_seed_strategy: "jitter"
     na_track_stabilization: True
     na_enable_early_exit: False
     radii_bounds: [0.0750, 0.2500] # check units! these are in nm
