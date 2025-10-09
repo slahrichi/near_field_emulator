@@ -47,8 +47,8 @@ model:
         # - 11: WaveInverseConvMLP
     # - model_id: model identifier / name
 
-    arch:  1
-    model_id: "bad_forward"
+    arch:  10
+    model_id: "na_bad_forward"
 
     # General Model Parameters
 
@@ -60,8 +60,8 @@ model:
     objective_function: 'mse'
     #objective_function: "resim"    
     #objective_function: "resim_bdy" 
-    forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_na_new/model.ckpt"
-    forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na_new/params.yaml"
+    forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_bad_forward/model.ckpt"
+    forward_config_path: "/develop/results/meep_meep/cvnn/model_bad_forward/params.yaml"
     na_iters: 100
     K: 1000
     na_seed_strategy: "random"
@@ -196,7 +196,7 @@ model:
 #--------------------------------
 trainer:
     batch_size: 8
-    num_epochs: 100 # maximum
+    num_epochs: 1 # maximum
 
     accelerator: 'gpu' 
     gpu_config: [True, [0]]
