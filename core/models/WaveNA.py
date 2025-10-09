@@ -369,6 +369,12 @@ class WaveNA(LightningModule):
                                     last_total_loss = total_loss.detach()
                                     if early_exit_counter >= self.na_early_exit_patience:
                                         early_exit_iter = iter_idx
+                                        if self.na_track_stabilization and stabilization_iters is not None:
+                                            if stabilized_mask is not None:
+                                                remaining_mask = ~stabilized_mask
+                                                stabilization_iters[remaining_mask] = iter_idx
+                                            else:
+                                                stabilization_iters.fill_(iter_idx)
                                         break
                                 else:
                                     early_exit_counter = 0
