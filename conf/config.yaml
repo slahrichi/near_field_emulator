@@ -48,7 +48,7 @@ model:
     # - model_id: model identifier / name
 
     arch:  10
-    model_id: "na_1e-5"
+    model_id: "na_1k_iters"
 
     # General Model Parameters
 
@@ -62,8 +62,8 @@ model:
     #objective_function: "resim_bdy" 
     forward_ckpt_path : "/develop/results/meep_meep/cvnn/model_forward_na_new/model.ckpt"
     forward_config_path: "/develop/results/meep_meep/cvnn/model_forward_na_new/params.yaml"
-    na_iters: 100
-    K: 1000
+    na_iters: 1000
+    K: 3000
     na_seed_strategy: "random"
     na_track_stabilization: True
     na_enable_early_exit: False
