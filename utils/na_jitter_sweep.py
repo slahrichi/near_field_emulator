@@ -10,9 +10,20 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 import torch
 
-from conf.schema import load_config
-from evaluation import eval_model
-from utils.na_debug_utils import NADebugCallback, save_debug_history
+try:
+    from near_field_emulator.conf.schema import load_config
+    from near_field_emulator.evaluation import eval_model
+    from near_field_emulator.utils.na_debug_utils import NADebugCallback, save_debug_history
+except ModuleNotFoundError:  # Support running as a script from repo root
+    import sys
+    from pathlib import Path as _Path
+
+    repo_root = _Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(repo_root))
+
+    from conf.schema import load_config
+    from evaluation import eval_model
+    from utils.na_debug_utils import NADebugCallback, save_debug_history
 
 
 def summarize_tensor_entries(entries: Iterable[Dict[str, torch.Tensor]], key: str) -> Optional[Tuple[float, float, float]]:
