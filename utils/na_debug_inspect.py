@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 from typing import List, Optional
+import sys
 
 try:
     from near_field_emulator.conf.schema import load_config
@@ -17,20 +18,29 @@ try:
         save_debug_history,
     )
 except ModuleNotFoundError:
-    import sys
-    from pathlib import Path as _Path
+    try:
+        from conf.schema import load_config
+        from evaluation import eval_model
+        from utils.na_debug_utils import (
+            NADebugCallback,
+            extract_debug_history,
+            extract_latest_debug_info,
+            save_debug_history,
+        )
+    except ModuleNotFoundError:
+        from pathlib import Path as _Path
 
-    repo_root = _Path(__file__).resolve().parents[2]
-    sys.path.insert(0, str(repo_root))
+        repo_root = _Path(__file__).resolve().parents[2]
+        sys.path.insert(0, str(repo_root))
 
-    from conf.schema import load_config
-    from evaluation import eval_model
-    from utils.na_debug_utils import (
-        NADebugCallback,
-        extract_debug_history,
-        extract_latest_debug_info,
-        save_debug_history,
-    )
+        from conf.schema import load_config
+        from evaluation import eval_model
+        from utils.na_debug_utils import (
+            NADebugCallback,
+            extract_debug_history,
+            extract_latest_debug_info,
+            save_debug_history,
+        )
 
 
 def parse_stage_filter(stage_arg: Optional[str]) -> Optional[List[str]]:
