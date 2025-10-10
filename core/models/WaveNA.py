@@ -110,16 +110,23 @@ class WaveNA(LightningModule):
     def _compute_candidate_losses(self, pred_real, pred_imag, target_real, target_imag, candidates, batch_size):
         mse_real = F.mse_loss(pred_real, target_real, reduction='none')
         mse_imag = F.mse_loss(pred_imag, target_imag, reduction='none')
-        mse = (mse_real + mse_imag).flatten(1).mean(dim=1)
+
+        mse_real_flat = mse_real.flatten(1)
+        mse_imag_flat = mse_imag.flatten(1)
+        channel_mean_real = mse_real_flat.mean(dim=1)
+        channel_mean_imag = mse_imag_flat.mean(dim=1)
+
+        mse_sum = channel_mean_real + channel_mean_imag
+        field_mse = 0.5 * mse_sum
 
         deviation = torch.abs(candidates - self.radii_mean.unsqueeze(0)) - 0.5 * self.radii_range.unsqueeze(0)
         boundary_penalty = F.relu(deviation).sum(dim=1) * self.inner_boundary_weight
 
-        total_candidate_loss = mse + boundary_penalty
+        total_candidate_loss = mse_sum + boundary_penalty
         loss_per_target = total_candidate_loss.view(self.K, batch_size).mean(dim=0)
         total_loss = loss_per_target.mean()
 
-        return total_loss, total_candidate_loss, mse.detach(), boundary_penalty.detach()
+        return total_loss, total_candidate_loss, mse_sum.detach(), boundary_penalty.detach(), field_mse.detach()
 
     def _initial_seed(self, batch_size, device, dtype, target_radii=None):
         lower = self.radii_lower_bound.to(device=device, dtype=dtype).unsqueeze(0)
@@ -316,6 +323,7 @@ class WaveNA(LightningModule):
         last_candidate_loss = None
         last_total_loss = None
         last_displacement = None
+        last_field_mse = None
 
         debug_info = {}
 
@@ -347,13 +355,15 @@ class WaveNA(LightningModule):
                     for iter_idx in range(self.na_iters):
                         inner_optimizer.zero_grad()
                         pred_real, pred_imag = self._run_forward(candidates)
-                        total_loss, candidate_loss, mse, _ = self._compute_candidate_losses(
+                        total_loss, candidate_loss, mse, _, field_mse = self._compute_candidate_losses(
                             pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
                         )
 
                         mse_matrix_iter = mse.view(self.K, batch_size)
+                        field_mse_matrix_iter = field_mse.view(self.K, batch_size)
                         best_mse_iter, best_indices_iter = mse_matrix_iter.min(dim=0)
 
+                        field_mse_matrix_iter = field_mse.view(self.K, batch_size)
                         if self.na_enable_early_exit:
                             with torch.no_grad():
                                 candidates_view = candidates.detach().view(self.K, batch_size, self.num_design_conf)
@@ -367,6 +377,7 @@ class WaveNA(LightningModule):
                                     last_mse = mse.detach()
                                     last_candidate_loss = candidate_loss.detach()
                                     last_total_loss = total_loss.detach()
+                                    last_field_mse = field_mse.detach()
                                     if early_exit_counter >= self.na_early_exit_patience:
                                         early_exit_iter = iter_idx
                                         if self.na_track_stabilization and stabilization_iters is not None:
@@ -379,8 +390,9 @@ class WaveNA(LightningModule):
                                 else:
                                     early_exit_counter = 0
 
+                        field_best_iter = field_mse_matrix_iter.permute(1, 0)[gather_helper, best_indices_iter]
                         if iter_idx == 0 and debug_info.get('initial_field_mse') is None:
-                            debug_info['initial_field_mse'] = best_mse_iter.detach()
+                            debug_info['initial_field_mse'] = field_best_iter.detach()
 
                         total_loss.backward()
                         inner_optimizer.step()
@@ -397,6 +409,7 @@ class WaveNA(LightningModule):
                         last_mse = mse.detach()
                         last_candidate_loss = candidate_loss.detach()
                         last_total_loss = total_loss.detach()
+                        last_field_mse = field_mse.detach()
 
                         if self.na_track_stabilization:
                             if prev_best_mse is not None:
@@ -413,6 +426,7 @@ class WaveNA(LightningModule):
 
         candidates_final = candidates.detach().view(self.K, batch_size, self.num_design_conf)
         mse_matrix = last_mse.view(self.K, batch_size)
+        field_mse_matrix = last_field_mse.view(self.K, batch_size)
         best_indices = torch.argmin(mse_matrix, dim=0)
 
         best_designs = candidates_final.permute(1, 0, 2)[gather_helper, best_indices]
@@ -433,10 +447,11 @@ class WaveNA(LightningModule):
         if early_exit_iter is not None:
             debug_info['early_exit_iter'] = early_exit_iter
 
-        debug_info['final_field_mse'] = mse_matrix.min(dim=0)[0].detach()
+        final_field_best = field_mse_matrix.permute(1, 0)[gather_helper, best_indices].detach()
+        debug_info['final_field_mse'] = final_field_best
 
         if debug_info.get('initial_field_mse') is None:
-            debug_info['initial_field_mse'] = mse_matrix.min(dim=0)[0].detach()
+            debug_info['initial_field_mse'] = final_field_best
 
         debug_info = {key: value for key, value in debug_info.items() if value is not None}
         self.latest_debug_info = debug_info
@@ -451,7 +466,11 @@ class WaveNA(LightningModule):
         radii = radii.to(torch.float32)
 
         loss = F.mse_loss(optimized_design, radii)
-        per_sample_field_mse = mse_matrix.min(dim=0)[0].mean()
+        final_field_values = debug_info.get('final_field_mse')
+        if isinstance(final_field_values, torch.Tensor):
+            per_sample_field_mse = final_field_values.mean()
+        else:
+            per_sample_field_mse = mse_matrix.min(dim=0)[0].mean()
 
         self.log("train_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         self.log("train_field_mse", per_sample_field_mse, prog_bar=False, on_step=False, on_epoch=True, sync_dist=True)
@@ -469,7 +488,11 @@ class WaveNA(LightningModule):
         radii = radii.to(torch.float32)
 
         loss = F.mse_loss(optimized_design, radii)
-        per_sample_field_mse = mse_matrix.min(dim=0)[0].mean()
+        final_field_values = debug_info.get('final_field_mse')
+        if isinstance(final_field_values, torch.Tensor):
+            per_sample_field_mse = final_field_values.mean()
+        else:
+            per_sample_field_mse = mse_matrix.min(dim=0)[0].mean()
 
         self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True, sync_dist=True)
         self.log("val_field_mse", per_sample_field_mse, prog_bar=False, on_step=False, on_epoch=True, sync_dist=True)
