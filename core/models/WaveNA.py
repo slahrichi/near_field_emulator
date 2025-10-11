@@ -324,11 +324,8 @@ class WaveNA(LightningModule):
         elif self.lr_scheduler == 'CosineAnnealingLR':
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(inner_optimizer, T_max=max(1, self.na_iters))
 
-        last_mse = None
-        last_candidate_loss = None
         last_total_loss = None
         last_displacement = None
-        last_field_mse = None
 
         debug_info = {}
 
@@ -342,6 +339,9 @@ class WaveNA(LightningModule):
 
         early_exit_counter = 0
         early_exit_iter = None
+
+        best_design_overall = None
+        best_mse_overall = torch.full((batch_size,), float('inf'), device=device, dtype=dtype)
 
         if target_radii is not None:
             target_repeat = target_radii.unsqueeze(0).expand(self.K, batch_size, self.num_design_conf)
@@ -363,9 +363,8 @@ class WaveNA(LightningModule):
                         if use_chunking:
                             total_candidates = self.K * batch_size
                             total_loss_sum = torch.zeros((), device=device, dtype=candidates.dtype)
-                            candidate_loss_storage = torch.empty(total_candidates, device=device, dtype=candidates.dtype)
-                            mse_storage = torch.empty_like(candidate_loss_storage)
-                            field_mse_storage = torch.empty_like(candidate_loss_storage)
+                            mse_storage = torch.empty(total_candidates, device=device, dtype=candidates.dtype)
+                            field_mse_storage = torch.empty_like(mse_storage)
 
                             chunk_size = min(self.na_chunk_size, self.K)
                             for chunk_start in range(0, self.K, chunk_size):
@@ -385,20 +384,17 @@ class WaveNA(LightningModule):
                                 )
 
                                 total_loss_sum = total_loss_sum + chunk_candidate_loss.sum()
-                                candidate_loss_storage[idx_start:idx_end] = chunk_candidate_loss.detach()
                                 mse_storage[idx_start:idx_end] = chunk_mse.detach()
                                 field_mse_storage[idx_start:idx_end] = chunk_field_mse.detach()
 
                             total_loss = total_loss_sum / (self.K * batch_size)
-                            candidate_loss = candidate_loss_storage
                             mse = mse_storage
                             field_mse = field_mse_storage
                         else:
                             pred_real, pred_imag = self._run_forward(candidates)
-                            total_loss, candidate_loss_raw, mse_raw, _, field_mse_raw = self._compute_candidate_losses(
+                            total_loss, _, mse_raw, _, field_mse_raw = self._compute_candidate_losses(
                                 pred_real, pred_imag, target_real_rep, target_imag_rep, candidates, batch_size
                             )
-                            candidate_loss = candidate_loss_raw.detach()
                             mse = mse_raw.detach()
                             field_mse = field_mse_raw.detach()
 
@@ -416,10 +412,7 @@ class WaveNA(LightningModule):
                                 if max_disp <= self.na_early_exit_tol:
                                     early_exit_counter += 1
                                     last_displacement = displacement_iter.detach()
-                                    last_mse = mse.clone()
-                                    last_candidate_loss = candidate_loss.clone()
                                     last_total_loss = total_loss.detach()
-                                    last_field_mse = field_mse.clone()
                                     if early_exit_counter >= self.na_early_exit_patience:
                                         early_exit_iter = iter_idx
                                         if self.na_track_stabilization and stabilization_iters is not None:
@@ -458,14 +451,17 @@ class WaveNA(LightningModule):
 
                             candidates_view = candidates.view(self.K, batch_size, self.num_design_conf)
                             best_design_iter = candidates_view.permute(1, 0, 2)[gather_helper, best_indices_iter]
-                            initial_best_iter = initial_candidates.permute(1, 0, 2)[gather_helper, best_indices_iter]
-                            displacement_iter = (best_design_iter - initial_best_iter).abs().max(dim=1)[0]
-                            last_displacement = displacement_iter.detach()
 
-                        last_mse = mse.clone()
-                        last_candidate_loss = candidate_loss.clone()
+                            # Check if this iteration has a better MSE for any sample
+                            is_better = best_mse_iter < best_mse_overall
+                            if torch.any(is_better):
+                                best_mse_overall[is_better] = best_mse_iter[is_better]
+                                if best_design_overall is None:
+                                    best_design_overall = best_design_iter.clone()
+                                else:
+                                    best_design_overall[is_better] = best_design_iter[is_better]
+
                         last_total_loss = total_loss.detach()
-                        last_field_mse = field_mse.clone()
 
                         if self.na_track_stabilization:
                             if prev_best_mse is not None:
@@ -480,12 +476,29 @@ class WaveNA(LightningModule):
         finally:
             torch.set_grad_enabled(grad_mode)
 
+        with torch.no_grad():
+            pred_real_final, pred_imag_final = self._run_forward(candidates)
+            _, candidate_losses_final, mse_final, _, field_mse_final = self._compute_candidate_losses(
+                pred_real_final,
+                pred_imag_final,
+                target_real_rep,
+                target_imag_rep,
+                candidates,
+                batch_size,
+                num_seeds=self.K
+            )
+
+        candidate_losses_final = candidate_losses_final.detach()
+        mse_final = mse_final.detach()
+        field_mse_final = field_mse_final.detach()
+
         candidates_final = candidates.detach().view(self.K, batch_size, self.num_design_conf)
-        mse_matrix = last_mse.view(self.K, batch_size)
-        field_mse_matrix = last_field_mse.view(self.K, batch_size)
+        mse_matrix = mse_final.view(self.K, batch_size)
+        field_mse_matrix = field_mse_final.view(self.K, batch_size)
         best_indices = torch.argmin(mse_matrix, dim=0)
 
-        best_designs = candidates_final.permute(1, 0, 2)[gather_helper, best_indices]
+        best_designs = best_design_overall if best_design_overall is not None else candidates.view(self.K, batch_size, self.num_design_conf).permute(1, 0, 2)[gather_helper, best_indices]
+
 
         if stabilization_iters is not None:
             debug_info['stabilization_iters'] = stabilization_iters.detach()
@@ -512,7 +525,7 @@ class WaveNA(LightningModule):
         debug_info = {key: value for key, value in debug_info.items() if value is not None}
         self.latest_debug_info = debug_info
 
-        return best_designs, mse_matrix.detach(), last_candidate_loss.view(self.K, batch_size).detach(), debug_info
+        return best_designs, mse_matrix.detach(), candidate_losses_final.view(self.K, batch_size), debug_info
         
     def training_step(self, batch, batch_idx):
         near_fields, radii = batch
