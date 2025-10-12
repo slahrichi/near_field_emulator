@@ -76,8 +76,8 @@ class WaveNA(LightningModule):
         self.save_hyperparameters()
 
         self.test_results = {
-            'train': {'radii_pred': [], 'radii_truth': [], 'field_resim': [], 'field_truth': []},
-            'valid': {'radii_pred': [], 'radii_truth': [], 'field_resim': [], 'field_truth': []}
+            'train': {'radii_pred': [], 'radii_truth': [], 'field_resim': [], 'field_truth': [], 'field_mse': []},
+            'valid': {'radii_pred': [], 'radii_truth': [], 'field_resim': [], 'field_truth': [], 'field_mse': []}
         }
         self.latest_debug_info = {}
         self.debug_history = {'train': [], 'val': [], 'test': []}
@@ -340,9 +340,6 @@ class WaveNA(LightningModule):
         early_exit_counter = 0
         early_exit_iter = None
 
-        best_design_overall = None
-        best_mse_overall = torch.full((batch_size,), float('inf'), device=device, dtype=dtype)
-
         if target_radii is not None:
             target_repeat = target_radii.unsqueeze(0).expand(self.K, batch_size, self.num_design_conf)
             initial_mse = F.mse_loss(initial_snapshot, target_repeat, reduction='none').flatten(2).mean(dim=2)
@@ -450,16 +447,8 @@ class WaveNA(LightningModule):
                             candidates.data.clamp_(lower_bound_tensor, upper_bound_tensor)
 
                             candidates_view = candidates.view(self.K, batch_size, self.num_design_conf)
+                            # best_design_iter is only used for progress logging and displacement
                             best_design_iter = candidates_view.permute(1, 0, 2)[gather_helper, best_indices_iter]
-
-                            # Check if this iteration has a better MSE for any sample
-                            is_better = best_mse_iter < best_mse_overall
-                            if torch.any(is_better):
-                                best_mse_overall[is_better] = best_mse_iter[is_better]
-                                if best_design_overall is None:
-                                    best_design_overall = best_design_iter.clone()
-                                else:
-                                    best_design_overall[is_better] = best_design_iter[is_better]
 
                         last_total_loss = total_loss.detach()
 
@@ -497,8 +486,7 @@ class WaveNA(LightningModule):
         field_mse_matrix = field_mse_final.view(self.K, batch_size)
         best_indices = torch.argmin(mse_matrix, dim=0)
 
-        best_designs = best_design_overall if best_design_overall is not None else candidates.view(self.K, batch_size, self.num_design_conf).permute(1, 0, 2)[gather_helper, best_indices]
-
+        best_designs = candidates_final.permute(1, 0, 2)[gather_helper, best_indices]
 
         if stabilization_iters is not None:
             debug_info['stabilization_iters'] = stabilization_iters.detach()
@@ -605,12 +593,16 @@ class WaveNA(LightningModule):
 
         with torch.no_grad():
             pred_real, pred_imag = self._run_forward(predictions)
+            if isinstance(pred_real, tuple):
+                raise ValueError("Unexpected nested tuple from forward model")
+            field_pred = torch.stack([pred_real, pred_imag], dim=1)
+            field_truth = near_fields.detach()
+            per_sample_field_mse = F.mse_loss(field_pred, field_truth, reduction='none')
+            per_sample_field_mse = per_sample_field_mse.view(per_sample_field_mse.size(0), -1).mean(dim=1)
 
-        if isinstance(pred_real, tuple):
-            raise ValueError("Unexpected nested tuple from forward model")
-
-        resim_combined = torch.stack([pred_real, pred_imag], dim=1).cpu().numpy()
-        field_combined = near_fields.detach().cpu().numpy()
+        resim_combined = field_pred.cpu().numpy()
+        field_combined = field_truth.cpu().numpy()
+        field_mse_np = per_sample_field_mse.cpu().numpy()
 
         if dataloader_idx == 0:
             store_key = 'valid'
@@ -623,6 +615,7 @@ class WaveNA(LightningModule):
         self.test_results[store_key]['radii_truth'].append(radii.detach().cpu())
         self.test_results[store_key]['field_resim'].append(resim_combined)
         self.test_results[store_key]['field_truth'].append(field_combined)
+        self.test_results[store_key]['field_mse'].append(field_mse_np)
 
     def on_test_end(self):
         # Concatenate results from all batches
@@ -631,6 +624,7 @@ class WaveNA(LightningModule):
             truth_entries = self.test_results[mode]['radii_truth']
             field_pred_entries = self.test_results[mode]['field_resim']
             field_truth_entries = self.test_results[mode]['field_truth']
+            field_mse_entries = self.test_results[mode]['field_mse']
             if isinstance(pred_entries, list) and pred_entries:
                 self.test_results[mode]['radii_pred'] = np.concatenate([tensor.cpu().detach().numpy() for tensor in pred_entries], axis=0)
             if isinstance(truth_entries, list) and truth_entries:
@@ -639,6 +633,8 @@ class WaveNA(LightningModule):
                 self.test_results[mode]['field_resim'] = np.concatenate(field_pred_entries, axis=0)
             if isinstance(field_truth_entries, list) and field_truth_entries:
                 self.test_results[mode]['field_truth'] = np.concatenate(field_truth_entries, axis=0)
+            if isinstance(field_mse_entries, list) and field_mse_entries:
+                self.test_results[mode]['field_mse'] = np.concatenate(field_mse_entries, axis=0)
 
         for dataset in ['train', 'valid']:
             entries = self.test_results[dataset]['radii_pred']

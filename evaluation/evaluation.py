@@ -294,7 +294,7 @@ def plot_loss(conf, min_list=[None, None], max_list=[None, None], save_fig=False
         else:
             plt.show()
 
-def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
+def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None, resim_mse_samples=None):
     """
     Calculate various metrics between ground truth and predictions.
     Also compute MSE at each slice if it's a 5D shape (N, T, R, X, Y).
@@ -326,6 +326,14 @@ def calculate_metrics(truth, pred, truth_resim=None, pred_resim=None):
         resim_mse = float(np.mean(resim_mse_per_sample))
         resim_rmse = float(np.sqrt(resim_mse))
         resim_mse_std = float(np.std(resim_mse_per_sample, ddof=0))
+
+    if resim_mse_samples is not None:
+        samples = np.asarray(resim_mse_samples, dtype=np.float64)
+        samples = samples.reshape(-1) if samples.ndim != 1 else samples
+        if samples.size > 0:
+            resim_mse = float(np.mean(samples))
+            resim_rmse = float(np.sqrt(resim_mse))
+            resim_mse_std = float(np.std(samples, ddof=0))
     correlation = np.corrcoef(truth.flatten(), pred.flatten())[0, 1]
 
     psnr = PeakSignalNoiseRatio(data_range=1.0)(pred_torch, truth_torch)
@@ -395,7 +403,10 @@ def metrics(test_results, fold_idx=None, dataset='valid',
         pred_resim = test_results[dataset]['field_resim']
     std_metrics = ["RMSE_First_Slice", "RMSE_Final_Slice"]
     
-    metrics = calculate_metrics(truth, pred, truth_resim, pred_resim)
+    field_mse_values = test_results[dataset].get('field_mse', None)
+    if isinstance(field_mse_values, list) and field_mse_values:
+        field_mse_values = np.concatenate(field_mse_values, axis=0)
+    metrics = calculate_metrics(truth, pred, truth_resim, pred_resim, resim_mse_samples=field_mse_values)
     print(f"Metrics for {dataset.capitalize()} Dataset:")
     for metric, value in metrics.items():
         if metric in std_metrics:
