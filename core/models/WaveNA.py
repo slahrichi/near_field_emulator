@@ -564,7 +564,7 @@ class WaveNA(LightningModule):
         optimized_design, _, _, debug_info = self.optimize_design(near_fields, target_radii=radii)
         self._log_na_debug_metrics(debug_info, stage_prefix="test")
         self._store_debug_info(debug_info, 'test')
-        self.organize_testing(optimized_design, batch, batch_idx, dataloader_idx)
+        self.organize_testing(optimized_design, batch, batch_idx, dataloader_idx, debug_info=debug_info)
         
     def configure_optimizers(self):
         return []
@@ -585,7 +585,7 @@ class WaveNA(LightningModule):
         else:
             raise ValueError(f"Unsupported activation function: {activation_name}")
 
-    def organize_testing(self, predictions, batch, batch_idx, dataloader_idx):
+    def organize_testing(self, predictions, batch, batch_idx, dataloader_idx, debug_info=None):
         near_fields, radii = batch
         predictions = predictions.detach()
 
@@ -597,12 +597,20 @@ class WaveNA(LightningModule):
                 raise ValueError("Unexpected nested tuple from forward model")
             field_pred = torch.stack([pred_real, pred_imag], dim=1)
             field_truth = near_fields.detach()
-            per_sample_field_mse = F.mse_loss(field_pred, field_truth, reduction='none')
-            per_sample_field_mse = per_sample_field_mse.view(per_sample_field_mse.size(0), -1).mean(dim=1)
+
+        field_mse_tensor = None
+        if isinstance(debug_info, dict):
+            final_field = debug_info.get('final_field_mse')
+            if isinstance(final_field, torch.Tensor):
+                field_mse_tensor = final_field.detach()
+        if field_mse_tensor is None:
+            with torch.no_grad():
+                per_sample_field_mse = F.mse_loss(field_pred, field_truth, reduction='none')
+                field_mse_tensor = per_sample_field_mse.view(per_sample_field_mse.size(0), -1).mean(dim=1)
 
         resim_combined = field_pred.cpu().numpy()
         field_combined = field_truth.cpu().numpy()
-        field_mse_np = per_sample_field_mse.cpu().numpy()
+        field_mse_np = field_mse_tensor.cpu().numpy()
 
         if dataloader_idx == 0:
             store_key = 'valid'
